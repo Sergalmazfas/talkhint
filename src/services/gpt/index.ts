@@ -1,9 +1,11 @@
+
 import GPTBaseService from './GPTBaseService';
 import GPTSuggestionsService from './GPTSuggestionsService';
 import GPTBilingualService from './GPTBilingualService';
 import GPTTranslationService from './GPTTranslationService';
 import { GPTResponse, BilingualResponse, TranslationResponse } from './GPTMocks';
 import { toast } from "sonner";
+import OpenAI from "openai";
 
 /**
  * Main GPT service that combines all the specialized services
@@ -19,6 +21,14 @@ class GPTService {
     this.bilingualService = new GPTBilingualService();
     this.translationService = new GPTTranslationService();
     console.log(`[${new Date().toISOString()}] GPT service initialization complete`);
+  }
+
+  /**
+   * Get a configured OpenAI client instance for direct API calls
+   * Returns null if no API key is set
+   */
+  public getOpenAIClient(): OpenAI | null {
+    return this.suggestionsService.getOpenAIClient();
   }
 
   public setApiKey(key: string): void {

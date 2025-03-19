@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { GPTServiceConfig, DEFAULT_CONFIG, loadApiKeyFromStorage, saveApiKeyToStorage } from './config/GPTServiceConfig';
 import { GPTRequestService } from './utils/GPTRequestService';
 import { GPTLogger } from './utils/GPTLogger';
+import { GPTClientFactory } from './utils/GPTClientFactory';
 
 /**
  * Base service that handles API key management and core OpenAI API functionality
@@ -31,6 +32,14 @@ class GPTBaseService {
 
     // Log server proxy status
     GPTLogger.log(undefined, `Server proxy usage initialized to: ${this.config.useServerProxy}`);
+  }
+
+  /**
+   * Get a configured OpenAI client instance
+   * Returns null if no API key is set
+   */
+  public getOpenAIClient(): OpenAI | null {
+    return GPTClientFactory.createClient(this.config);
   }
 
   public setApiKey(key: string) {
