@@ -141,6 +141,46 @@ class GPTBilingualService extends GPTBaseService {
     console.log('Final extracted responses:', responses);
     return responses.slice(0, 3); // Only return up to 3 responses
   }
+
+  /**
+   * Checks if the API connection is working by making a small test request
+   * @returns A promise that resolves to true if the connection is working, false otherwise
+   */
+  public async checkConnection(): Promise<boolean> {
+    GPTLogger.log(undefined, 'Checking GPT API connection...');
+    
+    if (!this.getApiKey() && !this.config.useServerProxy) {
+      GPTLogger.warn(undefined, 'API key not set and not using server proxy');
+      return false;
+    }
+
+    try {
+      const testMessages = [
+        {
+          role: "system",
+          content: "Respond with a simple 'Connection test successful!' message."
+        },
+        {
+          role: "user",
+          content: "Test connection"
+        }
+      ];
+
+      GPTLogger.log(undefined, 'Making test call to OpenAI API...');
+      const data = await this.callOpenAI(testMessages, 0.1, 20, 1);
+      
+      if (data && data.choices && data.choices.length > 0) {
+        GPTLogger.log(undefined, 'API connection test successful');
+        return true;
+      } else {
+        GPTLogger.warn(undefined, 'API connection test failed: empty response');
+        return false;
+      }
+    } catch (error) {
+      GPTLogger.error(undefined, 'API connection test failed with error:', error);
+      return false;
+    }
+  }
 }
 
 export default GPTBilingualService;

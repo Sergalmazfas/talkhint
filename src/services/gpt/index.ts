@@ -1,4 +1,3 @@
-
 import GPTBaseService from './GPTBaseService';
 import GPTSuggestionsService from './GPTSuggestionsService';
 import GPTBilingualService from './GPTBilingualService';
@@ -36,6 +35,16 @@ class GPTService {
   public setResponseStyle(style: string): void {
     console.log(`[${new Date().toISOString()}] Setting response style: ${style}`);
     this.suggestionsService.setResponseStyle(style);
+  }
+
+  public async checkConnection(): Promise<boolean> {
+    console.log(`[${new Date().toISOString()}] Checking GPT API connection`);
+    try {
+      return await this.bilingualService.checkConnection();
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Error checking connection:`, error);
+      return false;
+    }
   }
 
   public async getSuggestions(transcription: string): Promise<GPTResponse> {

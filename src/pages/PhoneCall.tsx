@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -12,14 +11,14 @@ import GPTService from '@/services/GPTService';
 
 const PhoneCall = () => {
   const [isListening, setIsListening] = useState(false);
-  const [isCallActive, setIsCallActive] = useState(true); // Set to true by default
+  const [isCallActive, setIsCallActive] = useState(true);
   const [transcribedText, setTranscribedText] = useState('');
   const [bilingualResponses, setBilingualResponses] = useState<Array<{english: string, russian: string}>>([]);
   const [showBilingualResponses, setShowBilingualResponses] = useState(false);
-  
+  const [isApiConnected, setIsApiConnected] = useState<boolean | null>(null);
+
   const toggleCall = () => {
     if (isCallActive) {
-      // End call
       if (isListening) {
         toggleListening();
       }
@@ -27,28 +26,22 @@ const PhoneCall = () => {
       toast.info('Звонок завершен');
       setShowBilingualResponses(false);
     } else {
-      // Start call
       setIsCallActive(true);
       toast.success('Звонок начат');
-      // Always start listening when call begins
       startListening();
     }
   };
-  
+
   const startListening = () => {
     if (!SpeechService.isAvailable()) {
       toast.error('Распознавание речи не поддерживается в вашем браузере');
-      
-      // Try to reinitialize speech recognition
       setTimeout(() => {
         if (SpeechService.isAvailable()) {
           toast.success('Распознавание речи инициализировано');
         }
       }, 1000);
-      
       return;
     }
-    
     try {
       SpeechService.startListening(
         (text) => {
@@ -64,13 +57,13 @@ const PhoneCall = () => {
       toast.error('Ошибка при включении микрофона. Пожалуйста, попробуйте еще раз.');
     }
   };
-  
+
   const stopListening = () => {
     SpeechService.stopListening();
     setIsListening(false);
     toast.info('Микрофон выключен');
   };
-  
+
   const toggleListening = () => {
     if (isListening) {
       stopListening();
@@ -78,25 +71,20 @@ const PhoneCall = () => {
       startListening();
     }
   };
-  
+
   const handleFinalTranscription = async (text: string) => {
     console.log('Final transcription:', text);
     if (text.trim().length > 0) {
       try {
-        // Check if API key is set
-        if (!GPTService.getApiKey()) {
-          toast.error('Пожалуйста, установите API-ключ OpenAI в настройках');
+        if (!GPTService.getApiKey() && !isApiConnected) {
+          toast.error('Проблема с подключением к OpenAI API');
           return;
         }
-        
-        // Generate bilingual responses (English and Russian)
-        setShowBilingualResponses(false); // Hide previous responses
+        setShowBilingualResponses(false);
         toast.loading('Получение ответов...', { id: 'getting-responses' });
-        
         try {
           const bilingualResult = await GPTService.getBilingualResponses(text);
           toast.dismiss('getting-responses');
-          
           if (bilingualResult.responses.length > 0) {
             console.log('Received responses:', bilingualResult.responses);
             setBilingualResponses(bilingualResult.responses);
@@ -107,7 +95,6 @@ const PhoneCall = () => {
         } catch (error) {
           console.error('Error getting responses:', error);
           toast.dismiss('getting-responses');
-          
           if (error instanceof Error) {
             if (error.message.includes('API key not set')) {
               toast.error('Пожалуйста, установите API-ключ OpenAI в настройках');
@@ -125,7 +112,7 @@ const PhoneCall = () => {
       console.log('Transcription too short, ignoring');
     }
   };
-  
+
   const selectBilingualResponse = (response: {english: string, russian: string}) => {
     navigator.clipboard.writeText(response.russian).then(() => {
       toast.success('Ответ скопирован в буфер обмена');
@@ -133,21 +120,35 @@ const PhoneCall = () => {
       toast.error('Не удалось скопировать в буфер обмена');
     });
   };
-  
+
   useEffect(() => {
-    // Request microphone permission immediately when component mounts
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(() => {
           console.log('Доступ к микрофону получен');
           toast.success('Доступ к микрофону получен');
           
-          // Auto-start the call on page load
           setIsCallActive(true);
           toast.success('Звонок начат');
           
-          // Auto-start listening
-          startListening();
+          GPTService.checkConnection()
+            .then(connected => {
+              setIsApiConnected(connected);
+              console.log('API connection status:', connected ? 'Connected' : 'Not connected');
+              if (connected) {
+                toast.success('Подключение к OpenAI API успешно');
+              } else {
+                toast.warning('Не удалось подключиться к OpenAI API. Проверьте настройки.');
+              }
+              
+              if (connected) {
+                startListening();
+              }
+            })
+            .catch(err => {
+              console.error('Error checking API connection:', err);
+              toast.error('Ошибка при проверке подключения к API');
+            });
         })
         .catch((err) => {
           console.error('Доступ к микрофону запрещен:', err);
@@ -157,7 +158,6 @@ const PhoneCall = () => {
       toast.error('Ваш браузер не поддерживает доступ к микрофону');
     }
     
-    // Clean up on unmount
     return () => {
       if (isListening) {
         SpeechService.stopListening();
@@ -188,6 +188,11 @@ const PhoneCall = () => {
             <h2 className="text-xl font-medium mb-2">
               {isCallActive ? 'Звонок активен' : 'Начать звонок'}
             </h2>
+            {isApiConnected === false && (
+              <div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm">
+                ⚠️ Проблема с подключением к OpenAI API. Проверьте настройки.
+              </div>
+            )}
             <p className="text-sm text-muted-foreground mb-6">
               {isCallActive 
                 ? 'Громкая связь включена. GPT анализирует разговор и предлагает ответы' 
@@ -239,7 +244,6 @@ const PhoneCall = () => {
           )}
         </motion.div>
 
-        {/* Instructions panel at the bottom */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
