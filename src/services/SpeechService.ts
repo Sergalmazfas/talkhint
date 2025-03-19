@@ -5,6 +5,7 @@ class SpeechService {
   private onTranscriptionCallback: ((text: string) => void) | null = null;
   private onFinalTranscriptionCallback: ((text: string) => void) | null = null;
   private sensitivity: number = 50;
+  private currentTranscriptIndex: number = 0;
 
   constructor() {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
@@ -26,20 +27,25 @@ class SpeechService {
     this.recognition.lang = 'ru-RU'; // Set to Russian as default based on the user's request
 
     this.recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .map(result => result[0])
-        .map(result => result.transcript)
-        .join('');
-
+      // Get only the most recent result
+      const lastResultIndex = event.results.length - 1;
+      const transcript = event.results[lastResultIndex][0].transcript;
+      
       if (this.onTranscriptionCallback) {
+        // Send the most recent part of the transcript for display
         this.onTranscriptionCallback(transcript);
       }
 
       // Check if result is final
-      if (event.results[event.results.length - 1].isFinal) {
+      if (event.results[lastResultIndex].isFinal) {
+        console.log("Final transcript:", transcript);
+        
         if (this.onFinalTranscriptionCallback) {
           this.onFinalTranscriptionCallback(transcript);
         }
+        
+        // Reset current index after final result
+        this.currentTranscriptIndex = event.resultIndex + 1;
       }
     };
 
@@ -77,6 +83,7 @@ class SpeechService {
     this.onTranscriptionCallback = onTranscription;
     this.onFinalTranscriptionCallback = onFinalTranscription;
     this.isListening = true;
+    this.currentTranscriptIndex = 0;
 
     try {
       this.recognition.start();
