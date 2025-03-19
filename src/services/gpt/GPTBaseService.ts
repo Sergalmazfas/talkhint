@@ -13,6 +13,8 @@ class GPTBaseService {
     if (storedKey) {
       this.apiKey = storedKey;
       console.log('API key loaded from storage');
+    } else {
+      console.warn('No API key found in storage');
     }
   }
 
@@ -36,7 +38,8 @@ class GPTBaseService {
       throw new Error('API key not set');
     }
 
-    console.log('Starting OpenAI API request with model: gpt-4o-mini');
+    console.log(`[${new Date().toISOString()}] OpenAI API request starting`);
+    console.log('Using model: gpt-4o-mini');
     console.log('Request payload:', JSON.stringify({
       model: 'gpt-4o-mini',
       messages,
@@ -47,6 +50,7 @@ class GPTBaseService {
 
     const startTime = Date.now();
     try {
+      console.log(`[${new Date().toISOString()}] Sending fetch request to ${this.apiUrl}`);
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
@@ -63,19 +67,23 @@ class GPTBaseService {
       });
 
       const endTime = Date.now();
-      console.log(`API request completed in ${endTime - startTime}ms`);
+      const duration = endTime - startTime;
+      console.log(`[${new Date().toISOString()}] API request completed in ${duration}ms`);
 
       if (!response.ok) {
+        console.error(`[${new Date().toISOString()}] API response not OK, status: ${response.status}`);
         const errorData = await response.json();
-        console.error('Error from OpenAI API:', errorData);
+        console.error('Error response from OpenAI API:', errorData);
         throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
       }
 
+      console.log(`[${new Date().toISOString()}] Parsing API response JSON`);
       const data = await response.json();
+      console.log(`[${new Date().toISOString()}] API response successfully parsed`);
       console.log('Full API response:', JSON.stringify(data, null, 2));
       return data;
     } catch (error) {
-      console.error('Network or parsing error in API request:', error);
+      console.error(`[${new Date().toISOString()}] Error in OpenAI API request:`, error);
       throw error;
     }
   }

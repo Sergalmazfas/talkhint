@@ -14,19 +14,19 @@ class GPTService {
   private translationService: GPTTranslationService;
 
   constructor() {
-    console.log('Initializing GPTService with specialized services');
+    console.log(`[${new Date().toISOString()}] Initializing GPTService with specialized services`);
     this.suggestionsService = new GPTSuggestionsService();
     this.bilingualService = new GPTBilingualService();
     this.translationService = new GPTTranslationService();
-    console.log('GPT service initialization complete');
+    console.log(`[${new Date().toISOString()}] GPT service initialization complete`);
   }
 
   public setApiKey(key: string): void {
-    console.log('Setting API key for all services');
+    console.log(`[${new Date().toISOString()}] Setting API key for all services`);
     this.suggestionsService.setApiKey(key);
     this.bilingualService.setApiKey(key);
     this.translationService.setApiKey(key);
-    console.log('API key set for all services');
+    console.log(`[${new Date().toISOString()}] API key set for all services`);
   }
 
   public getApiKey(): string | null {
@@ -34,22 +34,36 @@ class GPTService {
   }
 
   public setResponseStyle(style: string): void {
-    console.log('Setting response style:', style);
+    console.log(`[${new Date().toISOString()}] Setting response style: ${style}`);
     this.suggestionsService.setResponseStyle(style);
   }
 
   public async getSuggestions(transcription: string): Promise<GPTResponse> {
-    console.log('GPTService: getSuggestions called');
-    const result = await this.suggestionsService.getSuggestions(transcription);
-    console.log('GPTService: suggestions received:', result);
-    return result;
+    console.log(`[${new Date().toISOString()}] GPTService: getSuggestions called with ${transcription.length} chars`);
+    const startTime = Date.now();
+    try {
+      const result = await this.suggestionsService.getSuggestions(transcription);
+      const endTime = Date.now();
+      console.log(`[${new Date().toISOString()}] GPTService: suggestions received in ${endTime - startTime}ms:`, result);
+      return result;
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] GPTService: error in getSuggestions:`, error);
+      throw error;
+    }
   }
 
   public async getBilingualResponses(transcription: string): Promise<BilingualResponse> {
-    console.log('GPTService: getBilingualResponses called');
-    const result = await this.bilingualService.getBilingualResponses(transcription);
-    console.log('GPTService: bilingual responses received:', result);
-    return result;
+    console.log(`[${new Date().toISOString()}] GPTService: getBilingualResponses called with ${transcription.length} chars`);
+    const startTime = Date.now();
+    try {
+      const result = await this.bilingualService.getBilingualResponses(transcription);
+      const endTime = Date.now();
+      console.log(`[${new Date().toISOString()}] GPTService: bilingual responses received in ${endTime - startTime}ms:`, result);
+      return result;
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] GPTService: error in getBilingualResponses:`, error);
+      throw error;
+    }
   }
 
   public async getTranslation(
@@ -57,16 +71,23 @@ class GPTService {
     sourceLanguage: string,
     targetLanguage: string
   ): Promise<TranslationResponse> {
-    console.log('GPTService: getTranslation called');
-    const result = await this.translationService.getTranslation(text, sourceLanguage, targetLanguage);
-    console.log('GPTService: translation received:', result);
-    return result;
+    console.log(`[${new Date().toISOString()}] GPTService: getTranslation called for ${sourceLanguage} to ${targetLanguage} with ${text.length} chars`);
+    const startTime = Date.now();
+    try {
+      const result = await this.translationService.getTranslation(text, sourceLanguage, targetLanguage);
+      const endTime = Date.now();
+      console.log(`[${new Date().toISOString()}] GPTService: translation received in ${endTime - startTime}ms:`, result);
+      return result;
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] GPTService: error in getTranslation:`, error);
+      throw error;
+    }
   }
 }
 
 // Export a singleton instance
 const gptServiceInstance = new GPTService();
-console.log('GPT service singleton instance created');
+console.log(`[${new Date().toISOString()}] GPT service singleton instance created`);
 
 export default gptServiceInstance;
 

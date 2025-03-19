@@ -1,20 +1,25 @@
+
 import GPTBaseService from './GPTBaseService';
 import { getBilingualPrompt } from './GPTPrompts';
 import { BilingualResponse, getMockBilingualResponses } from './GPTMocks';
 
 class GPTBilingualService extends GPTBaseService {
   public async getBilingualResponses(transcription: string): Promise<BilingualResponse> {
-    console.log('getBilingualResponses called with:', transcription);
+    console.log(`[${new Date().toISOString()}] getBilingualResponses called with text (${transcription.length} chars):`);
+    console.log(transcription);
     
     if (!this.apiKey) {
-      console.warn('API key not set for bilingual responses, using mock data');
-      return getMockBilingualResponses(transcription);
+      console.warn(`[${new Date().toISOString()}] API key not set for bilingual responses, using mock data`);
+      const mockData = getMockBilingualResponses(transcription);
+      console.log(`[${new Date().toISOString()}] Mock bilingual responses:`, mockData);
+      return mockData;
     }
 
+    const startTime = Date.now();
     try {
-      console.log('Preparing request for bilingual responses');
+      console.log(`[${new Date().toISOString()}] Preparing request for bilingual responses`);
       const systemPrompt = getBilingualPrompt();
-      console.log('Bilingual system prompt:', systemPrompt);
+      console.log(`[${new Date().toISOString()}] Bilingual system prompt (${systemPrompt.length} chars):`, systemPrompt);
       
       const messages = [
         {
@@ -27,42 +32,48 @@ class GPTBilingualService extends GPTBaseService {
         }
       ];
 
-      console.log('Calling OpenAI API for bilingual responses...');
+      console.log(`[${new Date().toISOString()}] Calling OpenAI API for bilingual responses...`);
       const data = await this.callOpenAI(messages, 1.0, 500, 1);
-      console.log('OpenAI API response received for bilingual');
+      console.log(`[${new Date().toISOString()}] OpenAI API response received for bilingual`);
       
       const content = data.choices[0].message.content.trim();
-      console.log('Raw content from GPT:', content);
+      console.log(`[${new Date().toISOString()}] Raw content from GPT (${content.length} chars):`, content);
       
       try {
         // Try to parse as JSON first
-        console.log('Attempting to parse response as JSON');
+        console.log(`[${new Date().toISOString()}] Attempting to parse response as JSON`);
         const parsedResponses = JSON.parse(content);
         if (Array.isArray(parsedResponses) && parsedResponses.length > 0) {
-          console.log('Successfully parsed JSON response:', parsedResponses);
+          const endTime = Date.now();
+          console.log(`[${new Date().toISOString()}] Successfully parsed JSON response in ${endTime - startTime}ms:`, parsedResponses);
           return { responses: parsedResponses };
         } else {
-          console.warn('Parsed JSON is not in expected format');
+          console.warn(`[${new Date().toISOString()}] Parsed JSON is not in expected format`);
         }
       } catch (parseError) {
-        console.log('Content is not valid JSON, trying to extract structured data');
+        console.log(`[${new Date().toISOString()}] Content is not valid JSON, trying to extract structured data`);
         console.log('Parse error:', parseError);
         // If not valid JSON, try to extract structured data
         const responses = this.extractBilingualResponses(content);
         if (responses.length > 0) {
-          console.log('Extracted structured responses:', responses);
+          const endTime = Date.now();
+          console.log(`[${new Date().toISOString()}] Extracted structured responses in ${endTime - startTime}ms:`, responses);
           return { responses };
         } else {
-          console.warn('Could not extract structured responses');
+          console.warn(`[${new Date().toISOString()}] Could not extract structured responses`);
         }
       }
       
-      console.warn('Could not parse GPT response, using mock data');
-      return getMockBilingualResponses(transcription);
+      console.warn(`[${new Date().toISOString()}] Could not parse GPT response, using mock data`);
+      const mockData = getMockBilingualResponses(transcription);
+      console.log(`[${new Date().toISOString()}] Mock bilingual responses:`, mockData);
+      return mockData;
     } catch (error) {
-      console.error('Error getting bilingual responses from GPT:', error);
-      console.log('Falling back to mock data due to error');
-      return getMockBilingualResponses(transcription);
+      console.error(`[${new Date().toISOString()}] Error getting bilingual responses from GPT:`, error);
+      console.log(`[${new Date().toISOString()}] Falling back to mock data due to error`);
+      const mockData = getMockBilingualResponses(transcription);
+      console.log(`[${new Date().toISOString()}] Mock bilingual responses:`, mockData);
+      return mockData;
     }
   }
 
