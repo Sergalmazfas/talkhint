@@ -18,6 +18,9 @@ const BilingualResponsePanel: React.FC<BilingualResponsePanelProps> = ({
 }) => {
   if (!isVisible || responses.length === 0) return null;
 
+  // Only show the first 3 responses
+  const limitedResponses = responses.slice(0, 3);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -29,7 +32,7 @@ const BilingualResponsePanel: React.FC<BilingualResponsePanelProps> = ({
       >
         <div className="glass-morphism rounded-3xl p-4 shadow-lg">
           <div className="space-y-2">
-            {responses.map((response, index) => (
+            {limitedResponses.map((response, index) => (
               <BilingualResponseCard
                 key={index}
                 response={response}
