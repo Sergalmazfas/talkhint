@@ -91,7 +91,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                Для работы приложения требуется ключ API OpenAI. Без ключа будут использоваться тестовые данные.
+                API ключ используется на защищенном сервере для обеспечения безопасности. Без ключа будут использоваться тестовые данные.
               </p>
             </div>
 
