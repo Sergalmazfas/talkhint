@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
+import { Phone } from 'lucide-react';
 import ListeningIndicator from '@/components/ListeningIndicator';
 import SuggestionsPanel from '@/components/SuggestionsPanel';
 import SettingsPanel from '@/components/SettingsPanel';
@@ -56,9 +58,9 @@ const Index = () => {
   // Remove the useEffect for microphone permission on this page
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
-      <div className="container max-w-md mx-auto px-4 py-8">
-        <div className="text-center mb-12">
+    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex flex-col">
+      <div className="container max-w-md mx-auto px-4 py-8 flex flex-col flex-grow">
+        <div className="text-center mb-8">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -129,21 +131,21 @@ const Index = () => {
           </div>
         </motion.div>
         
+        {/* Large centered call button */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex justify-center"
+          className="flex flex-col justify-center items-center mt-auto mb-8"
         >
-          <Link to="/phonecall">
+          <Link to="/phonecall" className="w-full max-w-xs">
             <Button 
-              variant="outline" 
-              className="rounded-full px-6"
+              variant="default" 
+              size="lg"
+              className="w-full py-6 text-lg font-medium rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-lg hover:shadow-xl transition-all"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-              </svg>
-              Звонок
+              <Phone className="mr-2 h-5 w-5" />
+              Начать звонок
             </Button>
           </Link>
         </motion.div>
