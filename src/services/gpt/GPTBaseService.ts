@@ -28,6 +28,9 @@ class GPTBaseService {
     
     // Initialize the request service
     this.requestService = new GPTRequestService(this.config);
+
+    // Log server proxy status
+    GPTLogger.log(undefined, `Server proxy usage initialized to: ${this.config.useServerProxy}`);
   }
 
   public setApiKey(key: string) {
@@ -62,6 +65,21 @@ class GPTBaseService {
   
   public getUseServerProxy(): boolean {
     return this.config.useServerProxy;
+  }
+
+  public async checkApiConnection(): Promise<boolean> {
+    if (!this.config.apiKey && !this.config.useServerProxy) {
+      GPTLogger.warn(undefined, 'Cannot check API connection: No API key set and server proxy is disabled');
+      return false;
+    }
+    
+    try {
+      const result = await this.callOpenAI([{ role: 'user', content: 'Connection check' }], 0.1, 10);
+      return !!result;
+    } catch (error) {
+      GPTLogger.error(undefined, 'API connection check failed', error);
+      return false;
+    }
   }
 
   protected async callOpenAI(messages: any[], temperature: number = 1.0, maxTokens: number = 150, n: number = 1): Promise<any> {

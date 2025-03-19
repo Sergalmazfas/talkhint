@@ -4,6 +4,7 @@ import GPTSuggestionsService from './GPTSuggestionsService';
 import GPTBilingualService from './GPTBilingualService';
 import GPTTranslationService from './GPTTranslationService';
 import { GPTResponse, BilingualResponse, TranslationResponse } from './GPTMocks';
+import { toast } from "sonner";
 
 /**
  * Main GPT service that combines all the specialized services
@@ -19,6 +20,9 @@ class GPTService {
     this.bilingualService = new GPTBilingualService();
     this.translationService = new GPTTranslationService();
     console.log(`[${new Date().toISOString()}] GPT service initialization complete`);
+    
+    // Default to using server proxy - this is important as server.js may be incorrectly configured
+    this.setUseServerProxy(true);
   }
 
   public setApiKey(key: string): void {
@@ -39,6 +43,9 @@ class GPTService {
     this.bilingualService.setUseServerProxy(use);
     this.translationService.setUseServerProxy(use);
     console.log(`[${new Date().toISOString()}] Server proxy usage set for all services`);
+    
+    // Show a notification to the user
+    toast(use ? "Using server proxy for API calls" : "Using direct API connection");
   }
 
   public getUseServerProxy(): boolean {
