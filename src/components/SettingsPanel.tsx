@@ -30,6 +30,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   const [apiKey, setApiKey] = useState('');
   const [useProxy, setUseProxy] = useState(false);
+  const [serverUrl, setServerUrl] = useState('http://localhost:3000/chat');
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   
@@ -134,7 +135,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="useProxy" className="text-sm text-foreground/80">
-                  Использовать прокси-сервер
+                  Использовать Express прокси-сервер
                 </Label>
                 <Switch
                   id="useProxy"
@@ -144,7 +145,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
               <p className="text-xs text-muted-foreground">
                 {useProxy 
-                  ? "Запросы отправляются через прокси-сервер" 
+                  ? "Запросы отправляются через ваш Express сервер, избегая проблем с CORS" 
                   : "Запросы отправляются напрямую с использованием вашего API ключа"}
               </p>
             </div>
@@ -164,7 +165,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <p className="text-xs text-muted-foreground">
                 {!useProxy 
                   ? "API ключ обязателен для прямого подключения" 
-                  : "API ключ необязателен при использовании прокси"}
+                  : "При использовании прокси, API ключ используется на сервере (в env переменной)"}
               </p>
             </div>
 

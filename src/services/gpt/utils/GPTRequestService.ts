@@ -56,7 +56,7 @@ export class GPTRequestService {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     GPTLogger.log(requestId, 'OpenAI API request starting');
     
-    // Validate configuration for the request
+    // Only require API key for direct connections
     if (!this.config.useServerProxy && (!this.config.apiKey || this.config.apiKey.trim() === '')) {
       const errorMsg = 'API key is required when not using server proxy';
       GPTLogger.error(requestId, errorMsg);
@@ -75,7 +75,7 @@ export class GPTRequestService {
     };
     
     GPTLogger.log(requestId, 'Request payload prepared');
-    GPTLogger.log(requestId, `Using direct OpenAI client: ${!this.config.useServerProxy}`);
+    GPTLogger.log(requestId, `Using proxy server: ${this.config.useServerProxy ? 'yes' : 'no'}`);
 
     let currentRetry = 0;
     
@@ -148,13 +148,15 @@ export class GPTRequestService {
         'Content-Type': 'application/json',
       };
       
-      // Only add Authorization header if we have an API key
-      if (this.config.apiKey) {
+      // Only add Authorization header if we have an API key and are using it
+      // When using the Express server, we don't need to send the API key in the request
+      // as the server will use its own API key from the environment
+      if (!this.config.useServerProxy && this.config.apiKey) {
         headers['Authorization'] = `Bearer ${this.config.apiKey}`;
       }
       
-      // Make the fetch request
-      const response = await fetch(`${this.config.serverProxyUrl}/v1/chat/completions`, {
+      // Make the fetch request to either the proxy or directly to OpenAI
+      const response = await fetch(this.config.serverProxyUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestPayload),

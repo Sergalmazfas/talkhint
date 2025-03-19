@@ -5,6 +5,7 @@ import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/GPTService';
 
 const DirectOpenAIExample = () => {
@@ -12,6 +13,7 @@ const DirectOpenAIExample = () => {
   const [response, setResponse] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [method, setMethod] = useState<'client' | 'proxy'>('client');
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -19,25 +21,52 @@ const DirectOpenAIExample = () => {
     setResponse('');
 
     try {
-      const client = GPTService.getOpenAIClient();
-      
-      if (!client) {
-        setError('OpenAI client not available. Please set your API key in Settings.');
-        setLoading(false);
-        return;
+      if (method === 'client') {
+        // Direct OpenAI client method
+        const client = GPTService.getOpenAIClient();
+        
+        if (!client) {
+          setError('OpenAI client not available. Please set your API key in Settings.');
+          setLoading(false);
+          return;
+        }
+
+        const completion = await client.chat.completions.create({
+          model: "gpt-4o-mini", // Using smaller model for efficiency
+          messages: [{
+            role: "user",
+            content: prompt,
+          }],
+          temperature: 0.7,
+          max_tokens: 150,
+        });
+
+        setResponse(completion.choices[0].message.content || 'No response received');
+      } else {
+        // Proxy server method
+        const response = await fetch('http://localhost:3000/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [{
+              role: "user",
+              content: prompt,
+            }],
+            temperature: 0.7,
+            max_tokens: 150,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setResponse(data.choices[0].message.content || 'No response received');
       }
-
-      const completion = await client.chat.completions.create({
-        model: "gpt-4o-mini", // Using smaller model for efficiency
-        messages: [{
-          role: "user",
-          content: prompt,
-        }],
-        temperature: 0.7,
-        max_tokens: 150,
-      });
-
-      setResponse(completion.choices[0].message.content || 'No response received');
     } catch (err) {
       console.error('Error calling OpenAI:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
@@ -49,9 +78,9 @@ const DirectOpenAIExample = () => {
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>Direct OpenAI API Example</CardTitle>
+        <CardTitle>OpenAI API Example</CardTitle>
         <CardDescription>
-          Use the OpenAI client directly to generate completions
+          Generate completions using direct API calls or through your Express proxy server
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -62,6 +91,23 @@ const DirectOpenAIExample = () => {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+        
+        <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'proxy')}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="client">OpenAI Client</TabsTrigger>
+            <TabsTrigger value="proxy">Express Proxy</TabsTrigger>
+          </TabsList>
+          <TabsContent value="client">
+            <p className="text-sm text-muted-foreground mb-4">
+              Using the OpenAI client directly with your API key
+            </p>
+          </TabsContent>
+          <TabsContent value="proxy">
+            <p className="text-sm text-muted-foreground mb-4">
+              Using your Express proxy server to avoid CORS issues (make sure it's running on localhost:3000)
+            </p>
+          </TabsContent>
+        </Tabs>
         
         <div className="space-y-2">
           <label htmlFor="prompt" className="text-sm font-medium">

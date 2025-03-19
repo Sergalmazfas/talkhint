@@ -17,7 +17,7 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  serverProxyUrl: 'https://api.openai.com', // OpenAI API URL
+  serverProxyUrl: 'http://localhost:3000/chat', // Updated to point to your Express server
   useServerProxy: false, // Using direct API connection by default
   maxRetries: 3,
   timeoutMs: 60000,
