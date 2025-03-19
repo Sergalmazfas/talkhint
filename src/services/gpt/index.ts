@@ -1,3 +1,4 @@
+
 import GPTBaseService from './GPTBaseService';
 import GPTSuggestionsService from './GPTSuggestionsService';
 import GPTBilingualService from './GPTBilingualService';
@@ -30,6 +31,18 @@ class GPTService {
 
   public getApiKey(): string | null {
     return this.suggestionsService.getApiKey();
+  }
+
+  public setUseServerProxy(use: boolean): void {
+    console.log(`[${new Date().toISOString()}] Setting server proxy usage to: ${use}`);
+    this.suggestionsService.setUseServerProxy(use);
+    this.bilingualService.setUseServerProxy(use);
+    this.translationService.setUseServerProxy(use);
+    console.log(`[${new Date().toISOString()}] Server proxy usage set for all services`);
+  }
+
+  public getUseServerProxy(): boolean {
+    return this.suggestionsService.getUseServerProxy();
   }
 
   public setResponseStyle(style: string): void {

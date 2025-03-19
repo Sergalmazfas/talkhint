@@ -1,13 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft, Speaker } from 'lucide-react';
+import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft, Speaker, Settings } from 'lucide-react';
 import ListeningIndicator from '@/components/ListeningIndicator';
 import BilingualResponsePanel from '@/components/BilingualResponsePanel';
 import SpeechService from '@/services/SpeechService';
 import GPTService from '@/services/GPTService';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 const PhoneCall = () => {
   const [isListening, setIsListening] = useState(false);
@@ -16,6 +21,11 @@ const PhoneCall = () => {
   const [bilingualResponses, setBilingualResponses] = useState<Array<{english: string, russian: string}>>([]);
   const [showBilingualResponses, setShowBilingualResponses] = useState(false);
   const [isApiConnected, setIsApiConnected] = useState<boolean | null>(null);
+  
+  // Settings state
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState('');
+  const [useServerProxy, setUseServerProxy] = useState(() => GPTService.getUseServerProxy());
 
   const toggleCall = () => {
     if (isCallActive) {
@@ -76,8 +86,8 @@ const PhoneCall = () => {
     console.log('Final transcription:', text);
     if (text.trim().length > 0) {
       try {
-        if (!GPTService.getApiKey() && !isApiConnected) {
-          toast.error('Проблема с подключением к OpenAI API');
+        if (!isApiConnected) {
+          toast.error('Проблема с подключением к OpenAI API. Проверьте настройки.');
           return;
         }
         setShowBilingualResponses(false);
@@ -96,8 +106,9 @@ const PhoneCall = () => {
           console.error('Error getting responses:', error);
           toast.dismiss('getting-responses');
           if (error instanceof Error) {
-            if (error.message.includes('API key not set')) {
+            if (error.message.includes('API key not set') || error.message.includes('API key is required')) {
               toast.error('Пожалуйста, установите API-ключ OpenAI в настройках');
+              setShowSettings(true);
             } else {
               toast.error(`Ошибка сервиса OpenAI: ${error.message}`);
             }
@@ -121,6 +132,40 @@ const PhoneCall = () => {
     });
   };
 
+  const checkApiConnection = async () => {
+    console.log('Checking API connection...');
+    const connected = await GPTService.checkConnection();
+    setIsApiConnected(connected);
+    console.log('API connection status:', connected ? 'Connected' : 'Not connected');
+    return connected;
+  };
+
+  const saveSettings = () => {
+    // Only set API key if it's provided and not empty
+    if (apiKey.trim()) {
+      GPTService.setApiKey(apiKey);
+      toast.success('API ключ сохранен');
+    }
+    
+    // Update proxy setting
+    GPTService.setUseServerProxy(useServerProxy);
+    toast.success(useServerProxy 
+      ? 'Использование прокси-сервера включено' 
+      : 'Прямое подключение к API включено');
+    
+    setShowSettings(false);
+    
+    // Check connection with new settings
+    checkApiConnection().then(connected => {
+      if (connected) {
+        toast.success('Подключение к OpenAI API успешно');
+      } else {
+        toast.error('Не удалось подключиться к OpenAI API с текущими настройками');
+        setShowSettings(true);
+      }
+    });
+  };
+
   useEffect(() => {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
@@ -131,18 +176,17 @@ const PhoneCall = () => {
           setIsCallActive(true);
           toast.success('Звонок начат');
           
-          GPTService.checkConnection()
+          // Get current proxy setting
+          setUseServerProxy(GPTService.getUseServerProxy());
+          
+          checkApiConnection()
             .then(connected => {
-              setIsApiConnected(connected);
-              console.log('API connection status:', connected ? 'Connected' : 'Not connected');
               if (connected) {
                 toast.success('Подключение к OpenAI API успешно');
+                startListening();
               } else {
                 toast.warning('Не удалось подключиться к OpenAI API. Проверьте настройки.');
-              }
-              
-              if (connected) {
-                startListening();
+                setShowSettings(true);
               }
             })
             .catch(err => {
@@ -168,11 +212,20 @@ const PhoneCall = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
       <div className="container max-w-md mx-auto px-4 py-8">
-        <div className="flex items-center mb-6">
-          <Link to="/" className="text-primary hover:text-primary/80 transition-colors">
-            <ArrowLeft size={24} />
-          </Link>
-          <h1 className="text-2xl font-semibold ml-4">Телефонный разговор</h1>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center">
+            <Link to="/" className="text-primary hover:text-primary/80 transition-colors">
+              <ArrowLeft size={24} />
+            </Link>
+            <h1 className="text-2xl font-semibold ml-4">Телефонный разговор</h1>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => setShowSettings(true)}
+          >
+            <Settings size={24} className="text-primary" />
+          </Button>
         </div>
 
         <motion.div
@@ -271,6 +324,55 @@ const PhoneCall = () => {
         </motion.div>
       </div>
 
+      {/* Settings Dialog */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Настройки OpenAI API</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="api-key">API ключ OpenAI</Label>
+              <Input
+                id="api-key"
+                type="password"
+                placeholder="sk-..."
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Оставьте пустым, если используете прокси-сервер
+              </p>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <Label htmlFor="use-proxy">Использовать прокси-сервер</Label>
+              <Switch
+                id="use-proxy"
+                checked={useServerProxy}
+                onCheckedChange={setUseServerProxy}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {useServerProxy
+                ? "API запросы будут отправляться через прокси-сервер"
+                : "API запросы будут отправляться напрямую с использованием API ключа"}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowSettings(false)}
+            >
+              Отмена
+            </Button>
+            <Button onClick={saveSettings}>
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
       <ListeningIndicator 
         isListening={isListening} 
         transcribedText={transcribedText} 

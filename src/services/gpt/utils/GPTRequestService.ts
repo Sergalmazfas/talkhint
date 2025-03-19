@@ -16,15 +16,28 @@ export class GPTRequestService {
   }
 
   /**
+   * Update the service configuration
+   */
+  public updateConfig(newConfig: GPTServiceConfig): void {
+    this.config = newConfig;
+    this.initializeOpenAIClient();
+  }
+
+  /**
    * Initialize the OpenAI client with the current API key
    */
   public initializeOpenAIClient(): void {
     if (this.config.apiKey) {
-      this.openaiClient = new OpenAI({
-        apiKey: this.config.apiKey,
-        dangerouslyAllowBrowser: true, // Required for client-side usage
-      });
-      GPTLogger.log(undefined, 'OpenAI client initialized');
+      try {
+        this.openaiClient = new OpenAI({
+          apiKey: this.config.apiKey,
+          dangerouslyAllowBrowser: true, // Required for client-side usage
+        });
+        GPTLogger.log(undefined, 'OpenAI client initialized');
+      } catch (error) {
+        GPTLogger.error(undefined, 'Failed to initialize OpenAI client:', error);
+        this.openaiClient = null;
+      }
     } else {
       this.openaiClient = null;
       GPTLogger.log(undefined, 'OpenAI client not initialized: missing API key');
@@ -42,6 +55,14 @@ export class GPTRequestService {
   ): Promise<any> {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     GPTLogger.log(requestId, 'OpenAI API request starting');
+    
+    // Check if we have a valid configuration for making the request
+    if (!this.config.useServerProxy && (!this.config.apiKey || this.config.apiKey.trim() === '')) {
+      const errorMsg = 'API key is required when not using server proxy';
+      GPTLogger.error(requestId, errorMsg);
+      throw new Error(errorMsg);
+    }
+    
     GPTLogger.log(requestId, 'Using model: gpt-4o-mini');
     
     const requestPayload = {
@@ -53,6 +74,7 @@ export class GPTRequestService {
     };
     
     GPTLogger.log(requestId, 'Request payload:', requestPayload);
+    GPTLogger.log(requestId, `Using server proxy: ${this.config.useServerProxy}`);
 
     let currentRetry = 0;
     

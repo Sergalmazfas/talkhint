@@ -31,6 +31,11 @@ class GPTBaseService {
   }
 
   public setApiKey(key: string) {
+    if (!key || key.trim() === '') {
+      GPTLogger.warn(undefined, 'Attempted to set empty API key');
+      return;
+    }
+    
     this.config.apiKey = key;
     saveApiKeyToStorage(key);
     this.requestService.initializeOpenAIClient();
@@ -47,6 +52,16 @@ class GPTBaseService {
   
   public getResponseStyle(): string {
     return this.config.responseStyle;
+  }
+
+  public setUseServerProxy(use: boolean) {
+    this.config.useServerProxy = use;
+    this.requestService.updateConfig(this.config);
+    GPTLogger.log(undefined, `Server proxy usage set to: ${use}`);
+  }
+  
+  public getUseServerProxy(): boolean {
+    return this.config.useServerProxy;
   }
 
   protected async callOpenAI(messages: any[], temperature: number = 1.0, maxTokens: number = 150, n: number = 1): Promise<any> {
