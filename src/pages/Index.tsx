@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ const Index = () => {
     }
   };
   
+  // Function still exists but is no longer linked to a button
   const toggleListening = () => {
     if (!SpeechService.isAvailable()) {
       toast.error('Speech recognition is not supported in your browser');
@@ -68,6 +70,15 @@ const Index = () => {
       toast.error('Failed to copy to clipboard');
     });
   };
+  
+  // Auto-start listening when component mounts if autoActivate is enabled
+  useEffect(() => {
+    if (settings.autoActivate && !isListening) {
+      setTimeout(() => {
+        toggleListening();
+      }, 1000);
+    }
+  }, [settings.autoActivate]);
   
   useEffect(() => {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -112,16 +123,8 @@ const Index = () => {
             </div>
             <h2 className="text-xl font-medium mb-2">Conversation Assistant</h2>
             <p className="text-sm text-muted-foreground mb-6">
-              Start listening to get intelligent response suggestions during your conversations
+              TalkHint listens to your conversation and suggests intelligent responses
             </p>
-            
-            <Button 
-              size="lg" 
-              onClick={toggleListening} 
-              className={`w-full transition-all ${isListening ? 'bg-destructive hover:bg-destructive/90' : 'bg-primary hover:bg-primary/90'}`}
-            >
-              {isListening ? 'Stop Listening' : 'Start Listening'}
-            </Button>
           </div>
           
           <div className="space-y-4 text-sm">
@@ -236,4 +239,3 @@ const Index = () => {
 };
 
 export default Index;
-
