@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { Phone } from 'lucide-react';
+import { PhoneCall } from 'lucide-react';
 import ListeningIndicator from '@/components/ListeningIndicator';
 import SuggestionsPanel from '@/components/SuggestionsPanel';
 import SettingsPanel from '@/components/SettingsPanel';
@@ -32,15 +32,11 @@ const Index = () => {
     }
   };
   
-  // Remove the speech recognition functionality from this page
-  // We'll keep these functions empty for now to avoid breaking any UI components
   const toggleListening = () => {
-    // No action needed - speech recognition is only active in the PhoneCall page
     toast.info('Распознавание голоса доступно на странице звонка');
   };
   
   const handleFinalTranscription = async (text: string) => {
-    // Empty function - no speech processing on this page
   };
   
   const selectSuggestion = (suggestion: string) => {
@@ -52,10 +48,6 @@ const Index = () => {
     });
   };
   
-  // Remove the useEffect that activates speech recognition automatically
-  
-  // Remove the useEffect for microphone permission on this page
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex flex-col">
       <div className="container max-w-md mx-auto px-4 py-8 flex flex-col flex-grow">
@@ -69,6 +61,26 @@ const Index = () => {
             <p className="text-muted-foreground">Your intelligent conversation assistant</p>
           </motion.div>
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="flex flex-col justify-center items-center my-12"
+        >
+          <Link to="/phonecall" className="w-full max-w-xs">
+            <Button 
+              variant="default" 
+              size="lg"
+              className="w-full py-7 text-lg font-medium rounded-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3"
+            >
+              <div className="bg-white/20 p-3 rounded-full">
+                <PhoneCall className="h-7 w-7" />
+              </div>
+              <span>Начать звонок</span>
+            </Button>
+          </Link>
+        </motion.div>
 
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
@@ -90,28 +102,8 @@ const Index = () => {
             </p>
           </div>
         </motion.div>
-        
-        {/* Large centered call button */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex flex-col justify-center items-center mt-auto mb-8"
-        >
-          <Link to="/phonecall" className="w-full max-w-xs">
-            <Button 
-              variant="default" 
-              size="lg"
-              className="w-full py-6 text-lg font-medium rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 shadow-lg hover:shadow-xl transition-all"
-            >
-              <Phone className="mr-2 h-5 w-5" />
-              Начать звонок
-            </Button>
-          </Link>
-        </motion.div>
       </div>
 
-      {/* Keep these components in the UI but they won't be functional on this page */}
       <ListeningIndicator 
         isListening={isListening} 
         transcribedText={transcribedText} 
