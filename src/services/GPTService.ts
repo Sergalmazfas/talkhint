@@ -2,6 +2,10 @@ interface GPTResponse {
   suggestions: string[];
 }
 
+interface BilingualResponse {
+  responses: Array<{english: string, russian: string}>;
+}
+
 interface TranslationResponse {
   translation: string;
 }
@@ -81,6 +85,100 @@ class GPTService {
     }
   }
 
+  public async getBilingualResponses(transcription: string): Promise<BilingualResponse> {
+    if (!this.apiKey) {
+      console.warn('API key not set, using mock data');
+      return this.getMockBilingualResponses(transcription);
+    }
+
+    try {
+      const messages = [
+        {
+          role: "system",
+          content: this.getBilingualPrompt()
+        },
+        {
+          role: "user",
+          content: transcription
+        }
+      ];
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 300,
+          n: 1
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error from OpenAI API:', errorData);
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content.trim();
+      
+      try {
+        const parsedResponses = JSON.parse(content);
+        if (Array.isArray(parsedResponses) && parsedResponses.length > 0) {
+          return { responses: parsedResponses };
+        }
+      } catch (parseError) {
+        console.error('Error parsing GPT response:', parseError);
+        const responses = this.extractBilingualResponses(content);
+        if (responses.length > 0) {
+          return { responses };
+        }
+      }
+      
+      return this.getMockBilingualResponses(transcription);
+    } catch (error) {
+      console.error('Error getting bilingual responses from GPT:', error);
+      return this.getMockBilingualResponses(transcription);
+    }
+  }
+
+  private extractBilingualResponses(content: string): Array<{english: string, russian: string}> {
+    const responses: Array<{english: string, russian: string}> = [];
+    const lines = content.split('\n');
+    
+    let currentEnglish = '';
+    let currentRussian = '';
+    let index = 0;
+    
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.match(/^\d+\.\s+/)) {
+        if (currentEnglish && currentRussian) {
+          responses.push({ english: currentEnglish, russian: currentRussian });
+          currentEnglish = '';
+          currentRussian = '';
+        }
+        
+        currentEnglish = trimmedLine.replace(/^\d+\.\s+/, '');
+      } else if (trimmedLine.startsWith('(') && trimmedLine.endsWith(')') && currentEnglish) {
+        currentRussian = trimmedLine.substring(1, trimmedLine.length - 1);
+        
+        responses.push({ english: currentEnglish, russian: currentRussian });
+        currentEnglish = '';
+        currentRussian = '';
+      }
+      
+      if (responses.length >= 3) break;
+    }
+    
+    return responses;
+  }
+
   public async getTranslation(text: string, sourceLanguage: string, targetLanguage: string): Promise<TranslationResponse> {
     if (!this.apiKey) {
       console.warn('API key not set, using mock translation');
@@ -130,7 +228,7 @@ class GPTService {
   }
 
   private getSystemPrompt(): string {
-    const basePrompt = "Ты помощник, который предлагает короткие и уместные ответы на русском языке для разговора. Предложи три разных варианта ответа на сообщение пользователя. Каждый ответ должен быть кратким и законченным предложением.";
+    const basePrompt = "Ты помощник, который предлагает короткие и уместные ответы на русском языке для разговора. Предложи три разных варианта ответа ��а сообщение пользователя. Каждый ответ должен быть кратким и законченным предложением.";
     
     let styleModifier = "";
     
@@ -152,6 +250,21 @@ class GPTService {
     }
     
     return `${basePrompt} ${styleModifier}`;
+  }
+
+  private getBilingualPrompt(): string {
+    return `You are a helpful assistant that generates responses in both English and Russian for phone conversations. 
+    When the user sends a message, provide exactly three possible responses. Each response should be in English, 
+    followed by its Russian translation in parentheses. Format the output exactly like this example:
+
+    1. [English response 1]
+    ([Russian translation 1])
+    2. [English response 2]
+    ([Russian translation 2])
+    3. [English response 3]
+    ([Russian translation 3])
+
+    Keep responses conversational, helpful, and direct. Make sure they are appropriate for a professional context.`;
   }
 
   private getTranslationPrompt(sourceLanguage: string, targetLanguage: string): string {
@@ -210,6 +323,82 @@ class GPTService {
         'Интересная мысль. Давайте обсудим подробнее.',
         'Я понимаю вашу точку зрения. Что если посмотреть с другой стороны?',
         'Можете рассказать об этом подробнее?'
+      ]
+    };
+  }
+  
+  private getMockBilingualResponses(transcription: string): BilingualResponse {
+    if (transcription.toLowerCase().includes('cdla') || transcription.toLowerCase().includes('driver')) {
+      return {
+        responses: [
+          {
+            english: "Yes, I have a CDLA. I am open to both options. What kind of driving jobs do you have available?",
+            russian: "Да, у меня есть CDLA. Я открыт для обоих вариантов. Какие вакансии водителей у вас есть?"
+          },
+          {
+            english: "Yes, I have a CDLA. I would like to use it, but I am also open to driving regular vehicles. What do you suggest?",
+            russian: "Да, у меня есть CDLA. Я хотел бы его использовать, но также открыт к вождению обычных автомобилей. Что вы предлагаете?"
+          },
+          {
+            english: "Yes, I do. I prefer to use my CDLA, but I can consider other options. Can you tell me more about the job?",
+            russian: "Да, есть. Я предпочитаю использовать CDLA, но могу рассмотреть и другие варианты. Можете рассказать больше о работе?"
+          }
+        ]
+      };
+    }
+    
+    if (transcription.toLowerCase().includes('experience') || transcription.toLowerCase().includes('опыт')) {
+      return {
+        responses: [
+          {
+            english: "I have 5 years of experience as a commercial driver, primarily in long-haul transportation.",
+            russian: "У меня 5 лет опыта работы коммерческим водителем, в основном в дальних перевозках."
+          },
+          {
+            english: "My experience includes 3 years of truck driving and 2 years of delivery van operations.",
+            russian: "Мой опыт включает 3 года вождения грузовиков и 2 года работы на доставке фургоном."
+          },
+          {
+            english: "I've been driving professionally for over 7 years, with experience in various vehicle types.",
+            russian: "Я профессионально вожу уже более 7 лет, имею опыт работы с различными типами транспортных средств."
+          }
+        ]
+      };
+    }
+    
+    if (transcription.toLowerCase().includes('availability') || transcription.toLowerCase().includes('доступность')) {
+      return {
+        responses: [
+          {
+            english: "I'm available to start immediately and can work flexible hours, including weekends if needed.",
+            russian: "Я могу приступить к работе немедленно и работать по гибкому графику, включая выходные, если потребуется."
+          },
+          {
+            english: "I prefer full-time work during weekdays, but I'm open to discussing other schedules.",
+            russian: "Я предпочитаю работу на полный рабочий день в будние дни, но открыт для обсуждения других графиков."
+          },
+          {
+            english: "I'm looking for a stable schedule, but can accommodate occasional overtime or weekend work.",
+            russian: "Я ищу стабильный график, но могу работать сверхурочно или в выходные дни время от времени."
+          }
+        ]
+      };
+    }
+
+    return {
+      responses: [
+        {
+          english: "I understand your question. Could you please provide more details so I can give you a more specific answer?",
+          russian: "Я понимаю ваш вопрос. Не могли бы вы предоставить больше деталей, чтобы я мог дать более конкретный ответ?"
+        },
+        {
+          english: "That's an interesting point. Let me think about it and get back to you with a thoughtful response.",
+          russian: "Это интересный момент. Позвольте мне подумать об этом и вернуться к вам с обдуманным ответом."
+        },
+        {
+          english: "I'd like to discuss this further. Could we schedule a time to talk more about these details?",
+          russian: "Я хотел бы обсудить это подробнее. Можем ли мы назначить время, чтобы поговорить подробнее об этих деталях?"
+        }
       ]
     };
   }
