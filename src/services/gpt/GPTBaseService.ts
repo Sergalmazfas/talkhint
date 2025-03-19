@@ -5,7 +5,7 @@
 class GPTBaseService {
   protected apiKey: string | null = null;
   protected responseStyle: string = 'casual';
-  protected serverProxyUrl: string = 'https://cors-anywhere-git-master-sergs-projects-149ff317.vercel.app'; // Updated server proxy URL
+  protected serverProxyUrl: string = 'https://cors-anywhere-git-master-sergs-projects-149ff317.vercel.app'; // Using the updated proxy URL
   protected useServerProxy: boolean = true; // Flag to toggle between server proxy and direct API
   protected maxRetries: number = 3;
   protected timeoutMs: number = 60000;
@@ -58,7 +58,7 @@ class GPTBaseService {
       
       const startTime = Date.now();
       try {
-        console.log(`[${new Date().toISOString()}][${requestId}] Sending request to server proxy`);
+        console.log(`[${new Date().toISOString()}][${requestId}] Sending request to server proxy: ${this.serverProxyUrl}`);
         
         // Create an AbortController for timeout handling
         const controller = new AbortController();
@@ -91,12 +91,13 @@ class GPTBaseService {
           requestBody.apiKey = this.apiKey;
         }
         
-        // Use server proxy URL
+        // Use server proxy URL with additional headers for CORS
         const response = await fetch(this.serverProxyUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Request-ID': requestId
+            'X-Request-ID': requestId,
+            'Origin': window.location.origin
           },
           body: JSON.stringify(requestBody),
           signal: controller.signal
