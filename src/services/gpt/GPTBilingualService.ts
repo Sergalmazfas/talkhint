@@ -1,25 +1,25 @@
-
 import GPTBaseService from './GPTBaseService';
 import { getBilingualPrompt } from './GPTPrompts';
 import { BilingualResponse, getMockBilingualResponses } from './GPTMocks';
+import { GPTLogger } from './utils/GPTLogger';
 
 class GPTBilingualService extends GPTBaseService {
   public async getBilingualResponses(transcription: string): Promise<BilingualResponse> {
-    console.log(`[${new Date().toISOString()}] getBilingualResponses called with text (${transcription.length} chars):`);
-    console.log(transcription);
+    GPTLogger.log(undefined, `getBilingualResponses called with text (${transcription.length} chars):`);
+    GPTLogger.log(undefined, transcription);
     
-    if (!this.apiKey) {
-      console.warn(`[${new Date().toISOString()}] API key not set for bilingual responses, using mock data`);
+    if (!this.getApiKey()) {
+      GPTLogger.warn(undefined, 'API key not set for bilingual responses, using mock data');
       const mockData = getMockBilingualResponses(transcription);
-      console.log(`[${new Date().toISOString()}] Mock bilingual responses:`, mockData);
+      GPTLogger.log(undefined, 'Mock bilingual responses:', mockData);
       return mockData;
     }
 
     const startTime = Date.now();
     try {
-      console.log(`[${new Date().toISOString()}] Preparing request for bilingual responses`);
+      GPTLogger.log(undefined, 'Preparing request for bilingual responses');
       const systemPrompt = getBilingualPrompt();
-      console.log(`[${new Date().toISOString()}] Bilingual system prompt (${systemPrompt.length} chars):`, systemPrompt);
+      GPTLogger.log(undefined, `Bilingual system prompt (${systemPrompt.length} chars):`, systemPrompt);
       
       const messages = [
         {
@@ -32,47 +32,47 @@ class GPTBilingualService extends GPTBaseService {
         }
       ];
 
-      console.log(`[${new Date().toISOString()}] Calling OpenAI API for bilingual responses...`);
+      GPTLogger.log(undefined, 'Calling OpenAI API for bilingual responses...');
       const data = await this.callOpenAI(messages, 1.0, 500, 1);
-      console.log(`[${new Date().toISOString()}] OpenAI API response received for bilingual`);
+      GPTLogger.log(undefined, 'OpenAI API response received for bilingual');
       
       const content = data.choices[0].message.content.trim();
-      console.log(`[${new Date().toISOString()}] Raw content from GPT (${content.length} chars):`, content);
+      GPTLogger.log(undefined, `Raw content from GPT (${content.length} chars):`, content);
       
       try {
         // Try to parse as JSON first
-        console.log(`[${new Date().toISOString()}] Attempting to parse response as JSON`);
+        GPTLogger.log(undefined, 'Attempting to parse response as JSON');
         const parsedResponses = JSON.parse(content);
         if (Array.isArray(parsedResponses) && parsedResponses.length > 0) {
           const endTime = Date.now();
-          console.log(`[${new Date().toISOString()}] Successfully parsed JSON response in ${endTime - startTime}ms:`, parsedResponses);
+          GPTLogger.log(undefined, `Successfully parsed JSON response in ${endTime - startTime}ms:`, parsedResponses);
           return { responses: parsedResponses };
         } else {
-          console.warn(`[${new Date().toISOString()}] Parsed JSON is not in expected format`);
+          GPTLogger.warn(undefined, 'Parsed JSON is not in expected format');
         }
       } catch (parseError) {
-        console.log(`[${new Date().toISOString()}] Content is not valid JSON, trying to extract structured data`);
-        console.log('Parse error:', parseError);
+        GPTLogger.log(undefined, 'Content is not valid JSON, trying to extract structured data');
+        GPTLogger.log(undefined, 'Parse error:', parseError);
         // If not valid JSON, try to extract structured data
         const responses = this.extractBilingualResponses(content);
         if (responses.length > 0) {
           const endTime = Date.now();
-          console.log(`[${new Date().toISOString()}] Extracted structured responses in ${endTime - startTime}ms:`, responses);
+          GPTLogger.log(undefined, `Extracted structured responses in ${endTime - startTime}ms:`, responses);
           return { responses };
         } else {
-          console.warn(`[${new Date().toISOString()}] Could not extract structured responses`);
+          GPTLogger.warn(undefined, 'Could not extract structured responses');
         }
       }
       
-      console.warn(`[${new Date().toISOString()}] Could not parse GPT response, using mock data`);
+      GPTLogger.warn(undefined, 'Could not parse GPT response, using mock data');
       const mockData = getMockBilingualResponses(transcription);
-      console.log(`[${new Date().toISOString()}] Mock bilingual responses:`, mockData);
+      GPTLogger.log(undefined, 'Mock bilingual responses:', mockData);
       return mockData;
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error getting bilingual responses from GPT:`, error);
-      console.log(`[${new Date().toISOString()}] Falling back to mock data due to error`);
+      GPTLogger.error(undefined, 'Error getting bilingual responses from GPT:', error);
+      GPTLogger.log(undefined, 'Falling back to mock data due to error');
       const mockData = getMockBilingualResponses(transcription);
-      console.log(`[${new Date().toISOString()}] Mock bilingual responses:`, mockData);
+      GPTLogger.log(undefined, 'Mock bilingual responses:', mockData);
       return mockData;
     }
   }

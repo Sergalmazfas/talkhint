@@ -44,6 +44,10 @@ class GPTBaseService {
   public setResponseStyle(style: string) {
     this.config.responseStyle = style;
   }
+  
+  public getResponseStyle(): string {
+    return this.config.responseStyle;
+  }
 
   protected async callOpenAI(messages: any[], temperature: number = 1.0, maxTokens: number = 150, n: number = 1): Promise<any> {
     return this.requestService.callOpenAI(messages, temperature, maxTokens, n);
