@@ -67,15 +67,18 @@ class GPTBaseService {
           controller.abort();
         }, this.timeoutMs);
         
-        // Prepare request body
-        const requestBody: {
+        // Define the request body type with optional apiKey property
+        interface RequestBody {
           model: string;
           messages: any[];
           temperature: number;
           max_tokens: number;
           n: number;
           apiKey?: string;
-        } = {
+        }
+        
+        // Prepare request body
+        const requestBody: RequestBody = {
           model: 'gpt-4o-mini',
           messages: messages,
           temperature: temperature,
