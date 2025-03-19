@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -30,7 +29,7 @@ const PhoneCall = () => {
   const toggleCall = () => {
     if (isCallActive) {
       if (isListening) {
-        toggleListening();
+        stopListening(); // Ensure microphone is stopped when call ends
       }
       setIsCallActive(false);
       toast.info('Звонок завершен');
@@ -38,11 +37,18 @@ const PhoneCall = () => {
     } else {
       setIsCallActive(true);
       toast.success('Звонок начат');
-      startListening();
+      // Only start listening if the call is active
+      // Not starting automatically to give user control
     }
   };
 
   const startListening = () => {
+    // Only allow microphone to be enabled during active call
+    if (!isCallActive) {
+      toast.error('Невозможно включить микрофон: звонок не активен');
+      return;
+    }
+    
     if (!SpeechService.isAvailable()) {
       toast.error('Распознавание речи не поддерживается в вашем браузере');
       setTimeout(() => {
@@ -69,9 +75,11 @@ const PhoneCall = () => {
   };
 
   const stopListening = () => {
-    SpeechService.stopListening();
-    setIsListening(false);
-    toast.info('Микрофон выключен');
+    if (SpeechService.isCurrentlyListening()) {
+      SpeechService.stopListening();
+      setIsListening(false);
+      toast.info('Микрофон выключен');
+    }
   };
 
   const toggleListening = () => {
@@ -208,6 +216,21 @@ const PhoneCall = () => {
       }
     };
   }, []);
+
+  // Clean up on component unmount
+  return () => {
+    if (SpeechService.isCurrentlyListening()) {
+      SpeechService.stopListening();
+    }
+  };
+
+  // Watch for changes in call status and ensure microphone is properly managed
+  useEffect(() => {
+    if (!isCallActive && isListening) {
+      // If call is not active but microphone is on, turn it off
+      stopListening();
+    }
+  }, [isCallActive, isListening]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">

@@ -79,7 +79,7 @@ class SpeechService {
   }
 
   public stopListening() {
-    if (!this.recognition || !this.eventHandlers) return;
+    if (!this.recognition || !this.eventHandlers || !this.isListening) return;
 
     this.isListening = false;
     this.eventHandlers.setIsListening(false);
@@ -91,6 +91,13 @@ class SpeechService {
 
   public isAvailable(): boolean {
     return this.recognition !== null;
+  }
+
+  /**
+   * Check if the service is currently listening
+   */
+  public isCurrentlyListening(): boolean {
+    return this.isListening;
   }
 
   /**
