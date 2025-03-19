@@ -8,7 +8,7 @@ import { GPTResponse, BilingualResponse, TranslationResponse } from './GPTMocks'
 /**
  * Main GPT service that combines all the specialized services
  */
-class GPTService implements GPTBaseService {
+class GPTService {
   private suggestionsService: GPTSuggestionsService;
   private bilingualService: GPTBilingualService;
   private translationService: GPTTranslationService;
