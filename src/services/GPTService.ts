@@ -253,13 +253,17 @@ class GPTService {
   }
 
   private getBilingualPrompt(): string {
-    return `You are a helpful assistant for a Russian speaker having phone conversations in English. 
-    Your task is to listen to what they hear during the conversation and provide exactly three possible 
-    responses that would be appropriate and natural for the context.
+    return `You are a helpful assistant for a Russian speaker having phone conversations in English about work, jobs, and interviews. 
+    Your task is to analyze what they hear during the conversation and provide exactly three SPECIFIC AND CONTEXTUAL possible 
+    responses that would be appropriate and natural for them to reply with.
 
-    The responses should be professional, relevant to the conversation topic, and help the Russian speaker 
-    navigate the conversation smoothly. Each response should first be in English, followed by its Russian 
-    translation in parentheses.
+    IMPORTANT: Do NOT provide generic responses like "I need more details", "Let me think about it" or "Let's discuss later". 
+    Your responses must be SPECIFIC to the exact query or statement, especially about work, driving jobs, CDL licenses, 
+    experience and qualifications.
+
+    The responses should be professional, contextually relevant to the specific conversation topic (like job offers, CDL 
+    licenses, driving experience, work schedules, payment rates, etc.), and help the Russian speaker navigate the 
+    conversation smoothly. Each response should first be in English, followed by its Russian translation in parentheses.
 
     Format your output exactly like this:
     1. [English response 1]
@@ -269,8 +273,16 @@ class GPTService {
     3. [English response 3]
     ([Russian translation 3])
 
-    Make sure the responses are contextually appropriate, helpful, and sound natural in a real conversation.
-    Focus on providing responses that address the specific question or statement that was heard.`;
+    For example, if someone asks "Do you have a CDL?" the responses should be like:
+    1. Yes, I have a Class A CDL with X, Y, Z endorsements and 3 years of experience.
+    (Да, у меня есть CDL класса A с допусками X, Y, Z и 3 года опыта.)
+    2. Yes, I have a CDL. I'm interested in both local and long-haul positions. What kind of routes do you have available?
+    (Да, у меня есть CDL. Я заинтересован как в местных, так и в дальних маршрутах. Какие маршруты у вас доступны?)
+    3. Yes, I have a valid CDL. Can you tell me more about the position requirements and compensation package?
+    (Да, у меня есть действующие права CDL. Можете рассказать подробнее о требованиях к должности и компенсационном пакете?)
+
+    Make sure the responses are specific to the conversation, helpful, and sound natural in a real conversation.
+    Focus on providing responses that directly address the specific question or statement that was heard.`;
   }
 
   private getTranslationPrompt(sourceLanguage: string, targetLanguage: string): string {
@@ -334,20 +346,20 @@ class GPTService {
   }
   
   private getMockBilingualResponses(transcription: string): BilingualResponse {
-    if (transcription.toLowerCase().includes('cdla') || transcription.toLowerCase().includes('driver')) {
+    if (transcription.toLowerCase().includes('cdl') || transcription.toLowerCase().includes('driver') || transcription.toLowerCase().includes('work')) {
       return {
         responses: [
           {
-            english: "Yes, I have a CDLA. I am open to both options. What kind of driving jobs do you have available?",
-            russian: "Да, у меня есть CDLA. Я открыт для обоих вариантов. Какие вакансии водителей у вас есть?"
+            english: "Yes, I have a CDL. I'm interested in this job opportunity. Can you tell me more about the position and requirements?",
+            russian: "Да, у меня есть CDL. Я заинтересован в этой работе. Можете рассказать подробнее о позиции и требованиях?"
           },
           {
-            english: "Yes, I have a CDLA. I would like to use it, but I am also open to driving regular vehicles. What do you suggest?",
-            russian: "Да, у меня есть CDLA. Я хотел бы его использовать, но также открыт к вождению обычных автомобилей. Что вы предлагаете?"
+            english: "Yes, I have a Class A CDL with 3 years of experience. What type of driving job are you offering?",
+            russian: "Да, у меня есть CDL класса A с 3-летним опытом. Какую именно работу водителя вы предлагаете?"
           },
           {
-            english: "Yes, I do. I prefer to use my CDLA, but I can consider other options. Can you tell me more about the job?",
-            russian: "Да, есть. Я предпочитаю использовать CDLA, но могу рассмотреть и другие варианты. Можете рассказать больше о работе?"
+            english: "Yes, I have a CDL and I'm looking for work. I'm available to start immediately. What are the details about the job?",
+            russian: "Да, у меня есть CDL, и я ищу работу. Я могу приступить немедленно. Какие детали о работе?"
           }
         ]
       };
@@ -395,7 +407,7 @@ class GPTService {
       responses: [
         {
           english: "I understand your question. Could you please provide more details so I can give you a more specific answer?",
-          russian: "Я понимаю ваш вопрос. Не могли бы вы предоставить больше деталей, чтобы я мог дать более конкр��тный ответ?"
+          russian: "Я понимаю ваш вопрос. Не могли бы вы предоставить больше деталей, чтобы я мог дать более конкретный ответ?"
         },
         {
           english: "That's an interesting point. Let me think about it and get back to you with a thoughtful response.",
