@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -30,14 +29,12 @@ const PhoneCall = () => {
       // Start call
       setIsCallActive(true);
       toast.success('Звонок начат');
-      // Auto-start listening when call begins
-      if (!isListening) {
-        toggleListening();
-      }
+      // Always start listening when call begins
+      startListening();
     }
   };
   
-  const toggleListening = () => {
+  const startListening = () => {
     if (!SpeechService.isAvailable()) {
       toast.error('Распознавание речи не поддерживается в вашем браузере');
       
@@ -51,25 +48,33 @@ const PhoneCall = () => {
       return;
     }
     
+    try {
+      SpeechService.startListening(
+        (text) => {
+          console.log('Transcribed text:', text);
+          setTranscribedText(text);
+        },
+        handleFinalTranscription
+      );
+      setIsListening(true);
+      toast.success('Микрофон включен');
+    } catch (error) {
+      console.error('Error starting speech recognition:', error);
+      toast.error('Ошибка при включении микрофона. Пожалуйста, попробуйте еще раз.');
+    }
+  };
+  
+  const stopListening = () => {
+    SpeechService.stopListening();
+    setIsListening(false);
+    toast.info('Микрофон выключен');
+  };
+  
+  const toggleListening = () => {
     if (isListening) {
-      SpeechService.stopListening();
-      setIsListening(false);
-      toast.info('Микрофон выключен');
+      stopListening();
     } else {
-      try {
-        SpeechService.startListening(
-          (text) => {
-            console.log('Transcribed text:', text);
-            setTranscribedText(text);
-          },
-          handleFinalTranscription
-        );
-        setIsListening(true);
-        toast.success('Микрофон включен');
-      } catch (error) {
-        console.error('Error starting speech recognition:', error);
-        toast.error('Ошибка при включении микрофона. Пожалуйста, попробуйте еще раз.');
-      }
+      startListening();
     }
   };
   
