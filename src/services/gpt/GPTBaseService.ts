@@ -36,29 +36,48 @@ class GPTBaseService {
       throw new Error('API key not set');
     }
 
-    console.log('Using API key:', this.apiKey.substring(0, 5) + '...');
-    const response = await fetch(this.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        temperature: temperature,
-        max_tokens: maxTokens,
-        n: n
-      })
-    });
+    console.log('Starting OpenAI API request with model: gpt-4o-mini');
+    console.log('Request payload:', JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+      n
+    }, null, 2));
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Error from OpenAI API:', errorData);
-      throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+    const startTime = Date.now();
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: messages,
+          temperature: temperature,
+          max_tokens: maxTokens,
+          n: n
+        })
+      });
+
+      const endTime = Date.now();
+      console.log(`API request completed in ${endTime - startTime}ms`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error from OpenAI API:', errorData);
+        throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      console.log('Full API response:', JSON.stringify(data, null, 2));
+      return data;
+    } catch (error) {
+      console.error('Network or parsing error in API request:', error);
+      throw error;
     }
-
-    return await response.json();
   }
 }
 

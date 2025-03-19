@@ -14,15 +14,19 @@ class GPTService {
   private translationService: GPTTranslationService;
 
   constructor() {
+    console.log('Initializing GPTService with specialized services');
     this.suggestionsService = new GPTSuggestionsService();
     this.bilingualService = new GPTBilingualService();
     this.translationService = new GPTTranslationService();
+    console.log('GPT service initialization complete');
   }
 
   public setApiKey(key: string): void {
+    console.log('Setting API key for all services');
     this.suggestionsService.setApiKey(key);
     this.bilingualService.setApiKey(key);
     this.translationService.setApiKey(key);
+    console.log('API key set for all services');
   }
 
   public getApiKey(): string | null {
@@ -30,15 +34,22 @@ class GPTService {
   }
 
   public setResponseStyle(style: string): void {
+    console.log('Setting response style:', style);
     this.suggestionsService.setResponseStyle(style);
   }
 
   public async getSuggestions(transcription: string): Promise<GPTResponse> {
-    return this.suggestionsService.getSuggestions(transcription);
+    console.log('GPTService: getSuggestions called');
+    const result = await this.suggestionsService.getSuggestions(transcription);
+    console.log('GPTService: suggestions received:', result);
+    return result;
   }
 
   public async getBilingualResponses(transcription: string): Promise<BilingualResponse> {
-    return this.bilingualService.getBilingualResponses(transcription);
+    console.log('GPTService: getBilingualResponses called');
+    const result = await this.bilingualService.getBilingualResponses(transcription);
+    console.log('GPTService: bilingual responses received:', result);
+    return result;
   }
 
   public async getTranslation(
@@ -46,12 +57,18 @@ class GPTService {
     sourceLanguage: string,
     targetLanguage: string
   ): Promise<TranslationResponse> {
-    return this.translationService.getTranslation(text, sourceLanguage, targetLanguage);
+    console.log('GPTService: getTranslation called');
+    const result = await this.translationService.getTranslation(text, sourceLanguage, targetLanguage);
+    console.log('GPTService: translation received:', result);
+    return result;
   }
 }
 
 // Export a singleton instance
-export default new GPTService();
+const gptServiceInstance = new GPTService();
+console.log('GPT service singleton instance created');
+
+export default gptServiceInstance;
 
 // Also export the interfaces for use in other components
 export type { GPTResponse, BilingualResponse, TranslationResponse };
