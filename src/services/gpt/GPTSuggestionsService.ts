@@ -32,19 +32,29 @@ class GPTSuggestionsService extends GPTBaseService {
         }
       ];
 
-      console.log(`[${new Date().toISOString()}] Calling OpenAI API for suggestions...`);
+      console.log(`[${new Date().toISOString()}] Calling proxy API for suggestions...`);
       const data = await this.callOpenAI(messages, 1.0, 150, 3);
-      console.log(`[${new Date().toISOString()}] OpenAI API response received for suggestions`);
+      console.log(`[${new Date().toISOString()}] Proxy API response received for suggestions`);
+      
+      if (!data || !data.choices || !Array.isArray(data.choices)) {
+        console.error(`[${new Date().toISOString()}] Invalid proxy response format:`, data);
+        throw new Error('Invalid response format from proxy');
+      }
       
       const suggestions = data.choices.map((choice: any) => 
-        choice.message.content.trim()
-      );
+        choice.message?.content?.trim() || ''
+      ).filter(Boolean);
+      
+      if (suggestions.length === 0) {
+        console.warn(`[${new Date().toISOString()}] No valid suggestions in proxy response`);
+        throw new Error('No valid suggestions received');
+      }
 
       const endTime = Date.now();
       console.log(`[${new Date().toISOString()}] Extracted suggestions in ${endTime - startTime}ms:`, suggestions);
       return { suggestions };
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error getting suggestions from GPT:`, error);
+      console.error(`[${new Date().toISOString()}] Error getting suggestions from proxy:`, error);
       console.log(`[${new Date().toISOString()}] Falling back to mock data due to error`);
       const mockData = getMockSuggestions(transcription);
       console.log(`[${new Date().toISOString()}] Mock suggestions:`, mockData);
