@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -32,7 +31,6 @@ const Index = () => {
     }
   };
   
-  // Function still exists but is no longer linked to a button
   const toggleListening = () => {
     if (!SpeechService.isAvailable()) {
       toast.error('Speech recognition is not supported in your browser');
@@ -45,20 +43,37 @@ const Index = () => {
       setShowSuggestions(false);
       toast.info('Stopped listening');
     } else {
-      SpeechService.startListening(
-        (text) => setTranscribedText(text),
-        handleFinalTranscription
-      );
-      setIsListening(true);
-      toast.success('Started listening to your conversation');
+      try {
+        SpeechService.startListening(
+          (text) => setTranscribedText(text),
+          handleFinalTranscription
+        );
+        setIsListening(true);
+        toast.success('Started listening to your conversation');
+      } catch (error) {
+        console.error('Error starting speech recognition:', error);
+        toast.error('Error starting speech recognition. Please try again.');
+      }
     }
   };
   
   const handleFinalTranscription = async (text: string) => {
     if (text.trim().length > 5) {
-      const response = await GPTService.getSuggestions(text);
-      setSuggestions(response.suggestions);
-      setShowSuggestions(true);
+      try {
+        const response = await GPTService.getSuggestions(text);
+        setSuggestions(response.suggestions);
+        setShowSuggestions(true);
+      } catch (error) {
+        console.error('Error getting suggestions from GPT:', error);
+        toast.error('Error getting suggestions. API quota may be exceeded.');
+        
+        setSuggestions([
+          "I understand what you're saying",
+          "Let me think about that",
+          "Could you explain more?"
+        ]);
+        setShowSuggestions(true);
+      }
     }
   };
   
@@ -71,7 +86,6 @@ const Index = () => {
     });
   };
   
-  // Auto-start listening when component mounts if autoActivate is enabled
   useEffect(() => {
     if (settings.autoActivate && !isListening) {
       setTimeout(() => {

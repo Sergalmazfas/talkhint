@@ -7,11 +7,15 @@ class SpeechRecognitionFactory {
    * Create a new speech recognition instance
    */
   public static createRecognition(): SpeechRecognition | null {
-    if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognitionAPI) {
-        return new SpeechRecognitionAPI();
+    try {
+      if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+        const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognitionAPI) {
+          return new SpeechRecognitionAPI();
+        }
       }
+    } catch (error) {
+      console.error('Error creating speech recognition:', error);
     }
     
     console.error('Speech recognition is not supported in this browser.');
@@ -24,9 +28,14 @@ class SpeechRecognitionFactory {
   public static configureBasicRecognition(recognition: SpeechRecognition | null): SpeechRecognition | null {
     if (!recognition) return null;
     
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    try {
+      recognition.continuous = true;  // Changed to true for continuous listening
+      recognition.interimResults = true;
+      recognition.lang = 'ru-RU';  // Changed to Russian for better recognition
+      console.log('Speech recognition configured with language:', recognition.lang);
+    } catch (error) {
+      console.error('Error configuring speech recognition:', error);
+    }
     
     return recognition;
   }

@@ -40,6 +40,14 @@ const PhoneCall = () => {
   const toggleListening = () => {
     if (!SpeechService.isAvailable()) {
       toast.error('Распознавание речи не поддерживается в вашем браузере');
+      
+      // Try to reinitialize speech recognition
+      setTimeout(() => {
+        if (SpeechService.isAvailable()) {
+          toast.success('Распознавание речи инициализировано');
+        }
+      }, 1000);
+      
       return;
     }
     
@@ -48,15 +56,20 @@ const PhoneCall = () => {
       setIsListening(false);
       toast.info('Микрофон выключен');
     } else {
-      SpeechService.startListening(
-        (text) => {
-          console.log('Transcribed text:', text);
-          setTranscribedText(text);
-        },
-        handleFinalTranscription
-      );
-      setIsListening(true);
-      toast.success('Микрофон включен');
+      try {
+        SpeechService.startListening(
+          (text) => {
+            console.log('Transcribed text:', text);
+            setTranscribedText(text);
+          },
+          handleFinalTranscription
+        );
+        setIsListening(true);
+        toast.success('Микрофон включен');
+      } catch (error) {
+        console.error('Error starting speech recognition:', error);
+        toast.error('Ошибка при включении микрофона. Пожалуйста, попробуйте еще раз.');
+      }
     }
   };
   
@@ -67,19 +80,34 @@ const PhoneCall = () => {
         // Generate bilingual responses (English and Russian)
         setShowBilingualResponses(false); // Hide previous responses
         toast.loading('Получение ответов...', { id: 'getting-responses' });
-        const bilingualResult = await GPTService.getBilingualResponses(text);
-        toast.dismiss('getting-responses');
         
-        if (bilingualResult.responses.length > 0) {
-          console.log('Received responses:', bilingualResult.responses);
-          setBilingualResponses(bilingualResult.responses);
+        try {
+          const bilingualResult = await GPTService.getBilingualResponses(text);
+          toast.dismiss('getting-responses');
+          
+          if (bilingualResult.responses.length > 0) {
+            console.log('Received responses:', bilingualResult.responses);
+            setBilingualResponses(bilingualResult.responses);
+            setShowBilingualResponses(true);
+          } else {
+            toast.error('Не удалось получить ответы');
+          }
+        } catch (error) {
+          console.error('Error getting responses:', error);
+          toast.dismiss('getting-responses');
+          toast.error('Ошибка сервиса OpenAI. Проверьте лимиты API.');
+          
+          // Fallback: create a simple response when API fails
+          const fallbackResponses = [
+            { english: "I'm listening", russian: "Я слушаю" },
+            { english: "Please continue", russian: "Пожалуйста, продолжайте" },
+            { english: "I understand", russian: "Я понимаю" }
+          ];
+          setBilingualResponses(fallbackResponses);
           setShowBilingualResponses(true);
-        } else {
-          toast.error('Не удалось получить ответы');
         }
       } catch (error) {
-        console.error('Error getting responses:', error);
-        toast.error('Не удалось получить ответы');
+        console.error('Error in final transcription handling:', error);
       }
     } else {
       console.log('Transcription too short, ignoring');

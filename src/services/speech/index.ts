@@ -19,22 +19,33 @@ class SpeechService {
   }
 
   private initRecognition() {
-    this.recognition = SpeechRecognitionFactory.createRecognition();
-    if (this.recognition) {
-      this.recognition = SpeechRecognitionFactory.configureBasicRecognition(this.recognition);
-      this.configureRecognition();
+    try {
+      this.recognition = SpeechRecognitionFactory.createRecognition();
+      if (this.recognition) {
+        this.recognition = SpeechRecognitionFactory.configureBasicRecognition(this.recognition);
+        this.configureRecognition();
+        console.log('Speech recognition initialized successfully');
+      } else {
+        console.error('Failed to create speech recognition instance');
+      }
+    } catch (error) {
+      console.error('Error initializing speech recognition:', error);
     }
   }
 
   private configureRecognition() {
     if (!this.recognition) return;
 
-    this.controller = new SpeechRecognitionController(this.recognition);
-    this.eventHandlers = new SpeechRecognitionEventHandlers(
-      this.recognition, 
-      () => this.controller?.startRecognition(),
-      () => this.controller?.stopRecognition()
-    );
+    try {
+      this.controller = new SpeechRecognitionController(this.recognition);
+      this.eventHandlers = new SpeechRecognitionEventHandlers(
+        this.recognition, 
+        () => this.controller?.startRecognition(),
+        () => this.controller?.stopRecognition()
+      );
+    } catch (error) {
+      console.error('Error configuring recognition:', error);
+    }
   }
 
   public startListening(
@@ -47,7 +58,10 @@ class SpeechService {
 
     if (!this.recognition || !this.eventHandlers) {
       console.error('Speech recognition is not available');
-      return;
+      this.initRecognition(); // Try to reinitialize
+      if (!this.recognition || !this.eventHandlers) {
+        return; // Still not working, exit
+      }
     }
 
     // Reset state
@@ -61,6 +75,7 @@ class SpeechService {
     this.eventHandlers.setIsListening(true);
 
     this.controller?.startRecognition();
+    console.log('Speech recognition started');
   }
 
   public stopListening() {
@@ -71,6 +86,7 @@ class SpeechService {
     this.eventHandlers.clearTimeout();
     
     this.controller?.stopRecognition();
+    console.log('Speech recognition stopped');
   }
 
   public isAvailable(): boolean {
