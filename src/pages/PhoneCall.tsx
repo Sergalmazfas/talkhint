@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft } from 'lucide-react';
+import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft, Speaker } from 'lucide-react';
 import ListeningIndicator from '@/components/ListeningIndicator';
 import BilingualResponsePanel from '@/components/BilingualResponsePanel';
 import SpeechService from '@/services/SpeechService';
@@ -233,9 +233,32 @@ const PhoneCall = () => {
           )}
         </motion.div>
 
-        <div className="text-center text-sm text-muted-foreground">
-          <p>Поставьте телефон на громкую связь и получайте<br />умные подсказки для ответа в реальном времени</p>
-        </div>
+        {/* Instructions panel at the bottom */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="neo-morphism rounded-2xl p-5 mb-4"
+        >
+          <div className="flex items-center mb-3">
+            <Speaker size={18} className="text-primary mr-2" />
+            <h3 className="text-sm font-medium">Как использовать</h3>
+          </div>
+          <ul className="text-sm text-muted-foreground space-y-2 text-left">
+            <li className="flex items-start">
+              <span className="inline-block mr-2 mt-0.5">•</span>
+              <span>Поставьте телефон на громкую связь и положите рядом с устройством</span>
+            </li>
+            <li className="flex items-start">
+              <span className="inline-block mr-2 mt-0.5">•</span>
+              <span>Приложение будет слушать разговор и предлагать варианты ответов</span>
+            </li>
+            <li className="flex items-start">
+              <span className="inline-block mr-2 mt-0.5">•</span>
+              <span>Нажмите на вариант ответа, чтобы скопировать его</span>
+            </li>
+          </ul>
+        </motion.div>
       </div>
 
       <ListeningIndicator 
