@@ -147,19 +147,16 @@ export class GPTRequestService {
       controller.abort();
     }, this.config.timeoutMs);
     
-    // Log the origin being used
-    const origin = window.location.origin;
-    GPTLogger.log(requestId, `Using origin: ${origin}`);
+    // Use current origin to handle CORS properly
+    const currentOrigin = window.location.origin;
+    GPTLogger.log(requestId, `Current origin: ${currentOrigin}`);
     
-    // Update the endpoint to specifically use /v1/chat/completions
+    // Update the fetch options to resolve CORS issues
     const response = await fetch(`${this.config.serverProxyUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Origin': origin,
-        'Accept': 'application/json',
-        'Access-Control-Request-Method': 'POST',
-        'Access-Control-Request-Headers': 'Content-Type'
+        'Origin': currentOrigin
       },
       credentials: 'omit',
       mode: 'cors',
