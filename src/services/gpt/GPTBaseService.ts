@@ -100,7 +100,8 @@ class GPTBaseService {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${this.apiKey}`
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Origin': window.location.origin
             },
             body: JSON.stringify(requestPayload),
             signal: controller.signal
