@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -89,45 +88,6 @@ const Index = () => {
             <p className="text-sm text-muted-foreground mb-6">
               TalkHint listens to your conversation and suggests intelligent responses
             </p>
-          </div>
-          
-          <div className="space-y-4 text-sm">
-            <div className="flex items-center">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="16" x2="12" y2="12"></line>
-                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                </svg>
-              </div>
-              <div>
-                <p className="text-foreground">TalkHint listens to your conversation and suggests intelligent responses</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                </svg>
-              </div>
-              <div>
-                <p className="text-foreground">Your conversations are processed locally for privacy</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                </svg>
-              </div>
-              <div>
-                <p className="text-foreground">Quickly copy the suggested responses to use them</p>
-              </div>
-            </div>
           </div>
         </motion.div>
         
