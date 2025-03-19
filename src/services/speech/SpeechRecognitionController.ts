@@ -4,6 +4,7 @@
  */
 class SpeechRecognitionController {
   private recognition: SpeechRecognition | null = null;
+  private sensitivity: number = 50; // Default sensitivity level
   
   constructor(recognition: SpeechRecognition | null) {
     this.recognition = recognition;
@@ -33,6 +34,24 @@ class SpeechRecognitionController {
     } catch (error) {
       console.error('Error stopping speech recognition:', error);
     }
+  }
+
+  /**
+   * Set sensitivity level (0-100)
+   * This can be used to adjust how the recognition responds
+   */
+  public setSensitivity(value: number): void {
+    this.sensitivity = Math.max(0, Math.min(100, value));
+    console.log(`Speech recognition sensitivity set to: ${this.sensitivity}`);
+    // In a real implementation, this might adjust parameters of the recognition
+    // such as audioThreshold or other configurable settings
+  }
+
+  /**
+   * Get current sensitivity level
+   */
+  public getSensitivity(): number {
+    return this.sensitivity;
   }
 }
 

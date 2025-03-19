@@ -76,6 +76,22 @@ class SpeechService {
   public isAvailable(): boolean {
     return this.recognition !== null;
   }
+
+  /**
+   * Set recognition sensitivity level (0-100)
+   */
+  public setSensitivity(value: number): void {
+    if (this.controller) {
+      this.controller.setSensitivity(value);
+    }
+  }
+
+  /**
+   * Get current sensitivity level
+   */
+  public getSensitivity(): number {
+    return this.controller ? this.controller.getSensitivity() : 50;
+  }
 }
 
 export default new SpeechService();
