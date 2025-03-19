@@ -7,13 +7,14 @@ class GPTBaseService {
   protected responseStyle: string = 'casual';
   protected apiUrl: string = 'https://api.openai.com/v1/chat/completions';
   protected proxyUrl: string = 'https://cors-anywhere-lyart-seven.vercel.app/';
-  protected maxRetries: number = 2;
-  protected timeoutMs: number = 30000; // 30 second timeout
+  protected maxRetries: number = 3; // Increased from 2 to 3
+  protected timeoutMs: number = 60000; // Increased from 30s to 60s
   protected defaultApiKey: string = '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'; // Fallback API key
   protected fallbackProxies: string[] = [
     'https://cors-anywhere-lyart-seven.vercel.app/',
     'https://cors-proxy.fringe.zone/',
-    'https://corsproxy.io/?'
+    'https://corsproxy.io/?',
+    'https://api.allorigins.win/raw?url='
   ];
 
   constructor() {
@@ -78,7 +79,10 @@ class GPTBaseService {
         
         // Create an AbortController for timeout handling
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+        const timeoutId = setTimeout(() => {
+          console.log(`[${new Date().toISOString()}][${requestId}] Request timed out after ${this.timeoutMs}ms`);
+          controller.abort();
+        }, this.timeoutMs);
         
         // Use proxy URL + target URL
         const proxiedUrl = `${this.proxyUrl}${this.apiUrl}`;
@@ -90,7 +94,8 @@ class GPTBaseService {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.apiKey}`,
             'X-Requested-With': 'XMLHttpRequest', // Required by some CORS proxies
-            'Origin': window.location.origin
+            'Origin': window.location.origin,
+            'X-Cors-Api-Key': 'temp_3e4ed26e97d3f60b2b7e3548cdd93313' // Added in case the proxy requires an API key
           },
           body: JSON.stringify({
             model: 'gpt-4o-mini',

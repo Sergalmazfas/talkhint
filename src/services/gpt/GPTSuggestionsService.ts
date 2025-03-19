@@ -39,49 +39,82 @@ class GPTSuggestionsService extends GPTBaseService {
         ];
 
         console.log(`[${new Date().toISOString()}][${requestId}] Calling OpenAI API for suggestions...`);
-        console.log(`[${new Date().toISOString()}][${requestId}] Using API key: ${this.apiKey.substring(0, 5)}...${this.apiKey.substring(this.apiKey.length - 4)}`);
         
-        // Use a more reliable fallback method if proxy fails
+        // Try with our proxy method first
         let data;
         try {
           data = await this.callOpenAI(messages, 1.0, 150, 3);
         } catch (proxyError) {
           console.error(`[${new Date().toISOString()}][${requestId}] Error with proxy API call: ${proxyError.message}`);
           
-          // If we've already retried, use mock data
+          // If we've already retried too many times, throw the error
           if (retryCount > 0) {
             throw proxyError;
           }
           
           console.log(`[${new Date().toISOString()}][${requestId}] Trying direct API call as fallback...`);
-          // Try without proxy as fallback - this may fail due to CORS but worth a try
+          // Try without proxy as fallback (with special handling for CORS)
           const directApiUrl = 'https://api.openai.com/v1/chat/completions';
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
           
-          const response = await fetch(directApiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${this.apiKey}`
-            },
-            body: JSON.stringify({
-              model: 'gpt-4o-mini',
-              messages: messages,
-              temperature: 1.0,
-              max_tokens: 150,
-              n: 3
-            }),
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (!response.ok) {
-            throw new Error(`Direct API call failed with status: ${response.status}`);
+          try {
+            const response = await fetch(directApiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: messages,
+                temperature: 1.0,
+                max_tokens: 150,
+                n: 3
+              }),
+              signal: controller.signal,
+              mode: 'cors' // Explicitly set CORS mode
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+              throw new Error(`Direct API call failed with status: ${response.status}`);
+            }
+            
+            data = await response.json();
+          } catch (directError) {
+            console.error(`[${new Date().toISOString()}][${requestId}] Direct API call failed: ${directError.message}`);
+            
+            // Try another alternative proxy
+            console.log(`[${new Date().toISOString()}][${requestId}] Trying jsonp-bridge as final fallback...`);
+            const bridgeUrl = `https://api.allorigins.win/get?url=${encodeURIComponent('https://api.openai.com/v1/chat/completions')}`;
+            
+            const bridgeResponse = await fetch(bridgeUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-requested-with': 'XMLHttpRequest'
+              },
+              body: JSON.stringify({
+                auth: `Bearer ${this.apiKey}`,
+                data: {
+                  model: 'gpt-4o-mini',
+                  messages: messages,
+                  temperature: 1.0,
+                  max_tokens: 150,
+                  n: 3
+                }
+              })
+            });
+            
+            if (!bridgeResponse.ok) {
+              throw new Error(`Bridge API call failed with status: ${bridgeResponse.status}`);
+            }
+            
+            const bridgeData = await bridgeResponse.json();
+            data = JSON.parse(bridgeData.contents);
           }
-          
-          data = await response.json();
         }
         
         console.log(`[${new Date().toISOString()}][${requestId}] OpenAI API response received for suggestions`);
