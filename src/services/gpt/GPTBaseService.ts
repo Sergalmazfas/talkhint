@@ -59,23 +59,19 @@ class GPTBaseService {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     console.log(`[${new Date().toISOString()}][${requestId}] OpenAI API request starting`);
     console.log(`[${requestId}] Using model: gpt-4o-mini`);
-    console.log(`[${requestId}] Request payload:`, JSON.stringify({
+    
+    const requestPayload = {
       model: 'gpt-4o-mini',
       messages,
       temperature,
       max_tokens: maxTokens,
       n
-    }, null, 2));
+    };
+    
+    console.log(`[${requestId}] Request payload:`, JSON.stringify(requestPayload, null, 2));
 
     if (!this.apiKey) {
       throw new Error('API key is required to make OpenAI API calls');
-    }
-
-    if (!this.openaiClient) {
-      this.initializeOpenAIClient();
-      if (!this.openaiClient) {
-        throw new Error('Failed to initialize OpenAI client');
-      }
     }
 
     let currentRetry = 0;
@@ -87,57 +83,102 @@ class GPTBaseService {
       
       const startTime = Date.now();
       try {
-        console.log(`[${new Date().toISOString()}][${requestId}] Sending request using OpenAI SDK`);
+        let response;
         
-        // Create a controller for timeout handling
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-          console.log(`[${new Date().toISOString()}][${requestId}] Request timed out after ${this.timeoutMs}ms`);
-          controller.abort();
-        }, this.timeoutMs);
-        
-        // Using the OpenAI SDK
-        const completion = await this.openaiClient.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: messages.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
-          temperature: temperature,
-          max_tokens: maxTokens,
-          n: n
-        }, {
-          signal: controller.signal as AbortSignal
-        });
-        
-        // Clear the timeout since we got a response
-        clearTimeout(timeoutId);
+        if (this.useServerProxy) {
+          // Using server proxy with API key in Authorization header
+          console.log(`[${new Date().toISOString()}][${requestId}] Sending request using server proxy: ${this.serverProxyUrl}`);
+          
+          // Create a controller for timeout handling
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            console.log(`[${new Date().toISOString()}][${requestId}] Request timed out after ${this.timeoutMs}ms`);
+            controller.abort();
+          }, this.timeoutMs);
+          
+          response = await fetch(`${this.serverProxyUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify(requestPayload),
+            signal: controller.signal
+          });
+          
+          // Clear the timeout since we got a response
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[${new Date().toISOString()}][${requestId}] Server proxy error: ${response.status} ${errorText}`);
+            throw new Error(`Server proxy error: ${response.status} ${errorText}`);
+          }
+          
+          const data = await response.json();
+          console.log(`[${new Date().toISOString()}][${requestId}] Server proxy response received:`, data);
+          response = data;
+        } else {
+          // Using the OpenAI SDK
+          console.log(`[${new Date().toISOString()}][${requestId}] Sending request using OpenAI SDK`);
+          
+          if (!this.openaiClient) {
+            this.initializeOpenAIClient();
+            if (!this.openaiClient) {
+              throw new Error('Failed to initialize OpenAI client');
+            }
+          }
+          
+          // Create a controller for timeout handling
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            console.log(`[${new Date().toISOString()}][${requestId}] Request timed out after ${this.timeoutMs}ms`);
+            controller.abort();
+          }, this.timeoutMs);
+          
+          // Using the OpenAI SDK
+          const completion = await this.openaiClient.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: messages.map(msg => ({
+              role: msg.role,
+              content: msg.content
+            })),
+            temperature: temperature,
+            max_tokens: maxTokens,
+            n: n
+          }, {
+            signal: controller.signal as AbortSignal
+          });
+          
+          // Clear the timeout since we got a response
+          clearTimeout(timeoutId);
+
+          // Transform the response to match the expected format
+          response = {
+            id: completion.id,
+            choices: completion.choices.map(choice => ({
+              message: {
+                role: choice.message.role,
+                content: choice.message.content
+              },
+              index: choice.index,
+              finish_reason: choice.finish_reason
+            }))
+          };
+        }
 
         const endTime = Date.now();
         const duration = endTime - startTime;
         console.log(`[${new Date().toISOString()}][${requestId}] API request completed in ${duration}ms`);
         
-        // Transform the response to match the expected format
-        const transformedResponse = {
-          id: completion.id,
-          choices: completion.choices.map(choice => ({
-            message: {
-              role: choice.message.role,
-              content: choice.message.content
-            },
-            index: choice.index,
-            finish_reason: choice.finish_reason
-          }))
-        };
-        
         console.log(`[${new Date().toISOString()}][${requestId}] Response successfully processed`);
-        console.log(`[${requestId}] Response object structure:`, Object.keys(transformedResponse));
+        console.log(`[${requestId}] Response object structure:`, Object.keys(response));
         
-        if (transformedResponse.choices && transformedResponse.choices.length > 0) {
-          console.log(`[${requestId}] Sample response content: "${transformedResponse.choices[0].message.content?.substring(0, 50)}..."`);
+        if (response.choices && response.choices.length > 0) {
+          console.log(`[${requestId}] Sample response content: "${response.choices[0].message.content?.substring(0, 50)}..."`);
         }
         
-        return transformedResponse;
+        return response;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`[${new Date().toISOString()}][${requestId}] Error in API request:`, errorMessage);
