@@ -37,7 +37,7 @@ class GPTSuggestionsService extends GPTBaseService {
       const data = await this.callOpenAI(messages, 1.0, 150, 3);
       console.log(`[${new Date().toISOString()}][${requestId}] OpenAI API response received for suggestions`);
       
-      if (!data || !data.choices) {
+      if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
         console.error(`[${new Date().toISOString()}][${requestId}] Invalid response format:`, data);
         throw new Error('Invalid response format from API');
       }
@@ -48,16 +48,21 @@ class GPTSuggestionsService extends GPTBaseService {
       // More robust handling of the choices data
       const suggestions = data.choices
         .map((choice: any) => {
-          // Check different possible paths for content
-          if (choice && choice.message && typeof choice.message.content === 'string') {
-            return choice.message.content.trim();
+          try {
+            // Check different possible paths for content
+            if (choice && choice.message && typeof choice.message.content === 'string') {
+              return choice.message.content.trim();
+            }
+            // If direct structure doesn't work, try alternatives
+            if (choice && typeof choice.text === 'string') {
+              return choice.text.trim();
+            }
+            console.warn(`[${requestId}] Could not extract content from choice:`, choice);
+            return null;
+          } catch (err) {
+            console.error(`[${requestId}] Error extracting suggestion text:`, err);
+            return null;
           }
-          // If direct structure doesn't work, try alternatives
-          if (choice && typeof choice.text === 'string') {
-            return choice.text.trim();
-          }
-          console.warn(`[${requestId}] Could not extract content from choice:`, choice);
-          return null;
         })
         .filter(Boolean); // Remove any null/undefined values
       

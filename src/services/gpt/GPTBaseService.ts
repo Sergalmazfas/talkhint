@@ -6,6 +6,7 @@ class GPTBaseService {
   protected apiKey: string | null = null;
   protected responseStyle: string = 'casual';
   protected apiUrl: string = 'https://api.openai.com/v1/chat/completions';
+  protected proxyUrl: string = 'https://cors-anywhere-lyart-seven.vercel.app/';
   protected maxRetries: number = 2;
   protected timeoutMs: number = 30000; // 30 second timeout
 
@@ -60,17 +61,22 @@ class GPTBaseService {
       
       const startTime = Date.now();
       try {
-        console.log(`[${new Date().toISOString()}][${requestId}] Sending fetch request to OpenAI`);
+        console.log(`[${new Date().toISOString()}][${requestId}] Sending fetch request to OpenAI via proxy`);
         
         // Create an AbortController for timeout handling
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
         
-        const response = await fetch(this.apiUrl, {
+        // Use proxy URL + target URL
+        const proxiedUrl = `${this.proxyUrl}${this.apiUrl}`;
+        console.log(`[${new Date().toISOString()}][${requestId}] Using proxy URL: ${proxiedUrl}`);
+        
+        const response = await fetch(proxiedUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`
+            'Authorization': `Bearer ${this.apiKey}`,
+            'X-Requested-With': 'XMLHttpRequest' // Required by some CORS proxies
           },
           body: JSON.stringify({
             model: 'gpt-4o-mini',
