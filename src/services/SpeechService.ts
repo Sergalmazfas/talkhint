@@ -29,7 +29,6 @@ class SpeechService {
 
     this.recognition.continuous = true;
     this.recognition.interimResults = true;
-    // Configure to detect both Russian and English
     this.recognition.lang = 'en-US'; // Set to English for caller speech
     this.recognition.maxAlternatives = 5; // Increase alternatives for better accuracy
 
@@ -141,34 +140,9 @@ class SpeechService {
       }
     };
     
-    // Add additional event handlers for better debugging
-    this.recognition.onnomatch = () => {
-      console.log('Speech recognition: No match found');
-    };
-    
-    this.recognition.onaudiostart = () => {
-      console.log('Speech recognition: Audio capturing started');
-    };
-    
-    this.recognition.onaudioend = () => {
-      console.log('Speech recognition: Audio capturing ended');
-    };
-    
-    this.recognition.onsoundstart = () => {
-      console.log('Speech recognition: Sound detected');
-    };
-    
-    this.recognition.onsoundend = () => {
-      console.log('Speech recognition: Sound ended');
-    };
-    
-    this.recognition.onspeechstart = () => {
-      console.log('Speech recognition: Speech detected');
-    };
-    
-    this.recognition.onspeechend = () => {
-      console.log('Speech recognition: Speech ended');
-    };
+    // Remove the event handlers that are not defined in the TypeScript interface
+    // The following event handlers were causing TypeScript errors:
+    // onnomatch, onaudiostart, onaudioend, onsoundstart, onsoundend, onspeechstart, onspeechend
   }
 
   public setSensitivity(value: number) {
