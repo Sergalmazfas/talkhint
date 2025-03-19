@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -18,6 +19,9 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ["SF Pro Display", "system-ui", "sans-serif"],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -70,25 +74,50 @@ export default {
 			},
 			keyframes: {
 				'accordion-down': {
-					from: {
-						height: '0'
-					},
-					to: {
-						height: 'var(--radix-accordion-content-height)'
-					}
+					from: { height: '0' },
+					to: { height: 'var(--radix-accordion-content-height)' }
 				},
 				'accordion-up': {
-					from: {
-						height: 'var(--radix-accordion-content-height)'
-					},
-					to: {
-						height: '0'
-					}
-				}
+					from: { height: 'var(--radix-accordion-content-height)' },
+					to: { height: '0' }
+				},
+				fadeIn: {
+					from: { opacity: '0' },
+					to: { opacity: '1' }
+				},
+				fadeOut: {
+					from: { opacity: '1' },
+					to: { opacity: '0' }
+				},
+				slideUp: {
+					from: { transform: 'translateY(100%)', opacity: '0' },
+					to: { transform: 'translateY(0)', opacity: '1' }
+				},
+				slideDown: {
+					from: { transform: 'translateY(0)', opacity: '1' },
+					to: { transform: 'translateY(100%)', opacity: '0' }
+				},
+				pulse: {
+					'0%, 100%': { opacity: '1' },
+					'50%': { opacity: '0.5' }
+				},
+				wave: {
+					'0%': { transform: 'scaleY(0.2)' },
+					'50%': { transform: 'scaleY(1)' },
+					'100%': { transform: 'scaleY(0.2)' }
+				},
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'fade-in': 'fadeIn 0.3s ease-out',
+				'fade-out': 'fadeOut 0.3s ease-out',
+				'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+				'slide-down': 'slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+				'pulse-slow': 'pulse 2s cubic-bezier(.4,0,.6,1) infinite',
+				'wave-1': 'wave 1.5s ease-in-out infinite',
+				'wave-2': 'wave 1.5s ease-in-out 0.25s infinite',
+				'wave-3': 'wave 1.5s ease-in-out 0.5s infinite',
 			}
 		}
 	},
