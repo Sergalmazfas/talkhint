@@ -18,7 +18,7 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
   serverProxyUrl: 'https://api.openai.com', // OpenAI API URL
-  useServerProxy: false, // По умолчанию используем прямой доступ
+  useServerProxy: false, // Using direct API connection by default
   maxRetries: 3,
   timeoutMs: 60000,
 };
@@ -27,13 +27,22 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
  * Load the OpenAI API key from localStorage
  */
 export function loadApiKeyFromStorage(): string | null {
-  const storedKey = localStorage.getItem('openai_api_key');
-  return storedKey || null;
+  try {
+    const storedKey = localStorage.getItem('openai_api_key');
+    return storedKey || null;
+  } catch (error) {
+    console.error('Error loading API key from storage:', error);
+    return null;
+  }
 }
 
 /**
  * Save the OpenAI API key to localStorage
  */
 export function saveApiKeyToStorage(key: string): void {
-  localStorage.setItem('openai_api_key', key);
+  try {
+    localStorage.setItem('openai_api_key', key);
+  } catch (error) {
+    console.error('Error saving API key to storage:', error);
+  }
 }

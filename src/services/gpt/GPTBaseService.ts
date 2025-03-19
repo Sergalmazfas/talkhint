@@ -68,12 +68,14 @@ class GPTBaseService {
   }
 
   public async checkApiConnection(): Promise<boolean> {
+    // If no API key and not using proxy, return false immediately
     if (!this.config.apiKey && !this.config.useServerProxy) {
-      GPTLogger.warn(undefined, 'Cannot check API connection: No API key set and server proxy is disabled');
+      GPTLogger.warn(undefined, 'API key not set and not using server proxy');
       return false;
     }
     
     try {
+      // Use a simple test prompt
       const result = await this.callOpenAI([{ role: 'user', content: 'Connection check' }], 0.1, 10);
       return !!result;
     } catch (error) {

@@ -56,13 +56,14 @@ export class GPTRequestService {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     GPTLogger.log(requestId, 'OpenAI API request starting');
     
-    // Check if we have a valid configuration for making the request
+    // Validate configuration for the request
     if (!this.config.useServerProxy && (!this.config.apiKey || this.config.apiKey.trim() === '')) {
       const errorMsg = 'API key is required when not using server proxy';
       GPTLogger.error(requestId, errorMsg);
       throw new Error(errorMsg);
     }
     
+    // Use gpt-4o-mini model - more affordable
     GPTLogger.log(requestId, 'Using model: gpt-4o-mini');
     
     const requestPayload = {
@@ -73,7 +74,7 @@ export class GPTRequestService {
       n
     };
     
-    GPTLogger.log(requestId, 'Request payload:', requestPayload);
+    GPTLogger.log(requestId, 'Request payload prepared');
     GPTLogger.log(requestId, `Using direct OpenAI client: ${!this.config.useServerProxy}`);
 
     let currentRetry = 0;
@@ -88,8 +89,10 @@ export class GPTRequestService {
         let response;
         
         if (this.config.useServerProxy) {
+          // Using proxy server
           response = await this.makeServerProxyRequest(requestId, requestPayload);
         } else {
+          // Direct API access with OpenAI SDK
           response = await this.makeDirectOpenAIRequest(requestId, messages, temperature, maxTokens, n);
         }
 
@@ -97,19 +100,12 @@ export class GPTRequestService {
         const duration = endTime - startTime;
         GPTLogger.log(requestId, `API request completed in ${duration}ms`);
         
-        GPTLogger.log(requestId, 'Response successfully processed');
-        GPTLogger.log(requestId, `Response object structure:`, Object.keys(response));
-        
-        if (response.choices && response.choices.length > 0) {
-          GPTLogger.log(requestId, `Sample response content: "${response.choices[0].message.content?.substring(0, 50)}..."`);
-        }
-        
         return response;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         GPTLogger.error(requestId, 'Error in API request:', errorMessage);
         
-        // Check if it's an abort error (timeout)
+        // Check if it's a timeout
         if (errorMessage.includes('abort') || errorMessage.includes('timeout')) {
           GPTLogger.warn(requestId, `Request timed out after ${this.config.timeoutMs}ms`);
           
@@ -120,7 +116,7 @@ export class GPTRequestService {
           }
         }
         
-        // For other errors, retry
+        // For other errors, retry if possible
         if (currentRetry < this.config.maxRetries) {
           await this.backoff(requestId, currentRetry);
           currentRetry++;
@@ -138,7 +134,7 @@ export class GPTRequestService {
    * Make a request using the server proxy
    */
   private async makeServerProxyRequest(requestId: string, requestPayload: any): Promise<any> {
-    GPTLogger.log(requestId, `Making request directly to OpenAI API`);
+    GPTLogger.log(requestId, `Making request to proxy server: ${this.config.serverProxyUrl}`);
     
     // Create a controller for timeout handling
     const controller = new AbortController();
@@ -148,38 +144,44 @@ export class GPTRequestService {
     }, this.config.timeoutMs);
     
     try {
-      // Make a direct fetch request to OpenAI API
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Only add Authorization header if we have an API key
+      if (this.config.apiKey) {
+        headers['Authorization'] = `Bearer ${this.config.apiKey}`;
+      }
+      
+      // Make the fetch request
       const response = await fetch(`${this.config.serverProxyUrl}/v1/chat/completions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`
-        },
+        headers,
         body: JSON.stringify(requestPayload),
-        signal: controller.signal
+        signal: controller.signal,
+        mode: 'cors', // Ensure CORS is enabled
       });
       
-      // Clear the timeout since we got a response
       clearTimeout(timeoutId);
       
       if (!response.ok) {
         const errorText = await response.text();
-        GPTLogger.error(requestId, `API error: ${response.status} ${errorText}`);
-        throw new Error(`API error: ${response.status} ${errorText}`);
+        const errorMessage = `API error: ${response.status} ${errorText}`;
+        GPTLogger.error(requestId, errorMessage);
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
-      GPTLogger.log(requestId, 'API response received:', data);
+      GPTLogger.log(requestId, 'API response received successfully');
       return data;
     } catch (error) {
-      // Clear the timeout in case of error
       clearTimeout(timeoutId);
       throw error;
     }
   }
 
   /**
-   * Make a direct request to OpenAI API
+   * Make a direct request to OpenAI API using the SDK
    */
   private async makeDirectOpenAIRequest(
     requestId: string, 
@@ -219,7 +221,6 @@ export class GPTRequestService {
         signal: controller.signal as AbortSignal
       });
       
-      // Clear the timeout since we got a response
       clearTimeout(timeoutId);
 
       // Transform the response to match the expected format
@@ -235,7 +236,6 @@ export class GPTRequestService {
         }))
       };
     } catch (error) {
-      // Clear the timeout in case of error
       clearTimeout(timeoutId);
       throw error;
     }

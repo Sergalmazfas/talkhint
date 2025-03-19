@@ -1,4 +1,3 @@
-
 import GPTBaseService from './GPTBaseService';
 import GPTSuggestionsService from './GPTSuggestionsService';
 import GPTBilingualService from './GPTBilingualService';
@@ -20,9 +19,6 @@ class GPTService {
     this.bilingualService = new GPTBilingualService();
     this.translationService = new GPTTranslationService();
     console.log(`[${new Date().toISOString()}] GPT service initialization complete`);
-    
-    // Default to using direct API mode since we need API key
-    this.setUseServerProxy(false);
   }
 
   public setApiKey(key: string): void {
@@ -38,14 +34,14 @@ class GPTService {
   }
 
   public setUseServerProxy(use: boolean): void {
-    console.log(`[${new Date().toISOString()}] Setting direct API mode: ${!use}`);
+    console.log(`[${new Date().toISOString()}] Setting server proxy mode: ${use}`);
     this.suggestionsService.setUseServerProxy(use);
     this.bilingualService.setUseServerProxy(use);
     this.translationService.setUseServerProxy(use);
-    console.log(`[${new Date().toISOString()}] API mode set for all services`);
+    console.log(`[${new Date().toISOString()}] Server proxy mode set for all services`);
     
     // Show a notification to the user
-    toast(use ? "Using server proxy for API calls" : "Using direct API connection");
+    toast(use ? "Используется прокси-сервер для API" : "Используется прямое подключение к API");
   }
 
   public getUseServerProxy(): boolean {
@@ -59,8 +55,10 @@ class GPTService {
 
   public async checkConnection(): Promise<boolean> {
     console.log(`[${new Date().toISOString()}] Checking GPT API connection`);
+    console.log(`[${new Date().toISOString()}] Checking GPT API connection...`);
+    
     try {
-      return await this.bilingualService.checkConnection();
+      return await this.bilingualService.checkApiConnection();
     } catch (error) {
       console.error(`[${new Date().toISOString()}] Error checking connection:`, error);
       return false;
