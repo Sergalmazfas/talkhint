@@ -8,10 +8,11 @@ class SpeechService {
 
   constructor() {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
-      // @ts-ignore - webkitSpeechRecognition might not be in the type definitions
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      this.recognition = new SpeechRecognition();
-      this.configureRecognition();
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognitionAPI) {
+        this.recognition = new SpeechRecognitionAPI();
+        this.configureRecognition();
+      }
     } else {
       console.error('Speech recognition is not supported in this browser.');
     }
