@@ -96,13 +96,22 @@ class GPTBaseService {
             controller.abort();
           }, this.timeoutMs);
           
+          // Log the origin being used
+          const origin = window.location.origin;
+          console.log(`[${new Date().toISOString()}][${requestId}] Using origin: ${origin}`);
+          
           response = await fetch(`${this.serverProxyUrl}/v1/chat/completions`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${this.apiKey}`,
-              'Origin': window.location.origin
+              'Origin': origin,
+              'Accept': 'application/json',
+              'Access-Control-Request-Method': 'POST',
+              'Access-Control-Request-Headers': 'Content-Type, Authorization'
             },
+            credentials: 'omit',
+            mode: 'cors',
             body: JSON.stringify(requestPayload),
             signal: controller.signal
           });
