@@ -29,7 +29,7 @@ const BilingualResponsePanel: React.FC<BilingualResponsePanelProps> = ({
       >
         <div className="glass-morphism rounded-3xl p-4 shadow-lg">
           <div className="flex justify-between items-center mb-3">
-            <h3 className="text-sm font-medium text-foreground/80">Suggested Bilingual Responses</h3>
+            <h3 className="text-sm font-medium text-foreground/80">Варианты ответов</h3>
             <button 
               onClick={onDismiss}
               className="text-muted-foreground hover:text-foreground transition-colors"

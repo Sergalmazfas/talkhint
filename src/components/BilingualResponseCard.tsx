@@ -19,7 +19,7 @@ const BilingualResponseCard: React.FC<BilingualResponseCardProps> = ({ response,
     >
       <div className="space-y-2">
         <p className="text-sm font-medium text-foreground">{index + 1}. {response.english}</p>
-        <p className="text-sm text-muted-foreground">{response.russian}</p>
+        <p className="text-sm italic text-muted-foreground">({response.russian})</p>
       </div>
     </motion.div>
   );

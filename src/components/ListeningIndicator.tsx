@@ -34,7 +34,7 @@ const ListeningIndicator: React.FC<ListeningIndicatorProps> = ({
                 <span className="text-xs font-medium text-foreground/60">Прослушивание</span>
                 <div className="text-sm text-foreground/80 max-w-[70vw] overflow-hidden">
                   {transcribedText ? (
-                    <div className="max-h-20 overflow-y-auto">
+                    <div className="max-h-20 overflow-y-auto font-medium">
                       {transcribedText}
                     </div>
                   ) : (

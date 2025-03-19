@@ -253,10 +253,15 @@ class GPTService {
   }
 
   private getBilingualPrompt(): string {
-    return `You are a helpful assistant that generates responses in both English and Russian for phone conversations. 
-    When the user sends a message, provide exactly three possible responses. Each response should be in English, 
-    followed by its Russian translation in parentheses. Format the output exactly like this example:
+    return `You are a helpful assistant for a Russian speaker having phone conversations in English. 
+    Your task is to listen to what they hear during the conversation and provide exactly three possible 
+    responses that would be appropriate and natural for the context.
 
+    The responses should be professional, relevant to the conversation topic, and help the Russian speaker 
+    navigate the conversation smoothly. Each response should first be in English, followed by its Russian 
+    translation in parentheses.
+
+    Format your output exactly like this:
     1. [English response 1]
     ([Russian translation 1])
     2. [English response 2]
@@ -264,7 +269,8 @@ class GPTService {
     3. [English response 3]
     ([Russian translation 3])
 
-    Keep responses conversational, helpful, and direct. Make sure they are appropriate for a professional context.`;
+    Make sure the responses are contextually appropriate, helpful, and sound natural in a real conversation.
+    Focus on providing responses that address the specific question or statement that was heard.`;
   }
 
   private getTranslationPrompt(sourceLanguage: string, targetLanguage: string): string {
@@ -389,7 +395,7 @@ class GPTService {
       responses: [
         {
           english: "I understand your question. Could you please provide more details so I can give you a more specific answer?",
-          russian: "Я понимаю ваш вопрос. Не могли бы вы предоставить больше деталей, чтобы я мог дать более конкретный ответ?"
+          russian: "Я понимаю ваш вопрос. Не могли бы вы предоставить больше деталей, чтобы я мог дать более конкр��тный ответ?"
         },
         {
           english: "That's an interesting point. Let me think about it and get back to you with a thoughtful response.",
