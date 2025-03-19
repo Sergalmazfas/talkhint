@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import GPTService from '@/services/GPTService';
 
 const PhoneCall = () => {
   const [isListening, setIsListening] = useState(false);
-  const [isCallActive, setIsCallActive] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(true); // Set to true by default
   const [transcribedText, setTranscribedText] = useState('');
   const [bilingualResponses, setBilingualResponses] = useState<Array<{english: string, russian: string}>>([]);
   const [showBilingualResponses, setShowBilingualResponses] = useState(false);
@@ -134,6 +135,13 @@ const PhoneCall = () => {
         .then(() => {
           console.log('Доступ к микрофону получен');
           toast.success('Доступ к микрофону получен');
+          
+          // Auto-start the call on page load
+          setIsCallActive(true);
+          toast.success('Звонок начат');
+          
+          // Auto-start listening
+          startListening();
         })
         .catch((err) => {
           console.error('Доступ к микрофону запрещен:', err);
