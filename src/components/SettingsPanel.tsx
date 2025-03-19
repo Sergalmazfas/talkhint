@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
@@ -27,7 +27,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   settings, 
   onSettingsChange 
 }) => {
-  const [apiKey, setApiKey] = useState(GPTService.getApiKey() || '');
+  const [apiKey, setApiKey] = useState('');
+  
+  // Загружаем API-ключ при открытии настроек
+  useEffect(() => {
+    if (isOpen) {
+      const currentKey = GPTService.getApiKey() || '';
+      setApiKey(currentKey);
+    }
+  }, [isOpen]);
   
   if (!isOpen) return null;
 
@@ -36,6 +44,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       GPTService.setApiKey(apiKey.trim());
       GPTService.setResponseStyle(settings.responseStyle);
       toast.success('Настройки сохранены');
+    } else {
+      // Если пользователь очистил поле, напоминаем о необходимости ключа
+      toast.warning('API ключ необходим для работы с OpenAI');
     }
     onClose();
   };
@@ -80,7 +91,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                Для работы приложения требуется ключ API OpenAI.
+                Для работы приложения требуется ключ API OpenAI. Если поле пустое, будет использован запасной ключ.
               </p>
             </div>
 

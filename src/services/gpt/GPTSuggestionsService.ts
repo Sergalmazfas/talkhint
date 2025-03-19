@@ -9,8 +9,9 @@ class GPTSuggestionsService extends GPTBaseService {
     console.log(`[${new Date().toISOString()}][${requestId}] getSuggestions called with text (${transcription.length} chars):`);
     console.log(`[${requestId}] Transcription: ${transcription}`);
     
-    if (!this.apiKey) {
-      console.warn(`[${new Date().toISOString()}][${requestId}] API key not set for suggestions, using mock data`);
+    // Проверяем, что есть API ключ (он должен быть всегда, так как есть запасной ключ)
+    if (!this.apiKey || this.apiKey.trim() === '') {
+      console.warn(`[${new Date().toISOString()}][${requestId}] API key not set or empty for suggestions, using mock data`);
       const mockData = getMockSuggestions(transcription);
       console.log(`[${new Date().toISOString()}][${requestId}] Mock suggestions:`, mockData);
       return mockData;
@@ -34,6 +35,8 @@ class GPTSuggestionsService extends GPTBaseService {
       ];
 
       console.log(`[${new Date().toISOString()}][${requestId}] Calling OpenAI API for suggestions...`);
+      console.log(`[${new Date().toISOString()}][${requestId}] Using API key: ${this.apiKey.substring(0, 5)}...${this.apiKey.substring(this.apiKey.length - 4)}`);
+      
       const data = await this.callOpenAI(messages, 1.0, 150, 3);
       console.log(`[${new Date().toISOString()}][${requestId}] OpenAI API response received for suggestions`);
       
