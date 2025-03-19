@@ -9,6 +9,8 @@ class SpeechService {
   private finalTranscript: string = '';
   private interimTranscript: string = '';
   private recognitionTimeout: NodeJS.Timeout | null = null;
+  private recognitionRestartCount: number = 0;
+  private maxRestartAttempts: number = 5;
 
   constructor() {
     if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
@@ -27,11 +29,13 @@ class SpeechService {
 
     this.recognition.continuous = true;
     this.recognition.interimResults = true;
-    this.recognition.lang = 'ru-RU'; // Set to Russian as default
-    this.recognition.maxAlternatives = 3; // Get multiple alternatives
+    // Configure to detect both Russian and English
+    this.recognition.lang = 'en-US'; // Set to English for caller speech
+    this.recognition.maxAlternatives = 5; // Increase alternatives for better accuracy
 
     this.recognition.onresult = (event) => {
       this.interimTranscript = '';
+      let hasNewValidTranscript = false;
       
       // Process all results from the current session
       for (let i = this.currentTranscriptIndex; i < event.results.length; i++) {
@@ -39,24 +43,28 @@ class SpeechService {
         const confidence = event.results[i][0].confidence;
         
         if (event.results[i].isFinal) {
-          // Only add high confidence results to final transcript
-          if (confidence > 0.5) {
+          // Lower the confidence threshold to capture more speech
+          if (confidence > 0.3) {
             this.finalTranscript += ' ' + transcript;
+            hasNewValidTranscript = true;
           }
         } else {
           this.interimTranscript += transcript;
+          hasNewValidTranscript = true;
         }
       }
       
       // Clean up transcript
       const formattedTranscript = (this.finalTranscript + ' ' + this.interimTranscript).trim();
       
-      if (this.onTranscriptionCallback) {
+      if (this.onTranscriptionCallback && hasNewValidTranscript) {
         this.onTranscriptionCallback(formattedTranscript);
+        // Reset restart count when we get valid results
+        this.recognitionRestartCount = 0;
       }
 
       // Check if result is final and has sufficient content
-      if (this.interimTranscript === '' && this.finalTranscript.length > 5) {
+      if (this.interimTranscript === '' && this.finalTranscript.length > 0) {
         // Reset recognition timeout if it exists
         if (this.recognitionTimeout) {
           clearTimeout(this.recognitionTimeout);
@@ -64,12 +72,12 @@ class SpeechService {
         
         // Set a timeout to allow for brief pauses in speech before sending
         this.recognitionTimeout = setTimeout(() => {
-          if (this.onFinalTranscriptionCallback) {
+          if (this.onFinalTranscriptionCallback && this.finalTranscript.trim().length > 0) {
             this.onFinalTranscriptionCallback(this.finalTranscript);
             // Reset final transcript after callback
             this.finalTranscript = '';
           }
-        }, 1500); // 1.5 second pause to consider speech complete
+        }, 1000); // Shorter pause (1 second) to consider speech complete
       }
       
       // Reset current index after processing all results
@@ -79,18 +87,29 @@ class SpeechService {
     this.recognition.onerror = (event) => {
       console.error('Speech recognition error', event.error);
       
-      // Attempt to restart recognition on error
+      // Attempt to restart recognition on error with backoff
       if (this.isListening) {
         try {
           this.stopListening();
-          setTimeout(() => {
-            if (this.isListening) {
-              this.startListening(
-                this.onTranscriptionCallback || (() => {}),
-                this.onFinalTranscriptionCallback || (() => {})
-              );
-            }
-          }, 1000);
+          
+          if (this.recognitionRestartCount < this.maxRestartAttempts) {
+            this.recognitionRestartCount++;
+            const backoffDelay = Math.min(1000 * this.recognitionRestartCount, 5000);
+            
+            console.log(`Restarting speech recognition (attempt ${this.recognitionRestartCount}) in ${backoffDelay}ms`);
+            
+            setTimeout(() => {
+              if (this.isListening) {
+                this.startListening(
+                  this.onTranscriptionCallback || (() => {}),
+                  this.onFinalTranscriptionCallback || (() => {})
+                );
+              }
+            }, backoffDelay);
+          } else {
+            console.error('Maximum restart attempts reached. Speech recognition stopped.');
+            this.isListening = false;
+          }
         } catch (error) {
           console.error('Error restarting speech recognition:', error);
         }
@@ -98,14 +117,57 @@ class SpeechService {
     };
 
     this.recognition.onend = () => {
+      console.log('Speech recognition ended');
+      
       // Automatically restart if still in listening mode
       if (this.isListening) {
         try {
+          console.log('Restarting speech recognition after end event');
           this.recognition?.start();
         } catch (error) {
           console.error('Error restarting speech recognition:', error);
+          
+          // Try again with delay if there was an error starting
+          setTimeout(() => {
+            if (this.isListening) {
+              try {
+                this.recognition?.start();
+              } catch (innerError) {
+                console.error('Second attempt to restart speech recognition failed:', innerError);
+              }
+            }
+          }, 1000);
         }
       }
+    };
+    
+    // Add additional event handlers for better debugging
+    this.recognition.onnomatch = () => {
+      console.log('Speech recognition: No match found');
+    };
+    
+    this.recognition.onaudiostart = () => {
+      console.log('Speech recognition: Audio capturing started');
+    };
+    
+    this.recognition.onaudioend = () => {
+      console.log('Speech recognition: Audio capturing ended');
+    };
+    
+    this.recognition.onsoundstart = () => {
+      console.log('Speech recognition: Sound detected');
+    };
+    
+    this.recognition.onsoundend = () => {
+      console.log('Speech recognition: Sound ended');
+    };
+    
+    this.recognition.onspeechstart = () => {
+      console.log('Speech recognition: Speech detected');
+    };
+    
+    this.recognition.onspeechend = () => {
+      console.log('Speech recognition: Speech ended');
     };
   }
 
@@ -129,10 +191,11 @@ class SpeechService {
     this.onFinalTranscriptionCallback = onFinalTranscription;
     this.isListening = true;
     this.currentTranscriptIndex = 0;
+    this.recognitionRestartCount = 0;
 
     try {
       this.recognition.start();
-      console.log('Speech recognition started');
+      console.log('Speech recognition started successfully');
     } catch (error) {
       console.error('Error starting speech recognition:', error);
     }
@@ -149,7 +212,7 @@ class SpeechService {
     
     try {
       this.recognition.stop();
-      console.log('Speech recognition stopped');
+      console.log('Speech recognition stopped successfully');
     } catch (error) {
       console.error('Error stopping speech recognition:', error);
     }

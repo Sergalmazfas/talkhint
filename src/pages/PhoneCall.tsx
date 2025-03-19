@@ -49,7 +49,10 @@ const PhoneCall = () => {
       toast.info('Микрофон выключен');
     } else {
       SpeechService.startListening(
-        (text) => setTranscribedText(text),
+        (text) => {
+          console.log('Transcribed text:', text);
+          setTranscribedText(text);
+        },
         handleFinalTranscription
       );
       setIsListening(true);
@@ -58,16 +61,28 @@ const PhoneCall = () => {
   };
   
   const handleFinalTranscription = async (text: string) => {
-    if (text.trim().length > 5) {
+    console.log('Final transcription:', text);
+    if (text.trim().length > 0) {
       try {
         // Generate bilingual responses (English and Russian)
+        setShowBilingualResponses(false); // Hide previous responses
+        toast.loading('Получение ответов...', { id: 'getting-responses' });
         const bilingualResult = await GPTService.getBilingualResponses(text);
-        setBilingualResponses(bilingualResult.responses);
-        setShowBilingualResponses(true);
+        toast.dismiss('getting-responses');
+        
+        if (bilingualResult.responses.length > 0) {
+          console.log('Received responses:', bilingualResult.responses);
+          setBilingualResponses(bilingualResult.responses);
+          setShowBilingualResponses(true);
+        } else {
+          toast.error('Не удалось получить ответы');
+        }
       } catch (error) {
         console.error('Error getting responses:', error);
         toast.error('Не удалось получить ответы');
       }
+    } else {
+      console.log('Transcription too short, ignoring');
     }
   };
   
@@ -80,15 +95,19 @@ const PhoneCall = () => {
   };
   
   useEffect(() => {
+    // Request microphone permission immediately when component mounts
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(() => {
           console.log('Доступ к микрофону получен');
+          toast.success('Доступ к микрофону получен');
         })
         .catch((err) => {
           console.error('Доступ к микрофону запрещен:', err);
           toast.error('Пожалуйста, разрешите доступ к микрофону для использования приложения');
         });
+    } else {
+      toast.error('Ваш браузер не поддерживает доступ к микрофону');
     }
     
     // Clean up on unmount
