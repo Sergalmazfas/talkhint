@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft, Phone } from 'lucide-react';
+import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft, Phone, Globe } from 'lucide-react';
 import ListeningIndicator from '@/components/ListeningIndicator';
 import BilingualResponsePanel from '@/components/BilingualResponsePanel';
 import SpeechService from '@/services/SpeechService';
@@ -15,6 +16,12 @@ const PhoneCall = () => {
   const [transcribedText, setTranscribedText] = useState('');
   const [bilingualResponses, setBilingualResponses] = useState<Array<{english: string, russian: string}>>([]);
   const [showBilingualResponses, setShowBilingualResponses] = useState(false);
+  const [recognitionLanguage, setRecognitionLanguage] = useState('ru-RU');
+  
+  const languageOptions = [
+    { code: 'ru-RU', name: 'Русский' },
+    { code: 'en-US', name: 'English' }
+  ];
   
   const toggleCall = () => {
     if (isCallActive) {
@@ -47,6 +54,8 @@ const PhoneCall = () => {
       setIsListening(false);
       toast.info('Микрофон выключен');
     } else {
+      // Set the language first
+      SpeechService.setLanguage(recognitionLanguage);
       SpeechService.startListening(
         (text) => setTranscribedText(text),
         handleFinalTranscription
@@ -76,6 +85,23 @@ const PhoneCall = () => {
     }).catch(() => {
       toast.error('Не удалось скопировать в буфер обмена');
     });
+  };
+  
+  const changeLanguage = (languageCode: string) => {
+    setRecognitionLanguage(languageCode);
+    SpeechService.setLanguage(languageCode);
+    toast.success(`Язык распознавания изменен на ${languageOptions.find(l => l.code === languageCode)?.name}`);
+    
+    // Restart speech recognition if it's already active
+    if (isListening) {
+      SpeechService.stopListening();
+      setTimeout(() => {
+        SpeechService.startListening(
+          (text) => setTranscribedText(text),
+          handleFinalTranscription
+        );
+      }, 300);
+    }
   };
   
   useEffect(() => {
@@ -137,24 +163,46 @@ const PhoneCall = () => {
               </Button>
               
               {isCallActive && (
-                <Button 
-                  variant="outline" 
-                  size="lg"
-                  onClick={toggleListening} 
-                  className={`w-full transition-all border-2 ${isListening ? 'border-red-500 text-red-500' : 'border-green-500 text-green-500'}`}
-                >
-                  {isListening ? (
-                    <>
-                      <MicOff size={18} className="mr-2" />
-                      Выключить микрофон
-                    </>
-                  ) : (
-                    <>
-                      <Mic size={18} className="mr-2" />
-                      Включить микрофон
-                    </>
-                  )}
-                </Button>
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="lg"
+                    onClick={toggleListening} 
+                    className={`w-full transition-all border-2 ${isListening ? 'border-red-500 text-red-500' : 'border-green-500 text-green-500'}`}
+                  >
+                    {isListening ? (
+                      <>
+                        <MicOff size={18} className="mr-2" />
+                        Выключить микрофон
+                      </>
+                    ) : (
+                      <>
+                        <Mic size={18} className="mr-2" />
+                        Включить микрофон
+                      </>
+                    )}
+                  </Button>
+                  
+                  <div className="flex justify-between items-center rounded-lg border p-3 bg-background/50">
+                    <div className="flex items-center">
+                      <Globe size={16} className="text-primary mr-2" />
+                      <span className="text-sm">Язык распознавания:</span>
+                    </div>
+                    <div className="flex space-x-2">
+                      {languageOptions.map((lang) => (
+                        <Button
+                          key={lang.code}
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => changeLanguage(lang.code)}
+                          className={recognitionLanguage === lang.code ? 'bg-primary/20' : ''}
+                        >
+                          {lang.name}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </div>
