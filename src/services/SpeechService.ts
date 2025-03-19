@@ -109,12 +109,6 @@ class SpeechService {
     };
   }
 
-  public setLanguage(lang: string) {
-    if (this.recognition) {
-      this.recognition.lang = lang;
-    }
-  }
-
   public setSensitivity(value: number) {
     this.sensitivity = value;
   }
