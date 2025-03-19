@@ -9,7 +9,7 @@ class GPTSuggestionsService extends GPTBaseService {
     console.log(`[${new Date().toISOString()}][${requestId}] getSuggestions called with text (${transcription.length} chars):`);
     console.log(`[${requestId}] Transcription: ${transcription}`);
     
-    // Проверяем, что есть API ключ (он должен быть всегда, так как есть запасной ключ)
+    // Check if there's a valid API key
     if (!this.apiKey || this.apiKey.trim() === '') {
       console.warn(`[${new Date().toISOString()}][${requestId}] API key not set or empty for suggestions, using mock data`);
       const mockData = getMockSuggestions(transcription);
@@ -18,73 +18,135 @@ class GPTSuggestionsService extends GPTBaseService {
     }
 
     const startTime = Date.now();
-    try {
-      console.log(`[${new Date().toISOString()}][${requestId}] Preparing request for suggestions with style: ${this.responseStyle}`);
-      const systemPrompt = getSystemPrompt(this.responseStyle);
-      console.log(`[${new Date().toISOString()}][${requestId}] System prompt (${systemPrompt.length} chars):`, systemPrompt);
-      
-      const messages = [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        {
-          role: "user",
-          content: transcription
-        }
-      ];
-
-      console.log(`[${new Date().toISOString()}][${requestId}] Calling OpenAI API for suggestions...`);
-      console.log(`[${new Date().toISOString()}][${requestId}] Using API key: ${this.apiKey.substring(0, 5)}...${this.apiKey.substring(this.apiKey.length - 4)}`);
-      
-      const data = await this.callOpenAI(messages, 1.0, 150, 3);
-      console.log(`[${new Date().toISOString()}][${requestId}] OpenAI API response received for suggestions`);
-      
-      if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-        console.error(`[${new Date().toISOString()}][${requestId}] Invalid response format:`, data);
-        throw new Error('Invalid response format from API');
-      }
-
-      // Log the whole choices array to see what we're dealing with
-      console.log(`[${requestId}] Choices data:`, JSON.stringify(data.choices));
-      
-      // More robust handling of the choices data
-      const suggestions = data.choices
-        .map((choice: any) => {
-          try {
-            // Check different possible paths for content
-            if (choice && choice.message && typeof choice.message.content === 'string') {
-              return choice.message.content.trim();
-            }
-            // If direct structure doesn't work, try alternatives
-            if (choice && typeof choice.text === 'string') {
-              return choice.text.trim();
-            }
-            console.warn(`[${requestId}] Could not extract content from choice:`, choice);
-            return null;
-          } catch (err) {
-            console.error(`[${requestId}] Error extracting suggestion text:`, err);
-            return null;
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        console.log(`[${new Date().toISOString()}][${requestId}] Preparing request for suggestions with style: ${this.responseStyle}`);
+        const systemPrompt = getSystemPrompt(this.responseStyle);
+        console.log(`[${new Date().toISOString()}][${requestId}] System prompt (${systemPrompt.length} chars):`, systemPrompt);
+        
+        const messages = [
+          {
+            role: "system",
+            content: systemPrompt
+          },
+          {
+            role: "user",
+            content: transcription
           }
-        })
-        .filter(Boolean); // Remove any null/undefined values
-      
-      if (suggestions.length === 0) {
-        console.warn(`[${new Date().toISOString()}][${requestId}] No valid suggestions extracted from API response`);
-        throw new Error('No valid suggestions received');
-      }
+        ];
 
-      const endTime = Date.now();
-      console.log(`[${new Date().toISOString()}][${requestId}] Extracted ${suggestions.length} suggestions in ${endTime - startTime}ms:`, suggestions);
-      return { suggestions };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[${new Date().toISOString()}][${requestId}] Error getting suggestions:`, errorMessage);
-      console.log(`[${new Date().toISOString()}][${requestId}] Falling back to mock data due to error`);
-      const mockData = getMockSuggestions(transcription);
-      console.log(`[${new Date().toISOString()}][${requestId}] Mock suggestions:`, mockData);
-      return mockData;
+        console.log(`[${new Date().toISOString()}][${requestId}] Calling OpenAI API for suggestions...`);
+        console.log(`[${new Date().toISOString()}][${requestId}] Using API key: ${this.apiKey.substring(0, 5)}...${this.apiKey.substring(this.apiKey.length - 4)}`);
+        
+        // Use a more reliable fallback method if proxy fails
+        let data;
+        try {
+          data = await this.callOpenAI(messages, 1.0, 150, 3);
+        } catch (proxyError) {
+          console.error(`[${new Date().toISOString()}][${requestId}] Error with proxy API call: ${proxyError.message}`);
+          
+          // If we've already retried, use mock data
+          if (retryCount > 0) {
+            throw proxyError;
+          }
+          
+          console.log(`[${new Date().toISOString()}][${requestId}] Trying direct API call as fallback...`);
+          // Try without proxy as fallback - this may fail due to CORS but worth a try
+          const directApiUrl = 'https://api.openai.com/v1/chat/completions';
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+          
+          const response = await fetch(directApiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.apiKey}`
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: messages,
+              temperature: 1.0,
+              max_tokens: 150,
+              n: 3
+            }),
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            throw new Error(`Direct API call failed with status: ${response.status}`);
+          }
+          
+          data = await response.json();
+        }
+        
+        console.log(`[${new Date().toISOString()}][${requestId}] OpenAI API response received for suggestions`);
+        
+        if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+          console.error(`[${new Date().toISOString()}][${requestId}] Invalid response format:`, data);
+          throw new Error('Invalid response format from API');
+        }
+
+        // Log the whole choices array to see what we're dealing with
+        console.log(`[${requestId}] Choices data:`, JSON.stringify(data.choices));
+        
+        // More robust handling of the choices data
+        const suggestions = data.choices
+          .map((choice: any) => {
+            try {
+              // Check different possible paths for content
+              if (choice && choice.message && typeof choice.message.content === 'string') {
+                return choice.message.content.trim();
+              }
+              // If direct structure doesn't work, try alternatives
+              if (choice && typeof choice.text === 'string') {
+                return choice.text.trim();
+              }
+              console.warn(`[${requestId}] Could not extract content from choice:`, choice);
+              return null;
+            } catch (err) {
+              console.error(`[${requestId}] Error extracting suggestion text:`, err);
+              return null;
+            }
+          })
+          .filter(Boolean); // Remove any null/undefined values
+        
+        if (suggestions.length === 0) {
+          console.warn(`[${new Date().toISOString()}][${requestId}] No valid suggestions extracted from API response`);
+          throw new Error('No valid suggestions received');
+        }
+
+        const endTime = Date.now();
+        console.log(`[${new Date().toISOString()}][${requestId}] Extracted ${suggestions.length} suggestions in ${endTime - startTime}ms:`, suggestions);
+        return { suggestions };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[${new Date().toISOString()}][${requestId}] Error getting suggestions (attempt ${retryCount + 1}/${maxRetries + 1}):`, errorMessage);
+        
+        retryCount++;
+        
+        // If we've exceeded max retries, fall back to mock data
+        if (retryCount > maxRetries) {
+          console.log(`[${new Date().toISOString()}][${requestId}] All ${maxRetries + 1} attempts failed, falling back to mock data`);
+          const mockData = getMockSuggestions(transcription);
+          console.log(`[${new Date().toISOString()}][${requestId}] Mock suggestions:`, mockData);
+          return mockData;
+        }
+        
+        // Wait before retrying
+        const retryDelay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+        console.log(`[${new Date().toISOString()}][${requestId}] Retrying in ${retryDelay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      }
     }
+    
+    // This should never be reached due to the fallback in the catch block
+    console.error(`[${new Date().toISOString()}][${requestId}] Unexpected execution path, using mock data`);
+    return getMockSuggestions(transcription);
   }
 }
 

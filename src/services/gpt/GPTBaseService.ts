@@ -10,6 +10,11 @@ class GPTBaseService {
   protected maxRetries: number = 2;
   protected timeoutMs: number = 30000; // 30 second timeout
   protected defaultApiKey: string = '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'; // Fallback API key
+  protected fallbackProxies: string[] = [
+    'https://cors-anywhere-lyart-seven.vercel.app/',
+    'https://cors-proxy.fringe.zone/',
+    'https://corsproxy.io/?'
+  ];
 
   constructor() {
     // Try to load API key from localStorage on initialization
@@ -56,10 +61,15 @@ class GPTBaseService {
     }, null, 2));
 
     let currentRetry = 0;
+    let proxyIndex = 0;
     
     while (currentRetry <= this.maxRetries) {
       if (currentRetry > 0) {
         console.log(`[${new Date().toISOString()}][${requestId}] Retry attempt ${currentRetry}/${this.maxRetries}`);
+        // On retry, try a different proxy
+        proxyIndex = (proxyIndex + 1) % this.fallbackProxies.length;
+        this.proxyUrl = this.fallbackProxies[proxyIndex];
+        console.log(`[${new Date().toISOString()}][${requestId}] Switching to proxy: ${this.proxyUrl}`);
       }
       
       const startTime = Date.now();
@@ -79,7 +89,8 @@ class GPTBaseService {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.apiKey}`,
-            'X-Requested-With': 'XMLHttpRequest' // Required by some CORS proxies
+            'X-Requested-With': 'XMLHttpRequest', // Required by some CORS proxies
+            'Origin': window.location.origin
           },
           body: JSON.stringify({
             model: 'gpt-4o-mini',
@@ -100,8 +111,16 @@ class GPTBaseService {
 
         if (!response.ok) {
           console.error(`[${new Date().toISOString()}][${requestId}] Response not OK, status: ${response.status}`);
-          const errorData = await response.json();
-          console.error(`[${requestId}] Error response:`, errorData);
+          let errorData;
+          try {
+            errorData = await response.json();
+            console.error(`[${requestId}] Error response:`, errorData);
+          } catch (e) {
+            // If parsing JSON fails, use text
+            const errorText = await response.text();
+            console.error(`[${requestId}] Error response text:`, errorText);
+            errorData = { error: { message: errorText } };
+          }
           
           // Rate limiting or server error - retry
           if (response.status === 429 || response.status >= 500) {
@@ -142,6 +161,15 @@ class GPTBaseService {
             currentRetry++;
             continue;
           }
+        }
+        
+        // For other errors, retry with a different proxy
+        if (currentRetry < this.maxRetries) {
+          const backoffTime = Math.min(1000 * Math.pow(2, currentRetry), 10000);
+          console.log(`[${new Date().toISOString()}][${requestId}] Backing off for ${backoffTime}ms before retry`);
+          await new Promise(resolve => setTimeout(resolve, backoffTime));
+          currentRetry++;
+          continue;
         }
         
         throw error;
