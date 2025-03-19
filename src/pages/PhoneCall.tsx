@@ -210,19 +210,13 @@ const PhoneCall = () => {
       toast.error('Ваш браузер не поддерживает доступ к микрофону');
     }
     
+    // Clean up on component unmount
     return () => {
-      if (isListening) {
+      if (SpeechService.isCurrentlyListening()) {
         SpeechService.stopListening();
       }
     };
   }, []);
-
-  // Clean up on component unmount
-  return () => {
-    if (SpeechService.isCurrentlyListening()) {
-      SpeechService.stopListening();
-    }
-  };
 
   // Watch for changes in call status and ensure microphone is properly managed
   useEffect(() => {
