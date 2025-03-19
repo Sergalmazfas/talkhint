@@ -68,7 +68,14 @@ class GPTBaseService {
         }, this.timeoutMs);
         
         // Prepare request body
-        const requestBody = {
+        const requestBody: {
+          model: string;
+          messages: any[];
+          temperature: number;
+          max_tokens: number;
+          n: number;
+          apiKey?: string;
+        } = {
           model: 'gpt-4o-mini',
           messages: messages,
           temperature: temperature,
