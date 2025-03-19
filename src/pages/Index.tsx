@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,6 @@ const Index = () => {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [apiKeySet, setApiKeySet] = useState(false);
   const [settings, setSettings] = useState({
     sensitivity: 50,
     responseStyle: 'casual',
@@ -36,11 +34,6 @@ const Index = () => {
   const toggleListening = () => {
     if (!SpeechService.isAvailable()) {
       toast.error('Speech recognition is not supported in your browser');
-      return;
-    }
-    
-    if (!apiKeySet) {
-      promptForApiKey();
       return;
     }
     
@@ -76,18 +69,6 @@ const Index = () => {
     });
   };
   
-  const promptForApiKey = () => {
-    const key = prompt('Please enter your OpenAI API key:');
-    if (key && key.trim().length > 0) {
-      GPTService.setApiKey(key);
-      setApiKeySet(true);
-      toast.success('API key saved');
-    } else {
-      toast.error('API key is required');
-    }
-  };
-  
-  // Check for microphone permissions
   useEffect(() => {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })

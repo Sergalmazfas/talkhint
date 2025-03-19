@@ -4,7 +4,7 @@ interface GPTResponse {
 }
 
 class GPTService {
-  private apiKey: string | null = null;
+  private apiKey: string | null = "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";
   private responseStyle: string = 'casual';
   private apiUrl: string = 'https://api.openai.com/v1/chat/completions';
 
