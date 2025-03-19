@@ -1,13 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import ListeningIndicator from '@/components/ListeningIndicator';
 import SuggestionsPanel from '@/components/SuggestionsPanel';
 import SettingsPanel from '@/components/SettingsPanel';
 import SpeechService from '@/services/SpeechService';
 import GPTService from '@/services/GPTService';
-import { Link } from 'react-router-dom';
 
 const Index = () => {
   const [isListening, setIsListening] = useState(false);
@@ -168,7 +169,7 @@ const Index = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="flex justify-center"
+          className="flex justify-center space-x-4"
         >
           <Button 
             variant="outline" 
@@ -181,6 +182,23 @@ const Index = () => {
             </svg>
             Settings
           </Button>
+
+          <Link to="/translation">
+            <Button 
+              variant="outline" 
+              className="rounded-full"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                <path d="m5 8 6 6"></path>
+                <path d="m4 14 6-6 2-3"></path>
+                <path d="M2 5h12"></path>
+                <path d="M7 2h1"></path>
+                <path d="m22 22-5-10-5 10"></path>
+                <path d="M14 18h6"></path>
+              </svg>
+              Переводчик
+            </Button>
+          </Link>
         </motion.div>
       </div>
 

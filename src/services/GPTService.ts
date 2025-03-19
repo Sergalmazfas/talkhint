@@ -1,6 +1,9 @@
-
 interface GPTResponse {
   suggestions: string[];
+}
+
+interface TranslationResponse {
+  translation: string;
 }
 
 class GPTService {
@@ -10,12 +13,10 @@ class GPTService {
 
   public setApiKey(key: string) {
     this.apiKey = key;
-    // Store in localStorage to persist between sessions
     localStorage.setItem('openai_api_key', key);
   }
 
   public getApiKey(): string | null {
-    // If apiKey isn't set yet, try to get it from localStorage
     if (!this.apiKey) {
       const storedKey = localStorage.getItem('openai_api_key');
       if (storedKey) {
@@ -58,7 +59,7 @@ class GPTService {
           messages: messages,
           temperature: 0.7,
           max_tokens: 150,
-          n: 3  // Generate 3 different suggestions
+          n: 3
         })
       });
 
@@ -69,8 +70,6 @@ class GPTService {
       }
 
       const data = await response.json();
-      
-      // Extract suggestions from OpenAI response
       const suggestions = data.choices.map((choice: any) => 
         choice.message.content.trim()
       );
@@ -79,6 +78,54 @@ class GPTService {
     } catch (error) {
       console.error('Error getting suggestions from GPT:', error);
       return this.getMockSuggestions(transcription);
+    }
+  }
+
+  public async getTranslation(text: string, sourceLanguage: string, targetLanguage: string): Promise<TranslationResponse> {
+    if (!this.apiKey) {
+      console.warn('API key not set, using mock translation');
+      return this.getMockTranslation(text, sourceLanguage, targetLanguage);
+    }
+
+    try {
+      const messages = [
+        {
+          role: "system",
+          content: this.getTranslationPrompt(sourceLanguage, targetLanguage)
+        },
+        {
+          role: "user",
+          content: text
+        }
+      ];
+
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: messages,
+          temperature: 0.3,
+          max_tokens: 1000
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error from OpenAI API:', errorData);
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const translation = data.choices[0].message.content.trim();
+
+      return { translation };
+    } catch (error) {
+      console.error('Error getting translation from GPT:', error);
+      return this.getMockTranslation(text, sourceLanguage, targetLanguage);
     }
   }
 
@@ -107,10 +154,27 @@ class GPTService {
     return `${basePrompt} ${styleModifier}`;
   }
 
+  private getTranslationPrompt(sourceLanguage: string, targetLanguage: string): string {
+    const languageNames: { [key: string]: string } = {
+      'ru': 'русский',
+      'en': 'английский',
+      'fr': 'французский',
+      'de': 'немецкий',
+      'es': 'испанский',
+      'it': 'итальянский',
+      'zh': 'китайский',
+      'ja': 'японский'
+    };
+
+    const sourceName = languageNames[sourceLanguage] || sourceLanguage;
+    const targetName = languageNames[targetLanguage] || targetLanguage;
+
+    return `Ты профессиональный переводчик. Переведи текст с ${sourceName} на ${targetName} язык. 
+    Сохрани смысл, тон и стиль исходного текста. Твой ответ должен содержать только перевод, без комментариев 
+    и пояснений. Если текст уже на целевом языке, просто верни его без изменений.`;
+  }
+
   private getMockSuggestions(transcription: string): GPTResponse {
-    // In case the API call fails, we fall back to mock responses
-    
-    // Simple keyword-based mock response system
     if (transcription.toLowerCase().includes('привет') || transcription.toLowerCase().includes('здравствуйте')) {
       return {
         suggestions: [
@@ -141,13 +205,38 @@ class GPTService {
       };
     }
 
-    // Default responses for other cases
     return {
       suggestions: [
         'Интересная мысль. Давайте обсудим подробнее.',
         'Я понимаю вашу точку зрения. Что если посмотреть с другой стороны?',
         'Можете рассказать об этом подробнее?'
       ]
+    };
+  }
+  
+  private getMockTranslation(text: string, sourceLanguage: string, targetLanguage: string): TranslationResponse {
+    if (sourceLanguage === 'ru' && targetLanguage === 'en') {
+      if (text.toLowerCase().includes('привет')) {
+        return { translation: 'Hello' };
+      }
+      if (text.toLowerCase().includes('как дела')) {
+        return { translation: 'How are you?' };
+      }
+      return { translation: 'This is a mock translation from Russian to English' };
+    }
+    
+    if (sourceLanguage === 'en' && targetLanguage === 'ru') {
+      if (text.toLowerCase().includes('hello')) {
+        return { translation: 'Привет' };
+      }
+      if (text.toLowerCase().includes('how are you')) {
+        return { translation: 'Как дела?' };
+      }
+      return { translation: 'Это тестовый перевод с английского на русский' };
+    }
+    
+    return { 
+      translation: `Mock translation from ${sourceLanguage} to ${targetLanguage}: ${text}` 
     };
   }
 }
