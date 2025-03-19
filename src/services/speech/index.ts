@@ -11,7 +11,6 @@ class SpeechService {
   private isListening: boolean = false;
   private onTranscriptionCallback: ((text: string) => void) | null = null;
   private onFinalTranscriptionCallback: ((text: string) => void) | null = null;
-  private sensitivity: number = 50;
   private eventHandlers: SpeechRecognitionEventHandlers | null = null;
   private controller: SpeechRecognitionController | null = null;
 
@@ -33,42 +32,17 @@ class SpeechService {
     this.controller = new SpeechRecognitionController(this.recognition);
     this.eventHandlers = new SpeechRecognitionEventHandlers(
       this.recognition, 
-      () => this.startRecognitionWithReset(),
+      () => this.controller?.startRecognition(),
       () => this.controller?.stopRecognition()
     );
-  }
-
-  private startRecognitionWithReset() {
-    try {
-      this.controller?.startRecognition();
-    } catch (error) {
-      if (error instanceof Error && error.message === 'RECOGNITION_NEEDS_RESET') {
-        // Recreation logic after failed start
-        setTimeout(() => {
-          this.initRecognition();
-          try {
-            this.controller?.startRecognition();
-            console.log('Recognition restarted successfully after recreation');
-          } catch (startError) {
-            console.error('Error starting recreated recognition:', startError);
-          }
-        }, 300);
-      }
-    }
-  }
-
-  public setSensitivity(value: number) {
-    this.sensitivity = value;
   }
 
   public startListening(
     onTranscription: (text: string) => void,
     onFinalTranscription: (text: string) => void
   ) {
-    // Don't start if already listening
     if (this.isListening) {
-      console.log('Already listening, stopping first');
-      this.stopListening();
+      return;
     }
 
     if (!this.recognition || !this.eventHandlers) {
@@ -86,7 +60,7 @@ class SpeechService {
     this.eventHandlers.resetTranscripts();
     this.eventHandlers.setIsListening(true);
 
-    this.startRecognitionWithReset();
+    this.controller?.startRecognition();
   }
 
   public stopListening() {

@@ -24,10 +24,9 @@ class SpeechRecognitionFactory {
   public static configureBasicRecognition(recognition: SpeechRecognition | null): SpeechRecognition | null {
     if (!recognition) return null;
     
-    recognition.continuous = true;
+    recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.lang = 'en-US'; // Set to English for caller speech
-    recognition.maxAlternatives = 5; // Increase alternatives for better accuracy
+    recognition.lang = 'en-US';
     
     return recognition;
   }
