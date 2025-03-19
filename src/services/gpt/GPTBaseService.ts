@@ -7,7 +7,7 @@ import OpenAI from "openai";
 class GPTBaseService {
   protected apiKey: string | null = null;
   protected responseStyle: string = 'casual';
-  protected serverProxyUrl: string = 'https://cors-anywhere-lyart-seven.vercel.app'; // Updated to user's Vercel server
+  protected serverProxyUrl: string = 'https://cors-anywhere-lyart-seven.vercel.app'; // Vercel deployment URL
   protected useServerProxy: boolean = true; // Flag to toggle between server proxy and direct API
   protected maxRetries: number = 3;
   protected timeoutMs: number = 60000;
@@ -96,6 +96,7 @@ class GPTBaseService {
           const origin = window.location.origin;
           console.log(`[${new Date().toISOString()}][${requestId}] Using origin: ${origin}`);
           
+          // Update the endpoint to specifically use /v1/chat/completions
           response = await fetch(`${this.serverProxyUrl}/v1/chat/completions`, {
             method: 'POST',
             headers: {
