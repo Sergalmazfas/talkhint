@@ -21,8 +21,8 @@ class GPTService {
     this.translationService = new GPTTranslationService();
     console.log(`[${new Date().toISOString()}] GPT service initialization complete`);
     
-    // Default to using server proxy - this is important as server.js may be incorrectly configured
-    this.setUseServerProxy(true);
+    // Default to using direct API mode since we need API key
+    this.setUseServerProxy(false);
   }
 
   public setApiKey(key: string): void {
@@ -38,11 +38,11 @@ class GPTService {
   }
 
   public setUseServerProxy(use: boolean): void {
-    console.log(`[${new Date().toISOString()}] Setting server proxy usage to: ${use}`);
+    console.log(`[${new Date().toISOString()}] Setting direct API mode: ${!use}`);
     this.suggestionsService.setUseServerProxy(use);
     this.bilingualService.setUseServerProxy(use);
     this.translationService.setUseServerProxy(use);
-    console.log(`[${new Date().toISOString()}] Server proxy usage set for all services`);
+    console.log(`[${new Date().toISOString()}] API mode set for all services`);
     
     // Show a notification to the user
     toast(use ? "Using server proxy for API calls" : "Using direct API connection");

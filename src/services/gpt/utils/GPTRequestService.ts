@@ -74,7 +74,7 @@ export class GPTRequestService {
     };
     
     GPTLogger.log(requestId, 'Request payload:', requestPayload);
-    GPTLogger.log(requestId, `Using server proxy: ${this.config.useServerProxy}`);
+    GPTLogger.log(requestId, `Using direct OpenAI client: ${!this.config.useServerProxy}`);
 
     let currentRetry = 0;
     
@@ -138,7 +138,7 @@ export class GPTRequestService {
    * Make a request using the server proxy
    */
   private async makeServerProxyRequest(requestId: string, requestPayload: any): Promise<any> {
-    GPTLogger.log(requestId, `Sending request using server proxy: ${this.config.serverProxyUrl}`);
+    GPTLogger.log(requestId, `Making request directly to OpenAI API`);
     
     // Create a controller for timeout handling
     const controller = new AbortController();
@@ -147,35 +147,35 @@ export class GPTRequestService {
       controller.abort();
     }, this.config.timeoutMs);
     
-    // Use current origin to handle CORS properly
-    const currentOrigin = window.location.origin;
-    GPTLogger.log(requestId, `Current origin: ${currentOrigin}`);
-    
-    // Update the fetch options to resolve CORS issues
-    const response = await fetch(`${this.config.serverProxyUrl}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Origin': currentOrigin
-      },
-      credentials: 'omit',
-      mode: 'cors',
-      body: JSON.stringify(requestPayload),
-      signal: controller.signal
-    });
-    
-    // Clear the timeout since we got a response
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      GPTLogger.error(requestId, `Server proxy error: ${response.status} ${errorText}`);
-      throw new Error(`Server proxy error: ${response.status} ${errorText}`);
+    try {
+      // Make a direct fetch request to OpenAI API
+      const response = await fetch(`${this.config.serverProxyUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.config.apiKey}`
+        },
+        body: JSON.stringify(requestPayload),
+        signal: controller.signal
+      });
+      
+      // Clear the timeout since we got a response
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        GPTLogger.error(requestId, `API error: ${response.status} ${errorText}`);
+        throw new Error(`API error: ${response.status} ${errorText}`);
+      }
+      
+      const data = await response.json();
+      GPTLogger.log(requestId, 'API response received:', data);
+      return data;
+    } catch (error) {
+      // Clear the timeout in case of error
+      clearTimeout(timeoutId);
+      throw error;
     }
-    
-    const data = await response.json();
-    GPTLogger.log(requestId, 'Server proxy response received:', data);
-    return data;
   }
 
   /**
@@ -204,35 +204,41 @@ export class GPTRequestService {
       controller.abort();
     }, this.config.timeoutMs);
     
-    // Using the OpenAI SDK
-    const completion = await this.openaiClient.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: messages.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
-      temperature: temperature,
-      max_tokens: maxTokens,
-      n: n
-    }, {
-      signal: controller.signal as AbortSignal
-    });
-    
-    // Clear the timeout since we got a response
-    clearTimeout(timeoutId);
+    try {
+      // Using the OpenAI SDK
+      const completion = await this.openaiClient.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        temperature: temperature,
+        max_tokens: maxTokens,
+        n: n
+      }, {
+        signal: controller.signal as AbortSignal
+      });
+      
+      // Clear the timeout since we got a response
+      clearTimeout(timeoutId);
 
-    // Transform the response to match the expected format
-    return {
-      id: completion.id,
-      choices: completion.choices.map(choice => ({
-        message: {
-          role: choice.message.role,
-          content: choice.message.content
-        },
-        index: choice.index,
-        finish_reason: choice.finish_reason
-      }))
-    };
+      // Transform the response to match the expected format
+      return {
+        id: completion.id,
+        choices: completion.choices.map(choice => ({
+          message: {
+            role: choice.message.role,
+            content: choice.message.content
+          },
+          index: choice.index,
+          finish_reason: choice.finish_reason
+        }))
+      };
+    } catch (error) {
+      // Clear the timeout in case of error
+      clearTimeout(timeoutId);
+      throw error;
+    }
   }
 
   /**

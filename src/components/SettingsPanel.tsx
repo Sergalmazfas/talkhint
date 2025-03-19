@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
 
@@ -28,26 +29,57 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSettingsChange 
 }) => {
   const [apiKey, setApiKey] = useState('');
+  const [useProxy, setUseProxy] = useState(false);
+  const [checkingConnection, setCheckingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   
-  // Загружаем API-ключ при открытии настроек
+  // Загружаем настройки при открытии
   useEffect(() => {
     if (isOpen) {
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
+      setUseProxy(GPTService.getUseServerProxy());
+      checkApiConnection();
     }
   }, [isOpen]);
   
   if (!isOpen) return null;
 
+  const checkApiConnection = async () => {
+    setCheckingConnection(true);
+    setConnectionStatus(null);
+    try {
+      const connected = await GPTService.checkConnection();
+      setConnectionStatus(connected);
+      if (connected) {
+        toast.success('Подключение к OpenAI API успешно');
+      } else {
+        toast.error('Не удалось подключиться к OpenAI API');
+      }
+    } catch (error) {
+      setConnectionStatus(false);
+      toast.error('Ошибка при проверке подключения');
+    } finally {
+      setCheckingConnection(false);
+    }
+  };
+
   const handleSave = () => {
+    // Обновляем настройки прокси
+    GPTService.setUseServerProxy(useProxy);
+    
+    // Устанавливаем API ключ, если он предоставлен
     if (apiKey.trim()) {
       GPTService.setApiKey(apiKey.trim());
-      GPTService.setResponseStyle(settings.responseStyle);
-      toast.success('Настройки сохранены');
-    } else {
-      // Если пользователь очистил поле, напоминаем о необходимости ключа для прямых запросов
-      toast.warning('API ключ необходим для прямых запросов к OpenAI. При использовании прокси-сервера будет использоваться серверный ключ.');
+      toast.success('API ключ сохранен');
+    } else if (!useProxy) {
+      // Предупреждаем, если ключ не предоставлен при прямом подключении
+      toast.warning('API ключ необходим для прямых запросов к OpenAI');
     }
+    
+    GPTService.setResponseStyle(settings.responseStyle);
+    toast.success('Настройки сохранены');
+    
     onClose();
   };
 
@@ -78,9 +110,37 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </div>
 
           <div className="space-y-6">
+            {connectionStatus !== null && (
+              <Alert variant={connectionStatus ? "default" : "destructive"} className={connectionStatus ? "bg-green-50 border-green-200" : ""}>
+                <AlertDescription>
+                  {connectionStatus 
+                    ? "✅ Подключение к OpenAI API успешно установлено" 
+                    : "❌ Проблема с подключением к OpenAI API"}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="useProxy" className="text-sm text-foreground/80">
+                  Использовать API ключ напрямую
+                </Label>
+                <Switch
+                  id="useProxy"
+                  checked={!useProxy}
+                  onCheckedChange={(checked) => setUseProxy(!checked)}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {!useProxy 
+                  ? "Запросы отправляются напрямую с использованием вашего API ключа" 
+                  : "Запросы отправляются через прокси-сервер"}
+              </p>
+            </div>
+
             <div className="space-y-3">
               <Label htmlFor="apiKey" className="text-sm text-foreground/80">
-                OpenAI API Key
+                OpenAI API Key {!useProxy && <span className="text-red-500">*</span>}
               </Label>
               <Input
                 id="apiKey"
@@ -91,9 +151,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                API ключ нужен только для прямых запросов. При использовании прокси-сервера используется серверный ключ из переменных окружения.
+                {!useProxy 
+                  ? "API ключ обязателен для прямого подключения" 
+                  : "API ключ необязателен при использовании прокси"}
               </p>
             </div>
+
+            <Button 
+              onClick={checkApiConnection} 
+              variant="outline" 
+              className="w-full"
+              disabled={checkingConnection}
+            >
+              {checkingConnection ? "Проверка..." : "Проверить подключение"}
+            </Button>
 
             <div className="space-y-3">
               <Label htmlFor="sensitivity" className="text-sm text-foreground/80">

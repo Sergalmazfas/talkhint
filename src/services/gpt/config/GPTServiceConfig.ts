@@ -17,8 +17,8 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  serverProxyUrl: 'https://api.openai.com', // Используем напрямую API OpenAI
-  useServerProxy: true, // По умолчанию используем прокси
+  serverProxyUrl: 'https://api.openai.com', // OpenAI API URL
+  useServerProxy: false, // По умолчанию используем прямой доступ
   maxRetries: 3,
   timeoutMs: 60000,
 };
