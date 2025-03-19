@@ -1,6 +1,13 @@
 
 import OpenAI from "openai";
-import { GPTServiceConfig, DEFAULT_CONFIG, loadApiKeyFromStorage, saveApiKeyToStorage } from './config/GPTServiceConfig';
+import { 
+  GPTServiceConfig, 
+  DEFAULT_CONFIG, 
+  loadApiKeyFromStorage, 
+  saveApiKeyToStorage,
+  loadUseServerProxyFromStorage,
+  saveUseServerProxyToStorage 
+} from './config/GPTServiceConfig';
 import { GPTRequestService } from './utils/GPTRequestService';
 import { GPTLogger } from './utils/GPTLogger';
 import { GPTClientFactory } from './utils/GPTClientFactory';
@@ -25,6 +32,13 @@ class GPTBaseService {
       // No longer use the default API key if none is stored
       this.config.apiKey = null;
       GPTLogger.log(undefined, 'No API key found in storage');
+    }
+    
+    // Try to load server proxy setting from localStorage
+    const useServerProxy = loadUseServerProxyFromStorage();
+    if (useServerProxy !== null) {
+      this.config.useServerProxy = useServerProxy;
+      GPTLogger.log(undefined, `Server proxy setting loaded from storage: ${useServerProxy}`);
     }
     
     // Initialize the request service
@@ -68,6 +82,7 @@ class GPTBaseService {
 
   public setUseServerProxy(use: boolean) {
     this.config.useServerProxy = use;
+    saveUseServerProxyToStorage(use);
     this.requestService.updateConfig(this.config);
     GPTLogger.log(undefined, `Server proxy usage set to: ${use}`);
   }
@@ -77,6 +92,24 @@ class GPTBaseService {
   }
 
   public async checkApiConnection(): Promise<boolean> {
+    // If using proxy server, we only need to make sure the server is reachable
+    if (this.config.useServerProxy) {
+      try {
+        // Send a simple ping to the proxy server
+        const response = await fetch(this.config.serverProxyUrl.replace('/chat', '/ping'), {
+          method: 'GET',
+          mode: 'cors',
+        }).catch(() => null);
+        
+        if (response && response.ok) {
+          return true;
+        }
+      } catch (error) {
+        GPTLogger.warn(undefined, 'Server proxy ping failed, falling back to API test');
+        // Fall through to API test
+      }
+    }
+    
     // If no API key and not using proxy, return false immediately
     if (!this.config.apiKey && !this.config.useServerProxy) {
       GPTLogger.warn(undefined, 'API key not set and not using server proxy');

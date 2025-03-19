@@ -144,21 +144,13 @@ export class GPTRequestService {
     }, this.config.timeoutMs);
     
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      
-      // Only add Authorization header if we have an API key and are using it
-      // When using the Express server, we don't need to send the API key in the request
-      // as the server will use its own API key from the environment
-      if (!this.config.useServerProxy && this.config.apiKey) {
-        headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-      }
-      
-      // Make the fetch request to either the proxy or directly to OpenAI
+      // When using the server proxy, we don't need to send the API key in the Authorization header
+      // The server will use its own API key from the environment
       const response = await fetch(this.config.serverProxyUrl, {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
         mode: 'cors', // Ensure CORS is enabled

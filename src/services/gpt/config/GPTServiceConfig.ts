@@ -17,8 +17,8 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  serverProxyUrl: 'http://localhost:3000/chat', // Updated to point to your Express server
-  useServerProxy: false, // Using direct API connection by default
+  serverProxyUrl: 'http://localhost:3000/chat',
+  useServerProxy: true, // Using server proxy by default
   maxRetries: 3,
   timeoutMs: 60000,
 };
@@ -44,5 +44,29 @@ export function saveApiKeyToStorage(key: string): void {
     localStorage.setItem('openai_api_key', key);
   } catch (error) {
     console.error('Error saving API key to storage:', error);
+  }
+}
+
+/**
+ * Load the server proxy setting from localStorage
+ */
+export function loadUseServerProxyFromStorage(): boolean | null {
+  try {
+    const useProxy = localStorage.getItem('use_server_proxy');
+    return useProxy === null ? null : useProxy === 'true';
+  } catch (error) {
+    console.error('Error loading proxy setting from storage:', error);
+    return null;
+  }
+}
+
+/**
+ * Save the server proxy setting to localStorage
+ */
+export function saveUseServerProxyToStorage(useProxy: boolean): void {
+  try {
+    localStorage.setItem('use_server_proxy', String(useProxy));
+  } catch (error) {
+    console.error('Error saving proxy setting to storage:', error);
   }
 }
