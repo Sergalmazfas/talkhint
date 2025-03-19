@@ -29,9 +29,9 @@ class SpeechRecognitionFactory {
     if (!recognition) return null;
     
     try {
-      recognition.continuous = true;  // Changed to true for continuous listening
+      recognition.continuous = true;  // Keep continuous listening enabled
       recognition.interimResults = true;
-      recognition.lang = 'ru-RU';  // Changed to Russian for better recognition
+      recognition.lang = 'en-US';  // Changed to American English for recognition
       console.log('Speech recognition configured with language:', recognition.lang);
     } catch (error) {
       console.error('Error configuring speech recognition:', error);
