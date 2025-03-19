@@ -83,6 +83,12 @@ const PhoneCall = () => {
     console.log('Final transcription:', text);
     if (text.trim().length > 0) {
       try {
+        // Check if API key is set
+        if (!GPTService.getApiKey()) {
+          toast.error('Пожалуйста, установите API-ключ OpenAI в настройках');
+          return;
+        }
+        
         // Generate bilingual responses (English and Russian)
         setShowBilingualResponses(false); // Hide previous responses
         toast.loading('Получение ответов...', { id: 'getting-responses' });
@@ -101,16 +107,16 @@ const PhoneCall = () => {
         } catch (error) {
           console.error('Error getting responses:', error);
           toast.dismiss('getting-responses');
-          toast.error('Ошибка сервиса OpenAI. Проверьте лимиты API.');
           
-          // Fallback: create a simple response when API fails
-          const fallbackResponses = [
-            { english: "I'm listening", russian: "Я слушаю" },
-            { english: "Please continue", russian: "Пожалуйста, продолжайте" },
-            { english: "I understand", russian: "Я понимаю" }
-          ];
-          setBilingualResponses(fallbackResponses);
-          setShowBilingualResponses(true);
+          if (error instanceof Error) {
+            if (error.message.includes('API key not set')) {
+              toast.error('Пожалуйста, установите API-ключ OpenAI в настройках');
+            } else {
+              toast.error(`Ошибка сервиса OpenAI: ${error.message}`);
+            }
+          } else {
+            toast.error('Ошибка сервиса OpenAI. Проверьте лимиты API.');
+          }
         }
       } catch (error) {
         console.error('Error in final transcription handling:', error);

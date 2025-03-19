@@ -1,6 +1,6 @@
 import GPTBaseService from './GPTBaseService';
 import { getBilingualPrompt } from './GPTPrompts';
-import { BilingualResponse, getMockBilingualResponses } from './GPTMocks';
+import { BilingualResponse } from './GPTMocks';
 import { GPTLogger } from './utils/GPTLogger';
 
 class GPTBilingualService extends GPTBaseService {
@@ -9,10 +9,8 @@ class GPTBilingualService extends GPTBaseService {
     GPTLogger.log(undefined, transcription);
     
     if (!this.getApiKey()) {
-      GPTLogger.warn(undefined, 'API key not set for bilingual responses, using mock data');
-      const mockData = getMockBilingualResponses(transcription);
-      GPTLogger.log(undefined, 'Mock bilingual responses:', mockData);
-      return mockData;
+      GPTLogger.warn(undefined, 'API key not set for bilingual responses');
+      throw new Error('API key not set for bilingual responses');
     }
 
     const startTime = Date.now();
@@ -61,19 +59,14 @@ class GPTBilingualService extends GPTBaseService {
           return { responses };
         } else {
           GPTLogger.warn(undefined, 'Could not extract structured responses');
+          throw new Error('Could not parse GPT response into valid structure');
         }
       }
       
-      GPTLogger.warn(undefined, 'Could not parse GPT response, using mock data');
-      const mockData = getMockBilingualResponses(transcription);
-      GPTLogger.log(undefined, 'Mock bilingual responses:', mockData);
-      return mockData;
+      throw new Error('Failed to process API response');
     } catch (error) {
       GPTLogger.error(undefined, 'Error getting bilingual responses from GPT:', error);
-      GPTLogger.log(undefined, 'Falling back to mock data due to error');
-      const mockData = getMockBilingualResponses(transcription);
-      GPTLogger.log(undefined, 'Mock bilingual responses:', mockData);
-      return mockData;
+      throw error;
     }
   }
 
