@@ -18,13 +18,10 @@ const BilingualResponseCard: React.FC<BilingualResponseCardProps> = ({ response,
       onClick={onSelect}
     >
       <div className="space-y-3">
-        <div className="flex items-center">
-          <span className="flex items-center justify-center w-6 h-6 bg-primary/10 rounded-full text-xs font-semibold text-primary mr-2">
-            {index + 1}
-          </span>
-          <p className="text-sm font-medium text-foreground">{response.english}</p>
+        <div>
+          <p className="text-sm font-medium text-foreground">{index + 1}. {response.english}</p>
         </div>
-        <p className="text-sm italic text-muted-foreground pl-8">{response.russian}</p>
+        <p className="text-sm italic text-muted-foreground">({response.russian})</p>
       </div>
     </motion.div>
   );

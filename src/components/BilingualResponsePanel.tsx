@@ -28,18 +28,6 @@ const BilingualResponsePanel: React.FC<BilingualResponsePanelProps> = ({
         className="fixed top-16 left-4 right-4 z-40"
       >
         <div className="glass-morphism rounded-3xl p-4 shadow-lg">
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-sm font-medium text-foreground/80">Варианты ответов</h3>
-            <button 
-              onClick={onDismiss}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
           <div className="space-y-2">
             {responses.map((response, index) => (
               <BilingualResponseCard
