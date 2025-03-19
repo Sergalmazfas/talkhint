@@ -6,8 +6,8 @@ import { Link } from 'react-router-dom';
 import ListeningIndicator from '@/components/ListeningIndicator';
 import SuggestionsPanel from '@/components/SuggestionsPanel';
 import SettingsPanel from '@/components/SettingsPanel';
-import SpeechService from '@/services/SpeechService';
 import GPTService from '@/services/GPTService';
+import SpeechService from '@/services/SpeechService';
 
 const Index = () => {
   const [isListening, setIsListening] = useState(false);
@@ -18,7 +18,7 @@ const Index = () => {
   const [settings, setSettings] = useState({
     sensitivity: 50,
     responseStyle: 'casual',
-    autoActivate: true,
+    autoActivate: false, // Changed to false by default
   });
   
   const handleSettingsChange = (key: string, value: any) => {
@@ -31,50 +31,15 @@ const Index = () => {
     }
   };
   
+  // Remove the speech recognition functionality from this page
+  // We'll keep these functions empty for now to avoid breaking any UI components
   const toggleListening = () => {
-    if (!SpeechService.isAvailable()) {
-      toast.error('Speech recognition is not supported in your browser');
-      return;
-    }
-    
-    if (isListening) {
-      SpeechService.stopListening();
-      setIsListening(false);
-      setShowSuggestions(false);
-      toast.info('Stopped listening');
-    } else {
-      try {
-        SpeechService.startListening(
-          (text) => setTranscribedText(text),
-          handleFinalTranscription
-        );
-        setIsListening(true);
-        toast.success('Started listening to your conversation');
-      } catch (error) {
-        console.error('Error starting speech recognition:', error);
-        toast.error('Error starting speech recognition. Please try again.');
-      }
-    }
+    // No action needed - speech recognition is only active in the PhoneCall page
+    toast.info('Распознавание голоса доступно на странице звонка');
   };
   
   const handleFinalTranscription = async (text: string) => {
-    if (text.trim().length > 5) {
-      try {
-        const response = await GPTService.getSuggestions(text);
-        setSuggestions(response.suggestions);
-        setShowSuggestions(true);
-      } catch (error) {
-        console.error('Error getting suggestions from GPT:', error);
-        toast.error('Error getting suggestions. API quota may be exceeded.');
-        
-        setSuggestions([
-          "I understand what you're saying",
-          "Let me think about that",
-          "Could you explain more?"
-        ]);
-        setShowSuggestions(true);
-      }
-    }
+    // Empty function - no speech processing on this page
   };
   
   const selectSuggestion = (suggestion: string) => {
@@ -86,26 +51,9 @@ const Index = () => {
     });
   };
   
-  useEffect(() => {
-    if (settings.autoActivate && !isListening) {
-      setTimeout(() => {
-        toggleListening();
-      }, 1000);
-    }
-  }, [settings.autoActivate]);
+  // Remove the useEffect that activates speech recognition automatically
   
-  useEffect(() => {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(() => {
-          console.log('Microphone permission granted');
-        })
-        .catch((err) => {
-          console.error('Microphone permission denied:', err);
-          toast.error('Please allow microphone access to use this app');
-        });
-    }
-  }, []);
+  // Remove the useEffect for microphone permission on this page
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
@@ -201,6 +149,7 @@ const Index = () => {
         </motion.div>
       </div>
 
+      {/* Keep these components in the UI but they won't be functional on this page */}
       <ListeningIndicator 
         isListening={isListening} 
         transcribedText={transcribedText} 
