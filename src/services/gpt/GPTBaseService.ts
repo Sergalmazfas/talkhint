@@ -5,7 +5,9 @@
 class GPTBaseService {
   protected apiKey: string | null = null;
   protected responseStyle: string = 'casual';
-  protected apiUrl: string = '/api/openai-proxy'; // Changed to relative proxy URL
+  protected apiUrl: string = 'https://api.openai.com/v1/chat/completions';
+  protected maxRetries: number = 2;
+  protected timeoutMs: number = 30000; // 30 second timeout
 
   constructor() {
     // Try to load API key from localStorage on initialization
@@ -38,9 +40,10 @@ class GPTBaseService {
       throw new Error('API key not set');
     }
 
-    console.log(`[${new Date().toISOString()}] OpenAI API request starting via proxy`);
-    console.log('Using model: gpt-4o-mini');
-    console.log('Request payload:', JSON.stringify({
+    const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+    console.log(`[${new Date().toISOString()}][${requestId}] OpenAI API request starting`);
+    console.log(`[${requestId}] Using model: gpt-4o-mini`);
+    console.log(`[${requestId}] Request payload:`, JSON.stringify({
       model: 'gpt-4o-mini',
       messages,
       temperature,
@@ -48,46 +51,95 @@ class GPTBaseService {
       n
     }, null, 2));
 
-    const startTime = Date.now();
-    try {
-      console.log(`[${new Date().toISOString()}] Sending fetch request to proxy at ${this.apiUrl}`);
-      
-      // Using proxy endpoint instead of direct OpenAI API
-      const response = await fetch(this.apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-KEY': this.apiKey // Send API key in header for proxy to use
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: messages,
-          temperature: temperature,
-          max_tokens: maxTokens,
-          n: n
-        })
-      });
-
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-      console.log(`[${new Date().toISOString()}] Proxy request completed in ${duration}ms`);
-
-      if (!response.ok) {
-        console.error(`[${new Date().toISOString()}] Proxy response not OK, status: ${response.status}`);
-        const errorData = await response.json();
-        console.error('Error response from proxy:', errorData);
-        throw new Error(`Proxy error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+    let currentRetry = 0;
+    
+    while (currentRetry <= this.maxRetries) {
+      if (currentRetry > 0) {
+        console.log(`[${new Date().toISOString()}][${requestId}] Retry attempt ${currentRetry}/${this.maxRetries}`);
       }
+      
+      const startTime = Date.now();
+      try {
+        console.log(`[${new Date().toISOString()}][${requestId}] Sending fetch request to OpenAI`);
+        
+        // Create an AbortController for timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+        
+        const response = await fetch(this.apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: messages,
+            temperature: temperature,
+            max_tokens: maxTokens,
+            n: n
+          }),
+          signal: controller.signal
+        });
+        
+        // Clear the timeout since we got a response
+        clearTimeout(timeoutId);
 
-      console.log(`[${new Date().toISOString()}] Parsing proxy response JSON`);
-      const data = await response.json();
-      console.log(`[${new Date().toISOString()}] Proxy response successfully parsed`);
-      console.log('Full proxy response:', JSON.stringify(data, null, 2));
-      return data;
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error in proxy API request:`, error);
-      throw error;
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        console.log(`[${new Date().toISOString()}][${requestId}] API request completed in ${duration}ms`);
+
+        if (!response.ok) {
+          console.error(`[${new Date().toISOString()}][${requestId}] Response not OK, status: ${response.status}`);
+          const errorData = await response.json();
+          console.error(`[${requestId}] Error response:`, errorData);
+          
+          // Rate limiting or server error - retry
+          if (response.status === 429 || response.status >= 500) {
+            if (currentRetry < this.maxRetries) {
+              const backoffTime = Math.min(1000 * Math.pow(2, currentRetry), 10000);
+              console.log(`[${new Date().toISOString()}][${requestId}] Backing off for ${backoffTime}ms before retry`);
+              await new Promise(resolve => setTimeout(resolve, backoffTime));
+              currentRetry++;
+              continue;
+            }
+          }
+          
+          throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+        }
+
+        console.log(`[${new Date().toISOString()}][${requestId}] Parsing response JSON`);
+        const data = await response.json();
+        console.log(`[${new Date().toISOString()}][${requestId}] Response successfully parsed`);
+        console.log(`[${requestId}] Response object structure:`, Object.keys(data));
+        
+        if (data.choices && data.choices.length > 0) {
+          console.log(`[${requestId}] Sample response content: "${data.choices[0].message.content.substring(0, 50)}..."`);
+        }
+        
+        return data;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[${new Date().toISOString()}][${requestId}] Error in API request:`, errorMessage);
+        
+        // Check if it's an abort error (timeout)
+        if (errorMessage.includes('abort') || errorMessage.includes('timeout')) {
+          console.warn(`[${new Date().toISOString()}][${requestId}] Request timed out after ${this.timeoutMs}ms`);
+          
+          if (currentRetry < this.maxRetries) {
+            const backoffTime = Math.min(1000 * Math.pow(2, currentRetry), 10000);
+            console.log(`[${new Date().toISOString()}][${requestId}] Backing off for ${backoffTime}ms before retry`);
+            await new Promise(resolve => setTimeout(resolve, backoffTime));
+            currentRetry++;
+            continue;
+          }
+        }
+        
+        throw error;
+      }
     }
+    
+    throw new Error(`Failed after ${this.maxRetries} retries`);
   }
 }
 

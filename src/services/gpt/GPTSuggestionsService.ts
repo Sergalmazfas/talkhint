@@ -5,21 +5,22 @@ import { GPTResponse, getMockSuggestions } from './GPTMocks';
 
 class GPTSuggestionsService extends GPTBaseService {
   public async getSuggestions(transcription: string): Promise<GPTResponse> {
-    console.log(`[${new Date().toISOString()}] getSuggestions called with text (${transcription.length} chars):`);
-    console.log(transcription);
+    const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+    console.log(`[${new Date().toISOString()}][${requestId}] getSuggestions called with text (${transcription.length} chars):`);
+    console.log(`[${requestId}] Transcription: ${transcription}`);
     
     if (!this.apiKey) {
-      console.warn(`[${new Date().toISOString()}] API key not set for suggestions, using mock data`);
+      console.warn(`[${new Date().toISOString()}][${requestId}] API key not set for suggestions, using mock data`);
       const mockData = getMockSuggestions(transcription);
-      console.log(`[${new Date().toISOString()}] Mock suggestions:`, mockData);
+      console.log(`[${new Date().toISOString()}][${requestId}] Mock suggestions:`, mockData);
       return mockData;
     }
 
     const startTime = Date.now();
     try {
-      console.log(`[${new Date().toISOString()}] Preparing request for suggestions with style: ${this.responseStyle}`);
+      console.log(`[${new Date().toISOString()}][${requestId}] Preparing request for suggestions with style: ${this.responseStyle}`);
       const systemPrompt = getSystemPrompt(this.responseStyle);
-      console.log(`[${new Date().toISOString()}] System prompt (${systemPrompt.length} chars):`, systemPrompt);
+      console.log(`[${new Date().toISOString()}][${requestId}] System prompt (${systemPrompt.length} chars):`, systemPrompt);
       
       const messages = [
         {
@@ -32,32 +33,48 @@ class GPTSuggestionsService extends GPTBaseService {
         }
       ];
 
-      console.log(`[${new Date().toISOString()}] Calling proxy API for suggestions...`);
+      console.log(`[${new Date().toISOString()}][${requestId}] Calling OpenAI API for suggestions...`);
       const data = await this.callOpenAI(messages, 1.0, 150, 3);
-      console.log(`[${new Date().toISOString()}] Proxy API response received for suggestions`);
+      console.log(`[${new Date().toISOString()}][${requestId}] OpenAI API response received for suggestions`);
       
-      if (!data || !data.choices || !Array.isArray(data.choices)) {
-        console.error(`[${new Date().toISOString()}] Invalid proxy response format:`, data);
-        throw new Error('Invalid response format from proxy');
+      if (!data || !data.choices) {
+        console.error(`[${new Date().toISOString()}][${requestId}] Invalid response format:`, data);
+        throw new Error('Invalid response format from API');
       }
+
+      // Log the whole choices array to see what we're dealing with
+      console.log(`[${requestId}] Choices data:`, JSON.stringify(data.choices));
       
-      const suggestions = data.choices.map((choice: any) => 
-        choice.message?.content?.trim() || ''
-      ).filter(Boolean);
+      // More robust handling of the choices data
+      const suggestions = data.choices
+        .map((choice: any) => {
+          // Check different possible paths for content
+          if (choice && choice.message && typeof choice.message.content === 'string') {
+            return choice.message.content.trim();
+          }
+          // If direct structure doesn't work, try alternatives
+          if (choice && typeof choice.text === 'string') {
+            return choice.text.trim();
+          }
+          console.warn(`[${requestId}] Could not extract content from choice:`, choice);
+          return null;
+        })
+        .filter(Boolean); // Remove any null/undefined values
       
       if (suggestions.length === 0) {
-        console.warn(`[${new Date().toISOString()}] No valid suggestions in proxy response`);
+        console.warn(`[${new Date().toISOString()}][${requestId}] No valid suggestions extracted from API response`);
         throw new Error('No valid suggestions received');
       }
 
       const endTime = Date.now();
-      console.log(`[${new Date().toISOString()}] Extracted suggestions in ${endTime - startTime}ms:`, suggestions);
+      console.log(`[${new Date().toISOString()}][${requestId}] Extracted ${suggestions.length} suggestions in ${endTime - startTime}ms:`, suggestions);
       return { suggestions };
     } catch (error) {
-      console.error(`[${new Date().toISOString()}] Error getting suggestions from proxy:`, error);
-      console.log(`[${new Date().toISOString()}] Falling back to mock data due to error`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`[${new Date().toISOString()}][${requestId}] Error getting suggestions:`, errorMessage);
+      console.log(`[${new Date().toISOString()}][${requestId}] Falling back to mock data due to error`);
       const mockData = getMockSuggestions(transcription);
-      console.log(`[${new Date().toISOString()}] Mock suggestions:`, mockData);
+      console.log(`[${new Date().toISOString()}][${requestId}] Mock suggestions:`, mockData);
       return mockData;
     }
   }
