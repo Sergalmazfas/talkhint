@@ -9,7 +9,7 @@ class GPTBaseService {
   protected proxyUrl: string = 'https://cors-anywhere-lyart-seven.vercel.app/';
   protected maxRetries: number = 3;
   protected timeoutMs: number = 60000;
-  protected defaultApiKey: string = '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';
+  protected defaultApiKey: string = ''; // Removed the hardcoded API key
   protected fallbackProxies: string[] = [
     'https://cors-anywhere-lyart-seven.vercel.app/',
     'https://cors-proxy.fringe.zone/',
@@ -24,9 +24,9 @@ class GPTBaseService {
       this.apiKey = storedKey;
       console.log('API key loaded from storage');
     } else {
-      // Use the default API key if none is stored
-      this.apiKey = this.defaultApiKey;
-      console.log('Using default API key');
+      // No longer use the default API key if none is stored
+      this.apiKey = null;
+      console.log('No API key found in storage');
     }
   }
 

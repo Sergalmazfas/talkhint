@@ -46,7 +46,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       toast.success('Настройки сохранены');
     } else {
       // Если пользователь очистил поле, напоминаем о необходимости ключа
-      toast.warning('API ключ необходим для работы с OpenAI');
+      toast.warning('API ключ необходим для работы с OpenAI. Без ключа будут использоваться тестовые данные.');
     }
     onClose();
   };
@@ -91,7 +91,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                Для работы приложения требуется ключ API OpenAI. Если поле пустое, будет использован запасной ключ.
+                Для работы приложения требуется ключ API OpenAI. Без ключа будут использоваться тестовые данные.
               </p>
             </div>
 
