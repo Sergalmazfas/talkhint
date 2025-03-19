@@ -5,7 +5,7 @@
 class GPTBaseService {
   protected apiKey: string | null = null;
   protected responseStyle: string = 'casual';
-  protected serverProxyUrl: string = 'https://твое-приложение.vercel.app/chat'; // Server proxy URL
+  protected serverProxyUrl: string = 'https://cors-anywhere-git-master-sergs-projects-149ff317.vercel.app'; // Updated server proxy URL
   protected useServerProxy: boolean = true; // Flag to toggle between server proxy and direct API
   protected maxRetries: number = 3;
   protected timeoutMs: number = 60000;
