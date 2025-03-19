@@ -7,9 +7,9 @@ class GPTBaseService {
   protected responseStyle: string = 'casual';
   protected apiUrl: string = 'https://api.openai.com/v1/chat/completions';
   protected proxyUrl: string = 'https://cors-anywhere-lyart-seven.vercel.app/';
-  protected maxRetries: number = 3; // Increased from 2 to 3
-  protected timeoutMs: number = 60000; // Increased from 30s to 60s
-  protected defaultApiKey: string = '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'; // Fallback API key
+  protected maxRetries: number = 3;
+  protected timeoutMs: number = 60000;
+  protected defaultApiKey: string = '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';
   protected fallbackProxies: string[] = [
     'https://cors-anywhere-lyart-seven.vercel.app/',
     'https://cors-proxy.fringe.zone/',
@@ -88,69 +88,107 @@ class GPTBaseService {
         const proxiedUrl = `${this.proxyUrl}${this.apiUrl}`;
         console.log(`[${new Date().toISOString()}][${requestId}] Using proxy URL: ${proxiedUrl}`);
         
-        const response = await fetch(proxiedUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`,
-            'X-Requested-With': 'XMLHttpRequest', // Required by some CORS proxies
-            'Origin': window.location.origin,
-            'X-Cors-Api-Key': 'temp_3e4ed26e97d3f60b2b7e3548cdd93313' // Added in case the proxy requires an API key
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: messages,
-            temperature: temperature,
-            max_tokens: maxTokens,
-            n: n
-          }),
-          signal: controller.signal
-        });
-        
-        // Clear the timeout since we got a response
-        clearTimeout(timeoutId);
-
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        console.log(`[${new Date().toISOString()}][${requestId}] API request completed in ${duration}ms`);
-
-        if (!response.ok) {
-          console.error(`[${new Date().toISOString()}][${requestId}] Response not OK, status: ${response.status}`);
-          let errorData;
-          try {
-            errorData = await response.json();
-            console.error(`[${requestId}] Error response:`, errorData);
-          } catch (e) {
-            // If parsing JSON fails, use text
-            const errorText = await response.text();
-            console.error(`[${requestId}] Error response text:`, errorText);
-            errorData = { error: { message: errorText } };
-          }
+        // Try direct API call first
+        try {
+          const response = await fetch(proxiedUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.apiKey}`,
+              'X-Requested-With': 'XMLHttpRequest',
+              'Origin': window.location.origin,
+              'X-Cors-Api-Key': 'temp_3e4ed26e97d3f60b2b7e3548cdd93313'
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: messages,
+              temperature: temperature,
+              max_tokens: maxTokens,
+              n: n
+            }),
+            signal: controller.signal
+          });
           
-          // Rate limiting or server error - retry
-          if (response.status === 429 || response.status >= 500) {
-            if (currentRetry < this.maxRetries) {
-              const backoffTime = Math.min(1000 * Math.pow(2, currentRetry), 10000);
-              console.log(`[${new Date().toISOString()}][${requestId}] Backing off for ${backoffTime}ms before retry`);
-              await new Promise(resolve => setTimeout(resolve, backoffTime));
-              currentRetry++;
-              continue;
+          // Clear the timeout since we got a response
+          clearTimeout(timeoutId);
+
+          const endTime = Date.now();
+          const duration = endTime - startTime;
+          console.log(`[${new Date().toISOString()}][${requestId}] API request completed in ${duration}ms`);
+
+          if (!response.ok) {
+            console.error(`[${new Date().toISOString()}][${requestId}] Response not OK, status: ${response.status}`);
+            let errorData;
+            try {
+              errorData = await response.json();
+              console.error(`[${requestId}] Error response:`, errorData);
+            } catch (e) {
+              // If parsing JSON fails, use text
+              const errorText = await response.text();
+              console.error(`[${requestId}] Error response text:`, errorText);
+              errorData = { error: { message: errorText } };
             }
+            
+            // Rate limiting or server error - retry
+            if (response.status === 429 || response.status >= 500) {
+              if (currentRetry < this.maxRetries) {
+                const backoffTime = Math.min(1000 * Math.pow(2, currentRetry), 10000);
+                console.log(`[${new Date().toISOString()}][${requestId}] Backing off for ${backoffTime}ms before retry`);
+                await new Promise(resolve => setTimeout(resolve, backoffTime));
+                currentRetry++;
+                continue;
+              }
+            }
+            
+            throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+          }
+
+          console.log(`[${new Date().toISOString()}][${requestId}] Parsing response JSON`);
+          const data = await response.json();
+          console.log(`[${new Date().toISOString()}][${requestId}] Response successfully parsed`);
+          console.log(`[${requestId}] Response object structure:`, Object.keys(data));
+          
+          if (data.choices && data.choices.length > 0) {
+            console.log(`[${requestId}] Sample response content: "${data.choices[0].message.content.substring(0, 50)}..."`);
           }
           
-          throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+          return data;
+        } catch (proxyError) {
+          // If proxy fails, try direct API call
+          console.error(`[${new Date().toISOString()}][${requestId}] Error with proxy: ${proxyError.message}`);
+          console.log(`[${new Date().toISOString()}][${requestId}] Trying direct API call as fallback...`);
+          
+          try {
+            // Try direct API call without proxy
+            const directResponse = await fetch(this.apiUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.apiKey}`
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: messages,
+                temperature: temperature,
+                max_tokens: maxTokens,
+                n: n
+              }),
+              mode: 'cors'
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!directResponse.ok) {
+              throw new Error(`Direct API call failed with status: ${directResponse.status}`);
+            }
+            
+            const data = await directResponse.json();
+            return data;
+          } catch (directError) {
+            // If both proxy and direct fail, throw the error
+            throw directError;
+          }
         }
-
-        console.log(`[${new Date().toISOString()}][${requestId}] Parsing response JSON`);
-        const data = await response.json();
-        console.log(`[${new Date().toISOString()}][${requestId}] Response successfully parsed`);
-        console.log(`[${requestId}] Response object structure:`, Object.keys(data));
-        
-        if (data.choices && data.choices.length > 0) {
-          console.log(`[${requestId}] Sample response content: "${data.choices[0].message.content.substring(0, 50)}..."`);
-        }
-        
-        return data;
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`[${new Date().toISOString()}][${requestId}] Error in API request:`, errorMessage);
