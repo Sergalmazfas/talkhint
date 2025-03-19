@@ -1,8 +1,11 @@
 
 import GPTBaseService from './GPTBaseService';
 import { getTranslationPrompt } from './GPTPrompts';
-import { TranslationResponse, getMockTranslation } from './GPTMocks';
 import { GPTLogger } from './utils/GPTLogger';
+
+interface TranslationResponse {
+  translation: string;
+}
 
 class GPTTranslationService extends GPTBaseService {
   public async getTranslation(text: string, sourceLanguage: string, targetLanguage: string): Promise<TranslationResponse> {
@@ -10,10 +13,7 @@ class GPTTranslationService extends GPTBaseService {
     GPTLogger.log(undefined, `Text to translate (${text.length} chars):`, text);
     
     if (!this.getApiKey()) {
-      GPTLogger.warn(undefined, 'API key not set for translation, using mock translation');
-      const mockData = getMockTranslation(text, sourceLanguage, targetLanguage);
-      GPTLogger.log(undefined, 'Mock translation:', mockData);
-      return mockData;
+      throw new Error('API key not set for translation');
     }
 
     const startTime = Date.now();
@@ -44,10 +44,7 @@ class GPTTranslationService extends GPTBaseService {
       return { translation };
     } catch (error) {
       GPTLogger.error(undefined, 'Error getting translation from GPT:', error);
-      GPTLogger.log(undefined, 'Falling back to mock translation due to error');
-      const mockData = getMockTranslation(text, sourceLanguage, targetLanguage);
-      GPTLogger.log(undefined, 'Mock translation:', mockData);
-      return mockData;
+      throw error;
     }
   }
 }

@@ -22,6 +22,11 @@ const Translation = () => {
       return;
     }
 
+    if (!GPTService.getApiKey()) {
+      toast.error('Пожалуйста, установите API-ключ в настройках');
+      return;
+    }
+
     setIsTranslating(true);
     try {
       const response = await GPTService.getTranslation(
@@ -33,7 +38,8 @@ const Translation = () => {
       toast.success('Текст успешно переведен');
     } catch (error) {
       console.error('Translation error:', error);
-      toast.error('Ошибка при переводе');
+      toast.error('Ошибка при переводе: ' + (error instanceof Error ? error.message : 'Неизвестная ошибка'));
+      setTranslatedText('');
     } finally {
       setIsTranslating(false);
     }

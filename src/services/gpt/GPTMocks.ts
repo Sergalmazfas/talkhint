@@ -1,4 +1,3 @@
-
 /**
  * Mock responses for different GPT features when API key is not set
  */
@@ -180,31 +179,5 @@ export const getMockBilingualResponses = (transcription: string): BilingualRespo
         russian: "Звучит хорошо. Что мне делать дальше?"
       }
     ]
-  };
-};
-
-export const getMockTranslation = (text: string, sourceLanguage: string, targetLanguage: string): TranslationResponse => {
-  if (sourceLanguage === 'ru' && targetLanguage === 'en') {
-    if (text.toLowerCase().includes('привет')) {
-      return { translation: 'Hello' };
-    }
-    if (text.toLowerCase().includes('как дела')) {
-      return { translation: 'How are you?' };
-    }
-    return { translation: 'This is a mock translation from Russian to English' };
-  }
-  
-  if (sourceLanguage === 'en' && targetLanguage === 'ru') {
-    if (text.toLowerCase().includes('hello')) {
-      return { translation: 'Привет' };
-    }
-    if (text.toLowerCase().includes('how are you')) {
-      return { translation: 'Как дела?' };
-    }
-    return { translation: 'Это тестовый перевод с английского на русский' };
-  }
-  
-  return { 
-    translation: `Mock translation from ${sourceLanguage} to ${targetLanguage}: ${text}` 
   };
 };
