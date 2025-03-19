@@ -1,4 +1,3 @@
-
 interface GPTResponse {
   suggestions: string[];
 }
@@ -21,12 +20,14 @@ class GPTService {
     const storedKey = localStorage.getItem('openai_api_key');
     if (storedKey) {
       this.apiKey = storedKey;
+      console.log('API key loaded from storage');
     }
   }
 
   public setApiKey(key: string) {
     this.apiKey = key;
     localStorage.setItem('openai_api_key', key);
+    console.log('API key set and saved to storage');
   }
 
   public getApiKey(): string | null {
@@ -44,6 +45,7 @@ class GPTService {
     }
 
     try {
+      console.log('Getting suggestions for:', transcription);
       const messages = [
         {
           role: "system",
@@ -55,6 +57,7 @@ class GPTService {
         }
       ];
 
+      console.log('Using API key:', this.apiKey.substring(0, 5) + '...');
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
@@ -64,7 +67,7 @@ class GPTService {
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: messages,
-          temperature: 0.8, // Higher temperature for more varied responses
+          temperature: 1.0, // Higher temperature for more varied responses
           max_tokens: 150,
           n: 3
         })
@@ -77,10 +80,13 @@ class GPTService {
       }
 
       const data = await response.json();
+      console.log('OpenAI API response:', data);
+      
       const suggestions = data.choices.map((choice: any) => 
         choice.message.content.trim()
       );
 
+      console.log('Extracted suggestions:', suggestions);
       return { suggestions };
     } catch (error) {
       console.error('Error getting suggestions from GPT:', error);
@@ -95,6 +101,7 @@ class GPTService {
     }
 
     try {
+      console.log('Getting bilingual responses for:', transcription);
       const messages = [
         {
           role: "system",
@@ -106,6 +113,7 @@ class GPTService {
         }
       ];
 
+      console.log('Using API key:', this.apiKey.substring(0, 5) + '...');
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers: {
@@ -115,8 +123,8 @@ class GPTService {
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: messages,
-          temperature: 0.8, // Higher temperature for more varied responses
-          max_tokens: 400,
+          temperature: 1.0, // Increased for more variety
+          max_tokens: 500,
           n: 1
         })
       });
@@ -124,21 +132,28 @@ class GPTService {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Error from OpenAI API:', errorData);
-        throw new Error(`API error: ${response.status}`);
+        throw new Error(`API error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
       }
 
       const data = await response.json();
+      console.log('OpenAI API response for bilingual:', data);
+      
       const content = data.choices[0].message.content.trim();
+      console.log('Raw content from GPT:', content);
       
       try {
+        // Try to parse as JSON first
         const parsedResponses = JSON.parse(content);
         if (Array.isArray(parsedResponses) && parsedResponses.length > 0) {
+          console.log('Successfully parsed JSON response:', parsedResponses);
           return { responses: parsedResponses };
         }
       } catch (parseError) {
-        console.error('Error parsing GPT response:', parseError);
+        console.log('Content is not valid JSON, trying to extract structured data');
+        // If not valid JSON, try to extract structured data
         const responses = this.extractBilingualResponses(content);
         if (responses.length > 0) {
+          console.log('Extracted structured responses:', responses);
           return { responses };
         }
       }
@@ -153,6 +168,24 @@ class GPTService {
 
   private extractBilingualResponses(content: string): Array<{english: string, russian: string}> {
     const responses: Array<{english: string, russian: string}> = [];
+    
+    // First, try to match the numbered format: "1. English text\n(Russian text)"
+    const regex = /(\d+)\.\s+([^\n]+)\s*\n\s*\(([^)]+)\)/g;
+    let match;
+    
+    while ((match = regex.exec(content)) !== null) {
+      responses.push({
+        english: match[2].trim(),
+        russian: match[3].trim()
+      });
+    }
+    
+    // If we found structured responses, return them
+    if (responses.length > 0) {
+      return responses.slice(0, 3); // Only return up to 3 responses
+    }
+    
+    // Otherwise, try line-by-line parsing
     const lines = content.split('\n');
     
     let currentEnglish = '';
@@ -201,6 +234,7 @@ class GPTService {
     }
 
     try {
+      console.log(`Translating from ${sourceLanguage} to ${targetLanguage}:`, text);
       const messages = [
         {
           role: "system",
@@ -234,6 +268,7 @@ class GPTService {
 
       const data = await response.json();
       const translation = data.choices[0].message.content.trim();
+      console.log('Translation result:', translation);
 
       return { translation };
     } catch (error) {

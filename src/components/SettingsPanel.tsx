@@ -1,11 +1,14 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import GPTService from '@/services/GPTService';
+import { toast } from 'sonner';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -24,7 +27,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   settings, 
   onSettingsChange 
 }) => {
+  const [apiKey, setApiKey] = useState(GPTService.getApiKey() || '');
+  
   if (!isOpen) return null;
+
+  const handleSave = () => {
+    if (apiKey.trim()) {
+      GPTService.setApiKey(apiKey.trim());
+      GPTService.setResponseStyle(settings.responseStyle);
+      toast.success('Настройки сохранены');
+    }
+    onClose();
+  };
 
   return (
     <motion.div
@@ -43,7 +57,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       >
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold">Settings</h2>
+            <h2 className="text-xl font-semibold">Настройки</h2>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -54,8 +68,25 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
           <div className="space-y-6">
             <div className="space-y-3">
+              <Label htmlFor="apiKey" className="text-sm text-foreground/80">
+                OpenAI API Key
+              </Label>
+              <Input
+                id="apiKey"
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="sk-..."
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                Для работы приложения требуется ключ API OpenAI.
+              </p>
+            </div>
+
+            <div className="space-y-3">
               <Label htmlFor="sensitivity" className="text-sm text-foreground/80">
-                Microphone Sensitivity
+                Чувствительность микрофона
               </Label>
               <Slider
                 id="sensitivity"
@@ -67,34 +98,34 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="py-2"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Low</span>
-                <span>High</span>
+                <span>Низкая</span>
+                <span>Высокая</span>
               </div>
             </div>
 
             <div className="space-y-3">
               <Label htmlFor="responseStyle" className="text-sm text-foreground/80">
-                Response Style
+                Стиль ответов
               </Label>
               <Select
                 value={settings.responseStyle}
                 onValueChange={(value) => onSettingsChange('responseStyle', value)}
               >
                 <SelectTrigger id="responseStyle" className="w-full">
-                  <SelectValue placeholder="Select a style" />
+                  <SelectValue placeholder="Выберите стиль" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="casual">Casual</SelectItem>
-                  <SelectItem value="formal">Formal</SelectItem>
-                  <SelectItem value="friendly">Friendly</SelectItem>
-                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="casual">Повседневный</SelectItem>
+                  <SelectItem value="formal">Формальный</SelectItem>
+                  <SelectItem value="friendly">Дружелюбный</SelectItem>
+                  <SelectItem value="professional">Профессиональный</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex items-center justify-between">
               <Label htmlFor="autoActivate" className="text-sm text-foreground/80">
-                Auto-activate during calls
+                Автоактивация во время звонков
               </Label>
               <Switch
                 id="autoActivate"
@@ -106,8 +137,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
         
         <div className="p-4 border-t border-border">
-          <Button className="w-full" onClick={onClose}>
-            Save Changes
+          <Button className="w-full" onClick={handleSave}>
+            Сохранить
           </Button>
         </div>
       </motion.div>
