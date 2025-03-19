@@ -70,10 +70,6 @@ class GPTBaseService {
     
     console.log(`[${requestId}] Request payload:`, JSON.stringify(requestPayload, null, 2));
 
-    if (!this.apiKey) {
-      throw new Error('API key is required to make OpenAI API calls');
-    }
-
     let currentRetry = 0;
     
     while (currentRetry <= this.maxRetries) {
@@ -86,7 +82,7 @@ class GPTBaseService {
         let response;
         
         if (this.useServerProxy) {
-          // Using server proxy with API key in Authorization header
+          // Using server proxy - server will use its own API key from environment variables
           console.log(`[${new Date().toISOString()}][${requestId}] Sending request using server proxy: ${this.serverProxyUrl}`);
           
           // Create a controller for timeout handling
@@ -104,11 +100,10 @@ class GPTBaseService {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${this.apiKey}`,
               'Origin': origin,
               'Accept': 'application/json',
               'Access-Control-Request-Method': 'POST',
-              'Access-Control-Request-Headers': 'Content-Type, Authorization'
+              'Access-Control-Request-Headers': 'Content-Type'
             },
             credentials: 'omit',
             mode: 'cors',
@@ -129,7 +124,7 @@ class GPTBaseService {
           console.log(`[${new Date().toISOString()}][${requestId}] Server proxy response received:`, data);
           response = data;
         } else {
-          // Using the OpenAI SDK
+          // Using the OpenAI SDK with client API key
           console.log(`[${new Date().toISOString()}][${requestId}] Sending request using OpenAI SDK`);
           
           if (!this.openaiClient) {
