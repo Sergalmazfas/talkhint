@@ -257,32 +257,38 @@ class GPTService {
     Your task is to analyze what they hear during the conversation and provide exactly three SPECIFIC AND CONTEXTUAL possible 
     responses that would be appropriate and natural for them to reply with.
 
-    IMPORTANT: Do NOT provide generic responses like "I need more details", "Let me think about it" or "Let's discuss later". 
-    Your responses must be SPECIFIC to the exact query or statement, especially about work, driving jobs, CDL licenses, 
-    experience and qualifications.
-
-    The responses should be professional, contextually relevant to the specific conversation topic (like job offers, CDL 
-    licenses, driving experience, work schedules, payment rates, etc.), and help the Russian speaker navigate the 
-    conversation smoothly. Each response should first be in English, followed by its Russian translation in parentheses.
+    IMPORTANT GUIDELINES:
+    1. Use SIMPLE ENGLISH suitable for a non-native speaker. Avoid complex vocabulary and grammar.
+    2. Responses must be SPECIFIC to the exact query or statement, especially about work, jobs, interviews, CDL licenses, or driving.
+    3. NO generic responses like "I need more details" or "Let's discuss later" - be specific to the context.
+    4. Keep responses concise and easy to pronounce - 1-2 short sentences maximum.
+    5. Responses should sound natural and conversational.
+    6. Include useful details when appropriate (years of experience, qualifications, preferences).
 
     Format your output exactly like this:
-    1. [English response 1]
+    1. [Simple English response 1]
     ([Russian translation 1])
-    2. [English response 2]
+    2. [Simple English response 2]
     ([Russian translation 2])
-    3. [English response 3]
+    3. [Simple English response 3]
     ([Russian translation 3])
 
-    For example, if someone asks "Do you have a CDL?" the responses should be like:
-    1. Yes, I have a Class A CDL with X, Y, Z endorsements and 3 years of experience.
-    (Да, у меня есть CDL класса A с допусками X, Y, Z и 3 года опыта.)
-    2. Yes, I have a CDL. I'm interested in both local and long-haul positions. What kind of routes do you have available?
-    (Да, у меня есть CDL. Я заинтересован как в местных, так и в дальних маршрутах. Какие маршруты у вас доступны?)
-    3. Yes, I have a valid CDL. Can you tell me more about the position requirements and compensation package?
-    (Да, у меня есть действующие права CDL. Можете рассказать подробнее о требованиях к должности и компенсационном пакете?)
+    Examples:
+    For "Do you have a CDL?":
+    1. Yes, I have a Class A CDL with 3 years of experience.
+    (Да, у меня есть CDL класса A с 3-летним опытом.)
+    2. Yes, I have a CDL. What kind of driving job do you offer?
+    (Да, у меня есть CDL. Какую работу водителя вы предлагаете?)
+    3. Yes, I have a CDL and I can start working right away.
+    (Да, у меня есть CDL, и я могу приступить к работе немедленно.)
 
-    Make sure the responses are specific to the conversation, helpful, and sound natural in a real conversation.
-    Focus on providing responses that directly address the specific question or statement that was heard.`;
+    For "Can you work weekends?":
+    1. Yes, I can work weekends. No problem.
+    (Да, я могу работать в выходные. Без проблем.)
+    2. I prefer weekday shifts, but can work weekends if needed.
+    (Я предпочитаю смены в будние дни, но могу работать в выходные, если нужно.)
+    3. Weekends are fine. How many hours per weekend?
+    (Выходные подходят. Сколько часов в выходные?)`;
   }
 
   private getTranslationPrompt(sourceLanguage: string, targetLanguage: string): string {
@@ -350,54 +356,73 @@ class GPTService {
       return {
         responses: [
           {
-            english: "Yes, I have a CDL. I'm interested in this job opportunity. Can you tell me more about the position and requirements?",
-            russian: "Да, у меня есть CDL. Я заинтересован в этой работе. Можете рассказать подробнее о позиции и требованиях?"
+            english: "Yes, I have a CDL. I'm looking for a driving job now.",
+            russian: "Да, у меня есть CDL. Я сейчас как раз ищу работу водителем."
           },
           {
-            english: "Yes, I have a Class A CDL with 3 years of experience. What type of driving job are you offering?",
-            russian: "Да, у меня есть CDL класса A с 3-летним опытом. Какую именно работу водителя вы предлагаете?"
+            english: "Yes, I have a Class A CDL with 3 years of experience.",
+            russian: "Да, у меня есть CDL класса A с 3-летним опытом."
           },
           {
-            english: "Yes, I have a CDL and I'm looking for work. I'm available to start immediately. What are the details about the job?",
-            russian: "Да, у меня есть CDL, и я ищу работу. Я могу приступить немедленно. Какие детали о работе?"
+            english: "Yes, I have a CDL. Can you tell me about the job?",
+            russian: "Да, у меня есть CDL. Можете рассказать о работе?"
           }
         ]
       };
     }
     
-    if (transcription.toLowerCase().includes('experience') || transcription.toLowerCase().includes('опыт')) {
+    if (transcription.toLowerCase().includes('experience') || transcription.toLowerCase().includes('years')) {
       return {
         responses: [
           {
-            english: "I have 5 years of experience as a commercial driver, primarily in long-haul transportation.",
-            russian: "У меня 5 лет опыта работы коммерческим водителем, в основном в дальних перевозках."
+            english: "I have 5 years of truck driving experience.",
+            russian: "У меня 5 лет опыта вождения грузовика."
           },
           {
-            english: "My experience includes 3 years of truck driving and 2 years of delivery van operations.",
-            russian: "Мой опыт включает 3 года вождения грузовиков и 2 года работы на доставке фургоном."
+            english: "I've been driving trucks for 3 years, mostly long-haul.",
+            russian: "Я вожу грузовики 3 года, в основном дальние перевозки."
           },
           {
-            english: "I've been driving professionally for over 7 years, with experience in various vehicle types.",
-            russian: "Я профессионально вожу уже более 7 лет, имею опыт работы с различными типами транспортных средств."
+            english: "I have 4 years experience with refrigerated loads.",
+            russian: "У меня 4 года опыта работы с рефрижераторными грузами."
           }
         ]
       };
     }
     
-    if (transcription.toLowerCase().includes('availability') || transcription.toLowerCase().includes('доступность')) {
+    if (transcription.toLowerCase().includes('available') || transcription.toLowerCase().includes('start') || transcription.toLowerCase().includes('when')) {
       return {
         responses: [
           {
-            english: "I'm available to start immediately and can work flexible hours, including weekends if needed.",
-            russian: "Я могу приступить к работе немедленно и работать по гибкому графику, включая выходные, если потребуется."
+            english: "I can start right away, as soon as tomorrow.",
+            russian: "Я могу начать прямо сейчас, хоть завтра."
           },
           {
-            english: "I prefer full-time work during weekdays, but I'm open to discussing other schedules.",
-            russian: "Я предпочитаю работу на полный рабочий день в будние дни, но открыт для обсуждения других графиков."
+            english: "I'm available immediately. When do you need a driver?",
+            russian: "Я доступен немедленно. Когда вам нужен водитель?"
           },
           {
-            english: "I'm looking for a stable schedule, but can accommodate occasional overtime or weekend work.",
-            russian: "Я ищу стабильный график, но могу работать сверхурочно или в выходные дни время от времени."
+            english: "I can start next week. Is the position still open?",
+            russian: "Я могу начать со следующей недели. Позиция еще открыта?"
+          }
+        ]
+      };
+    }
+    
+    if (transcription.toLowerCase().includes('pay') || transcription.toLowerCase().includes('salary') || transcription.toLowerCase().includes('money')) {
+      return {
+        responses: [
+          {
+            english: "What is the pay rate for this position?",
+            russian: "Какая ставка оплаты для этой должности?"
+          },
+          {
+            english: "How much does this job pay per mile or per hour?",
+            russian: "Сколько платят за милю или в час на этой работе?"
+          },
+          {
+            english: "I'm looking for at least $25 per hour. Is that possible?",
+            russian: "Я ищу минимум $25 в час. Это возможно?"
           }
         ]
       };
@@ -406,16 +431,16 @@ class GPTService {
     return {
       responses: [
         {
-          english: "I understand your question. Could you please provide more details so I can give you a more specific answer?",
-          russian: "Я понимаю ваш вопрос. Не могли бы вы предоставить больше деталей, чтобы я мог дать более конкретный ответ?"
+          english: "Could you please repeat that? I didn't understand.",
+          russian: "Не могли бы вы повторить? Я не понял."
         },
         {
-          english: "That's an interesting point. Let me think about it and get back to you with a thoughtful response.",
-          russian: "Это интересный момент. Позвольте мне подумать об этом и вернуться к вам с обдуманным ответом."
+          english: "I'm interested in this job. Please tell me more.",
+          russian: "Я заинтересован в этой работе. Расскажите подробнее, пожалуйста."
         },
         {
-          english: "I'd like to discuss this further. Could we schedule a time to talk more about these details?",
-          russian: "Я хотел бы обсудить это подробнее. Можем ли мы назначить время, чтобы поговорить подробнее об этих деталях?"
+          english: "That sounds good. What should I do next?",
+          russian: "Звучит хорошо. Что мне делать дальше?"
         }
       ]
     };
