@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,6 @@ import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft, Phone } from 'lucide-react';
 import ListeningIndicator from '@/components/ListeningIndicator';
-import SuggestionsPanel from '@/components/SuggestionsPanel';
 import BilingualResponsePanel from '@/components/BilingualResponsePanel';
 import SpeechService from '@/services/SpeechService';
 import GPTService from '@/services/GPTService';
@@ -15,9 +13,7 @@ const PhoneCall = () => {
   const [isListening, setIsListening] = useState(false);
   const [isCallActive, setIsCallActive] = useState(false);
   const [transcribedText, setTranscribedText] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [bilingualResponses, setBilingualResponses] = useState<Array<{english: string, russian: string}>>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [showBilingualResponses, setShowBilingualResponses] = useState(false);
   
   const toggleCall = () => {
@@ -49,7 +45,6 @@ const PhoneCall = () => {
     if (isListening) {
       SpeechService.stopListening();
       setIsListening(false);
-      setShowSuggestions(false);
       toast.info('Микрофон выключен');
     } else {
       SpeechService.startListening(
@@ -64,11 +59,6 @@ const PhoneCall = () => {
   const handleFinalTranscription = async (text: string) => {
     if (text.trim().length > 5) {
       try {
-        // Get regular suggestions
-        const response = await GPTService.getSuggestions(text);
-        setSuggestions(response.suggestions);
-        setShowSuggestions(true);
-        
         // Generate bilingual responses (English and Russian)
         const bilingualResult = await GPTService.getBilingualResponses(text);
         setBilingualResponses(bilingualResult.responses);
@@ -78,15 +68,6 @@ const PhoneCall = () => {
         toast.error('Не удалось получить ответы');
       }
     }
-  };
-  
-  const selectSuggestion = (suggestion: string) => {
-    navigator.clipboard.writeText(suggestion).then(() => {
-      toast.success('Ответ скопирован в буфер обмена');
-      // Keep suggestions visible
-    }).catch(() => {
-      toast.error('Не удалось скопировать в буфер обмена');
-    });
   };
   
   const selectBilingualResponse = (response: {english: string, russian: string}) => {
@@ -202,21 +183,12 @@ const PhoneCall = () => {
       />
       
       {isCallActive && (
-        <>
-          <SuggestionsPanel 
-            suggestions={suggestions} 
-            isVisible={showSuggestions} 
-            onSelect={selectSuggestion} 
-            onDismiss={() => setShowSuggestions(false)} 
-          />
-          
-          <BilingualResponsePanel 
-            responses={bilingualResponses}
-            isVisible={showBilingualResponses}
-            onSelect={selectBilingualResponse}
-            onDismiss={() => setShowBilingualResponses(false)}
-          />
-        </>
+        <BilingualResponsePanel 
+          responses={bilingualResponses}
+          isVisible={showBilingualResponses}
+          onSelect={selectBilingualResponse}
+          onDismiss={() => setShowBilingualResponses(false)}
+        />
       )}
     </div>
   );
