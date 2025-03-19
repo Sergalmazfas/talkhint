@@ -1,3 +1,4 @@
+
 interface GPTResponse {
   suggestions: string[];
 }
@@ -11,9 +12,17 @@ interface TranslationResponse {
 }
 
 class GPTService {
-  private apiKey: string | null = "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";
+  private apiKey: string | null = null;
   private responseStyle: string = 'casual';
   private apiUrl: string = 'https://api.openai.com/v1/chat/completions';
+
+  constructor() {
+    // Try to load API key from localStorage on initialization
+    const storedKey = localStorage.getItem('openai_api_key');
+    if (storedKey) {
+      this.apiKey = storedKey;
+    }
+  }
 
   public setApiKey(key: string) {
     this.apiKey = key;
@@ -21,12 +30,6 @@ class GPTService {
   }
 
   public getApiKey(): string | null {
-    if (!this.apiKey) {
-      const storedKey = localStorage.getItem('openai_api_key');
-      if (storedKey) {
-        this.apiKey = storedKey;
-      }
-    }
     return this.apiKey;
   }
 
@@ -61,7 +64,7 @@ class GPTService {
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: messages,
-          temperature: 0.7,
+          temperature: 0.8, // Higher temperature for more varied responses
           max_tokens: 150,
           n: 3
         })
@@ -112,8 +115,8 @@ class GPTService {
         body: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: messages,
-          temperature: 0.7,
-          max_tokens: 300,
+          temperature: 0.8, // Higher temperature for more varied responses
+          max_tokens: 400,
           n: 1
         })
       });
@@ -140,6 +143,7 @@ class GPTService {
         }
       }
       
+      console.warn('Could not parse GPT response, using mock data');
       return this.getMockBilingualResponses(transcription);
     } catch (error) {
       console.error('Error getting bilingual responses from GPT:', error);
@@ -153,30 +157,41 @@ class GPTService {
     
     let currentEnglish = '';
     let currentRussian = '';
-    let index = 0;
     
     for (const line of lines) {
       const trimmedLine = line.trim();
-      if (trimmedLine.match(/^\d+\.\s+/)) {
+      
+      // Look for numbered responses (e.g. "1. English text")
+      const numberMatch = trimmedLine.match(/^(\d+)\.\s+(.+)$/);
+      if (numberMatch) {
+        if (currentEnglish && currentRussian) {
+          responses.push({ english: currentEnglish, russian: currentRussian });
+        }
+        
+        currentEnglish = numberMatch[2];
+        currentRussian = '';
+        continue;
+      }
+      
+      // Look for Russian translations in parentheses
+      if (trimmedLine.startsWith('(') && trimmedLine.endsWith(')') && currentEnglish) {
+        currentRussian = trimmedLine.substring(1, trimmedLine.length - 1);
+        
+        // Add the pair to responses
         if (currentEnglish && currentRussian) {
           responses.push({ english: currentEnglish, russian: currentRussian });
           currentEnglish = '';
           currentRussian = '';
         }
-        
-        currentEnglish = trimmedLine.replace(/^\d+\.\s+/, '');
-      } else if (trimmedLine.startsWith('(') && trimmedLine.endsWith(')') && currentEnglish) {
-        currentRussian = trimmedLine.substring(1, trimmedLine.length - 1);
-        
-        responses.push({ english: currentEnglish, russian: currentRussian });
-        currentEnglish = '';
-        currentRussian = '';
       }
-      
-      if (responses.length >= 3) break;
     }
     
-    return responses;
+    // Add the last pair if it exists
+    if (currentEnglish && currentRussian) {
+      responses.push({ english: currentEnglish, russian: currentRussian });
+    }
+    
+    return responses.slice(0, 3); // Only return up to 3 responses
   }
 
   public async getTranslation(text: string, sourceLanguage: string, targetLanguage: string): Promise<TranslationResponse> {
@@ -263,7 +278,8 @@ class GPTService {
     3. NO generic responses like "I need more details" or "Let's discuss later" - be specific to the context.
     4. Keep responses concise and easy to pronounce - 1-2 short sentences maximum.
     5. Responses should sound natural and conversational.
-    6. Include useful details when appropriate (years of experience, qualifications, preferences).
+    6. Each response must be DIFFERENT and VARIED - do not provide similar answers.
+    7. Include useful details when appropriate (years of experience, qualifications, preferences).
 
     Format your output exactly like this:
     1. [Simple English response 1]
@@ -312,7 +328,10 @@ class GPTService {
   }
 
   private getMockSuggestions(transcription: string): GPTResponse {
-    if (transcription.toLowerCase().includes('привет') || transcription.toLowerCase().includes('здравствуйте')) {
+    // Generate different mock responses based on the input
+    const lowercaseTranscription = transcription.toLowerCase();
+    
+    if (lowercaseTranscription.includes('привет') || lowercaseTranscription.includes('здравствуйте')) {
       return {
         suggestions: [
           'Здравствуйте! Чем я могу вам помочь?',
@@ -322,7 +341,7 @@ class GPTService {
       };
     }
     
-    if (transcription.toLowerCase().includes('цена') || transcription.toLowerCase().includes('стоимость')) {
+    if (lowercaseTranscription.includes('цена') || lowercaseTranscription.includes('стоимость')) {
       return {
         suggestions: [
           'Стоимость зависит от нескольких факторов. Могу подробнее рассказать о них.',
@@ -332,12 +351,22 @@ class GPTService {
       };
     }
     
-    if (transcription.toLowerCase().includes('спасибо')) {
+    if (lowercaseTranscription.includes('спасибо')) {
       return {
         suggestions: [
           'Всегда пожалуйста! Есть ли еще вопросы?',
           'Рад был помочь. Обращайтесь, если будут вопросы.',
           'Не за что! Хорошего дня!'
+        ]
+      };
+    }
+    
+    if (lowercaseTranscription.includes('опыт') || lowercaseTranscription.includes('работа')) {
+      return {
+        suggestions: [
+          'У меня 5 лет опыта работы в этой сфере.',
+          'Я работал с разными проектами, от малых до крупных.',
+          'Мой опыт включает работу с международными клиентами.'
         ]
       };
     }
@@ -352,7 +381,9 @@ class GPTService {
   }
   
   private getMockBilingualResponses(transcription: string): BilingualResponse {
-    if (transcription.toLowerCase().includes('cdl') || transcription.toLowerCase().includes('driver') || transcription.toLowerCase().includes('work')) {
+    const lowercaseTranscription = transcription.toLowerCase();
+    
+    if (lowercaseTranscription.includes('cdl') || lowercaseTranscription.includes('driver') || lowercaseTranscription.includes('license')) {
       return {
         responses: [
           {
@@ -371,7 +402,7 @@ class GPTService {
       };
     }
     
-    if (transcription.toLowerCase().includes('experience') || transcription.toLowerCase().includes('years')) {
+    if (lowercaseTranscription.includes('experience') || lowercaseTranscription.includes('years')) {
       return {
         responses: [
           {
@@ -390,7 +421,7 @@ class GPTService {
       };
     }
     
-    if (transcription.toLowerCase().includes('available') || transcription.toLowerCase().includes('start') || transcription.toLowerCase().includes('when')) {
+    if (lowercaseTranscription.includes('available') || lowercaseTranscription.includes('start') || lowercaseTranscription.includes('when')) {
       return {
         responses: [
           {
@@ -409,7 +440,7 @@ class GPTService {
       };
     }
     
-    if (transcription.toLowerCase().includes('pay') || transcription.toLowerCase().includes('salary') || transcription.toLowerCase().includes('money')) {
+    if (lowercaseTranscription.includes('pay') || lowercaseTranscription.includes('salary') || lowercaseTranscription.includes('money')) {
       return {
         responses: [
           {
@@ -423,6 +454,25 @@ class GPTService {
           {
             english: "I'm looking for at least $25 per hour. Is that possible?",
             russian: "Я ищу минимум $25 в час. Это возможно?"
+          }
+        ]
+      };
+    }
+    
+    if (lowercaseTranscription.includes('interview') || lowercaseTranscription.includes('meeting')) {
+      return {
+        responses: [
+          {
+            english: "When would you like to schedule the interview?",
+            russian: "Когда бы вы хотели назначить собеседование?"
+          },
+          {
+            english: "I'm available for an interview this week. What time works for you?",
+            russian: "Я свободен для собеседования на этой неделе. Какое время вам подходит?"
+          },
+          {
+            english: "Should I bring any documents to the interview?",
+            russian: "Нужно ли мне принести какие-то документы на собеседование?"
           }
         ]
       };
