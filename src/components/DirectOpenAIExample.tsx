@@ -1,13 +1,11 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/gpt';
-import { setupMessageListener, testPostMessageAllOrigins, testIframePostMessage } from '@/utils/safePostMessage';
+import { setupMessageListener, testPostMessageAllOrigins, testIframePostMessage } from '@/utils/postMessage';
 import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
 import TestIframe from './TestIframe';
 
@@ -20,29 +18,23 @@ const DirectOpenAIExample = () => {
   const [testResults, setTestResults] = useState<Record<string, boolean> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Get the server URL based on environment
   const getServerUrl = () => {
-    // Use Vercel URL in production
     if (window.location.hostname === 'lovable.dev') {
       return 'https://lovable-server.vercel.app';
     }
-    // Use local server for development
     return window.location.protocol + '//' + window.location.hostname + ':3000';
   };
 
-  // Setup postMessage listener
   useEffect(() => {
     const cleanupListener = setupMessageListener((data, origin) => {
       console.log(`Received message from ${origin}:`, data);
       setMessages(prev => [...prev, { origin, data, timestamp: new Date().toISOString() }]);
     });
 
-    // Test message when mounting - for iframe
     if (iframeRef.current && iframeRef.current.contentWindow) {
       setTimeout(() => {
         try {
-          // Get iframe origin
-          let targetOrigin = '*'; // Fallback for debugging
+          let targetOrigin = '*';
           
           try {
             targetOrigin = new URL(iframeRef.current!.src).origin;
@@ -50,20 +42,17 @@ const DirectOpenAIExample = () => {
             console.warn('Could not parse iframe URL, using wildcard origin:', e);
           }
           
-          // Send message
           const initMessage = { 
             type: 'INIT', 
             from: window.location.origin,
             timestamp: new Date().toISOString()
           };
           
-          // Try to send to specific origin
           if (targetOrigin !== '*') {
             iframeRef.current!.contentWindow!.postMessage(initMessage, targetOrigin);
             console.log(`Initial postMessage sent to iframe at ${targetOrigin}`);
           }
           
-          // Also try sending with wildcard for debugging
           if (process.env.NODE_ENV === 'development') {
             iframeRef.current!.contentWindow!.postMessage(initMessage, '*');
             console.log(`Also sent initial message with wildcard origin (debug mode)`);
@@ -83,7 +72,6 @@ const DirectOpenAIExample = () => {
     setResponse('');
 
     try {
-      // Use GPTService to send the request through proxy
       const result = await GPTService.sendChatMessage(prompt);
       setResponse(JSON.stringify(result, null, 2));
     } catch (err) {
@@ -96,22 +84,19 @@ const DirectOpenAIExample = () => {
 
   const testPostMessage = () => {
     try {
-      // Clear previous results
       setError(null);
       setTestResults(null);
       
-      // 1. Send message to parent window
       try {
         window.parent.postMessage(
           { type: 'TEST_MESSAGE', content: prompt, from: window.location.origin },
-          window.location.origin // Safely send to our own domain
+          window.location.origin
         );
         console.log(`Sent test message to parent (same origin: ${window.location.origin})`);
       } catch (e) {
         console.error('Error sending to parent window:', e);
       }
       
-      // 2. Send message to iframe
       if (iframeRef.current) {
         const success = testIframePostMessage(iframeRef.current, { 
           type: 'TEST_MESSAGE', 
@@ -126,7 +111,6 @@ const DirectOpenAIExample = () => {
         }
       }
       
-      // 3. Test postMessage for all known domains
       const results = testPostMessageAllOrigins({
         type: 'DOMAIN_TEST',
         content: prompt,
@@ -135,7 +119,6 @@ const DirectOpenAIExample = () => {
       
       setTestResults(results);
       
-      // Add report to response
       setResponse(`Sent test message:\n${JSON.stringify({ 
         type: 'TEST_MESSAGE', 
         content: prompt 
@@ -263,7 +246,6 @@ const DirectOpenAIExample = () => {
           </div>
         )}
         
-        {/* Test iframe */}
         <TestIframe 
           ref={iframeRef}
           serverUrl={getServerUrl()}
