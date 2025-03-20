@@ -111,7 +111,7 @@ class GPTBaseService {
         
         // For CORS Anywhere, make a simple request to test the connection
         const testUrl = this.config.serverProxyUrl;
-        const response = await fetch(`${testUrl}/models`, {
+        const response = await fetch(`${testUrl}/health`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${this.config.apiKey || 'sk-test'}` // Send a test API key if none is set
