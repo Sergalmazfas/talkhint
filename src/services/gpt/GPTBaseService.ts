@@ -6,7 +6,9 @@ import {
   loadApiKeyFromStorage, 
   saveApiKeyToStorage,
   loadUseServerProxyFromStorage,
-  saveUseServerProxyToStorage 
+  saveUseServerProxyToStorage,
+  loadResponseStyleFromStorage,
+  saveResponseStyleToStorage
 } from './config/GPTServiceConfig';
 import { GPTRequestService } from './utils/GPTRequestService';
 import { GPTLogger } from './utils/GPTLogger';
@@ -23,29 +25,53 @@ class GPTBaseService {
     // Initialize with default config
     this.config = { ...DEFAULT_CONFIG };
     
-    // Try to load API key from localStorage on initialization
+    // Try to load settings from localStorage on initialization
+    this.loadSettingsFromStorage();
+    
+    // Initialize the request service
+    this.requestService = new GPTRequestService(this.config);
+
+    // Log configuration
+    this.logConfiguration();
+  }
+
+  /**
+   * Load all settings from localStorage
+   */
+  private loadSettingsFromStorage(): void {
+    // Load API key
     const storedKey = loadApiKeyFromStorage();
     if (storedKey) {
       this.config.apiKey = storedKey;
       GPTLogger.log(undefined, 'API key loaded from storage');
     } else {
-      // No longer use the default API key if none is stored
       this.config.apiKey = null;
       GPTLogger.log(undefined, 'No API key found in storage');
     }
     
-    // Try to load server proxy setting from localStorage
+    // Load proxy setting
     const useServerProxy = loadUseServerProxyFromStorage();
     if (useServerProxy !== null) {
       this.config.useServerProxy = useServerProxy;
       GPTLogger.log(undefined, `Server proxy setting loaded from storage: ${useServerProxy}`);
     }
     
-    // Initialize the request service
-    this.requestService = new GPTRequestService(this.config);
+    // Load response style
+    const responseStyle = loadResponseStyleFromStorage();
+    if (responseStyle) {
+      this.config.responseStyle = responseStyle;
+      GPTLogger.log(undefined, `Response style loaded from storage: ${responseStyle}`);
+    }
+  }
 
-    // Log server proxy status
-    GPTLogger.log(undefined, `Server proxy usage initialized to: ${this.config.useServerProxy}`);
+  /**
+   * Log current configuration
+   */
+  private logConfiguration(): void {
+    GPTLogger.log(undefined, `API key status: ${this.config.apiKey ? 'Set' : 'Not set'}`);
+    GPTLogger.log(undefined, `Server proxy usage: ${this.config.useServerProxy}`);
+    GPTLogger.log(undefined, `Response style: ${this.config.responseStyle}`);
+    GPTLogger.log(undefined, `Server proxy URL: ${this.config.serverProxyUrl}`);
   }
 
   /**
@@ -64,7 +90,7 @@ class GPTBaseService {
     
     this.config.apiKey = key;
     saveApiKeyToStorage(key);
-    this.requestService.initializeOpenAIClient();
+    this.requestService.updateConfig(this.config);
     GPTLogger.log(undefined, 'API key set and saved to storage');
   }
 
@@ -74,6 +100,8 @@ class GPTBaseService {
 
   public setResponseStyle(style: string) {
     this.config.responseStyle = style;
+    saveResponseStyleToStorage(style);
+    GPTLogger.log(undefined, `Response style set to: ${style}`);
   }
   
   public getResponseStyle(): string {
@@ -112,21 +140,23 @@ class GPTBaseService {
       return true;
     }
     
-    // Try direct connection with API key
-    if (this.config.apiKey) {
-      try {
-        // Use a simpler test that's less likely to fail
-        const testPrompt = [{ role: 'user', content: 'Connection test' }];
-        const result = await this.callOpenAI(testPrompt, 0.1, 5);
-        return !!result;
-      } catch (error) {
-        GPTLogger.error(undefined, 'API connection check failed', error);
-        return false;
-      }
+    // For direct connection, we need an API key
+    if (!this.config.apiKey) {
+      GPTLogger.error(undefined, 'Cannot check API connection: API key is missing');
+      return false;
     }
     
-    // If we don't have an API key and aren't using proxy
-    return false;
+    // Try direct connection with API key
+    try {
+      // Use a minimalist test request
+      const testPrompt = [{ role: 'user', content: 'Test' }];
+      const result = await this.callOpenAI(testPrompt, 0.1, 5);
+      GPTLogger.log(undefined, 'API connection check successful');
+      return !!result;
+    } catch (error) {
+      GPTLogger.error(undefined, 'API connection check failed', error);
+      return false;
+    }
   }
 
   protected async callOpenAI(messages: any[], temperature: number = 1.0, maxTokens: number = 150, n: number = 1): Promise<any> {

@@ -1,4 +1,3 @@
-
 /**
  * Configuration for OpenAI API services
  */
@@ -17,8 +16,8 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  // Use a more reliable CORS proxy URL
-  serverProxyUrl: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1', 
+  // Use a direct CORS proxy that doesn't require a backend server
+  serverProxyUrl: 'https://corsproxy.io/?https://api.openai.com/v1', 
   useServerProxy: true, // Using server proxy by default
   maxRetries: 3,
   timeoutMs: 60000,
@@ -45,6 +44,30 @@ export function saveApiKeyToStorage(key: string): void {
     localStorage.setItem('openai_api_key', key);
   } catch (error) {
     console.error('Error saving API key to storage:', error);
+  }
+}
+
+/**
+ * Load the response style from localStorage
+ */
+export function loadResponseStyleFromStorage(): string | null {
+  try {
+    const style = localStorage.getItem('response_style');
+    return style || null;
+  } catch (error) {
+    console.error('Error loading response style from storage:', error);
+    return null;
+  }
+}
+
+/**
+ * Save the response style to localStorage
+ */
+export function saveResponseStyleToStorage(style: string): void {
+  try {
+    localStorage.setItem('response_style', style);
+  } catch (error) {
+    console.error('Error saving response style to storage:', error);
   }
 }
 

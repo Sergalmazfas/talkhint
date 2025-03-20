@@ -36,8 +36,6 @@ const PhoneCall = () => {
     } else {
       setIsCallActive(true);
       toast.success('Звонок начат');
-      // Only start listening if the call is active
-      // Not starting automatically to give user control
     }
   };
 
@@ -93,37 +91,54 @@ const PhoneCall = () => {
     if (text.trim().length > 0) {
       try {
         if (!isApiConnected) {
+          if (!GPTService.getApiKey() && !GPTService.getUseServerProxy()) {
+            toast.error('API ключ необходим для прямых запросов к OpenAI');
+            setShowSettings(true);
+            return;
+          }
           toast.error('Проблема с подключением к OpenAI API. Проверьте настройки.');
           return;
         }
+        
         setShowBilingualResponses(false);
         toast.loading('Получение ответов...', { id: 'getting-responses' });
+        
         try {
           const bilingualResult = await GPTService.getBilingualResponses(text);
           toast.dismiss('getting-responses');
-          if (bilingualResult.responses.length > 0) {
+          
+          if (bilingualResult && bilingualResult.responses && bilingualResult.responses.length > 0) {
             console.log('Received responses:', bilingualResult.responses);
             setBilingualResponses(bilingualResult.responses);
             setShowBilingualResponses(true);
           } else {
-            toast.error('Не удалось получить ответы');
+            toast.error('Не удалось получить ответы от OpenAI API');
           }
         } catch (error) {
           console.error('Error getting responses:', error);
           toast.dismiss('getting-responses');
+          
           if (error instanceof Error) {
-            if (error.message.includes('API key not set') || error.message.includes('API key is required')) {
+            if (error.message.includes('API key not set') || 
+                error.message.includes('API key is required') || 
+                error.message.includes('missing API key')) {
               toast.error('Пожалуйста, установите API-ключ OpenAI в настройках');
               setShowSettings(true);
+            } else if (error.message.includes('429') || error.message.includes('rate limit')) {
+              toast.error('Превышен лимит запросов к OpenAI API. Попробуйте позже.');
+            } else if (error.message.includes('401') || error.message.includes('unauthorized')) {
+              toast.error('Неверный API ключ OpenAI. Проверьте настройки.');
+              setShowSettings(true);
             } else {
-              toast.error(`Ошибка сервиса OpenAI: ${error.message}`);
+              toast.error(`Ошибка OpenAI API: ${error.message.substring(0, 100)}`);
             }
           } else {
-            toast.error('Ошибка сервиса OpenAI. Проверьте лимиты API.');
+            toast.error('Неизвестная ошибка при получении ответов');
           }
         }
       } catch (error) {
         console.error('Error in final transcription handling:', error);
+        toast.error('Ошибка при обработке запроса');
       }
     } else {
       console.log('Transcription too short, ignoring');
@@ -140,16 +155,31 @@ const PhoneCall = () => {
 
   const checkApiConnection = async () => {
     console.log('Checking API connection...');
-    const connected = await GPTService.checkConnection();
-    setIsApiConnected(connected);
-    console.log('API connection status:', connected ? 'Connected' : 'Not connected');
-    return connected;
+    
+    try {
+      const connected = await GPTService.checkConnection();
+      setIsApiConnected(connected);
+      console.log('API connection status:', connected ? 'Connected' : 'Not connected');
+      
+      // If not connected, check if we need to show settings
+      if (!connected && !GPTService.getApiKey() && !GPTService.getUseServerProxy()) {
+        setShowSettings(true);
+      }
+      
+      return connected;
+    } catch (error) {
+      console.error('Error checking API connection:', error);
+      setIsApiConnected(false);
+      return false;
+    }
   };
 
   const saveSettings = () => {
     if (apiKey.trim()) {
-      GPTService.setApiKey(apiKey);
+      GPTService.setApiKey(apiKey.trim());
       toast.success('API ключ сохранен');
+    } else if (!useServerProxy) {
+      toast.warning('API ключ необходим для прямых запросов к OpenAI');
     }
     
     GPTService.setUseServerProxy(useServerProxy);
@@ -163,8 +193,13 @@ const PhoneCall = () => {
       if (connected) {
         toast.success('Подключение к OpenAI API успешно');
       } else {
-        toast.error('Не удалось подключиться к OpenAI API с текущими настройками');
-        setShowSettings(true);
+        // Only show error and reopen settings if not using proxy and no key
+        if (!useServerProxy && !apiKey.trim()) {
+          toast.error('API ключ необходим для прямого подключения к OpenAI API');
+          setShowSettings(true);
+        } else if (!connected) {
+          toast.warning('Проверка подключения к OpenAI API не удалась. Продолжаем с текущими настройками.');
+        }
       }
     });
   };

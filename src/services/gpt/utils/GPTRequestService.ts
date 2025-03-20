@@ -1,3 +1,4 @@
+
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
 import { GPTServiceConfig } from "../config/GPTServiceConfig";
@@ -55,14 +56,14 @@ export class GPTRequestService {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     GPTLogger.log(requestId, 'OpenAI API request starting');
     
-    // Only require API key for direct connections and when using CORS proxy
-    if (!this.config.apiKey) {
-      const errorMsg = 'API key is required';
+    // Check if we have an API key when needed
+    if (!this.config.useServerProxy && !this.config.apiKey) {
+      const errorMsg = 'API key is required for direct OpenAI access';
       GPTLogger.error(requestId, errorMsg);
       throw new Error(errorMsg);
     }
     
-    // Use gpt-4o-mini model - more affordable
+    // Using gpt-4o-mini model - more affordable
     GPTLogger.log(requestId, 'Using model: gpt-4o-mini');
     
     const requestPayload = {
@@ -159,28 +160,41 @@ export class GPTRequestService {
       GPTLogger.log(requestId, `Request timed out after ${this.config.timeoutMs}ms`);
       controller.abort();
     }, this.config.timeoutMs);
+
+    // Different proxies have different URL patterns
+    const isCorsproxy = this.config.serverProxyUrl.includes('corsproxy.io');
+    const isAllOrigins = this.config.serverProxyUrl.includes('allorigins');
+    const isCorsAnywhere = this.config.serverProxyUrl.includes('cors-anywhere');
     
     try {
-      // For AllOrigins proxy, we need to construct the URL differently
-      const isAllOrigins = this.config.serverProxyUrl.includes('allorigins');
-      
       let url;
       let headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`
+        'Content-Type': 'application/json'
       };
       
-      if (isAllOrigins) {
-        // For allorigins, the URL is already constructed
-        url = `${this.config.serverProxyUrl}`;
-        // Add additional headers for allorigins if needed
-      } else {
-        // For other proxies like CORS Anywhere
+      // Add API key to headers if available
+      if (this.config.apiKey) {
+        headers['Authorization'] = `Bearer ${this.config.apiKey}`;
+      }
+      
+      // Different URL construction based on proxy type
+      if (isCorsproxy) {
+        // For corsproxy.io, the URL already includes the target
+        url = `${this.config.serverProxyUrl}/chat/completions`;
+      } else if (isAllOrigins) {
+        // For allorigins, the URL is already constructed with the target
+        url = `${this.config.serverProxyUrl}/chat/completions`;
+      } else if (isCorsAnywhere) {
+        // For CORS Anywhere, add the endpoint
         url = `${this.config.serverProxyUrl}/chat/completions`;
         headers['X-Requested-With'] = 'XMLHttpRequest';
+      } else {
+        // Default behavior
+        url = `${this.config.serverProxyUrl}/chat/completions`;
       }
       
       GPTLogger.log(requestId, `Constructed request URL: ${url}`);
+      GPTLogger.log(requestId, `Using headers: ${JSON.stringify(headers)}`);
       
       const response = await fetch(url, {
         method: 'POST',
