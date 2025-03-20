@@ -17,7 +17,7 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  serverProxyUrl: 'https://cors-anywhere-lyart-seven.vercel.app/https://api.openai.com/v1', // CORS Anywhere proxy
+  serverProxyUrl: 'http://localhost:3000/api/openai', // Local Express server
   useServerProxy: true, // Using server proxy by default
   maxRetries: 3,
   timeoutMs: 60000,
