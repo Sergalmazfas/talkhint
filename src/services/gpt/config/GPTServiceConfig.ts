@@ -36,6 +36,10 @@ export const PROXY_SERVERS = {
   CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
   CORS_ANYWHERE: 'https://cors-anywhere-lyart-seven.vercel.app',
   
+  // Additional proxy services
+  ALLORIGINS: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1',
+  THINGPROXY: 'https://thingproxy.freeboard.io/fetch/https://api.openai.com/v1',
+  
   // Development proxies
   LOCAL: 'http://localhost:3000',
   LOCAL_HTTPS: 'https://localhost:3000',
