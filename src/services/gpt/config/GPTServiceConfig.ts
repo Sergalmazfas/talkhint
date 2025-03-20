@@ -79,12 +79,16 @@ export const ALLOWED_ORIGINS = [
   'http://localhost',
   'https://localhost',
   
+  // Дополнительно добавим все возможные поддомены lovable.app и gptengineer.app
+  '*.lovable.app',
+  '*.gptengineer.app',
+  
   // Wildcard for development only - will be filtered in production
   '*'
 ];
 
 /**
- * Enhanced allowed domain check with detailed logging
+ * Enhanced allowed domain check with detailed logging and support for wildcards
  * @param origin Domain to check
  * @returns true if domain is allowed, false otherwise
  */
@@ -133,16 +137,33 @@ export function isAllowedOrigin(origin: string): boolean {
   const normalizedInput = normalizeOrigin(origin);
   console.log(`[isAllowedOrigin] Normalized input: ${normalizedInput}`);
   
+  // Проверка для поддоменов с маской *.domain.com
+  for (const allowed of ALLOWED_ORIGINS) {
+    if (allowed.startsWith('*.')) {
+      const domain = allowed.substring(2); // Удаляем *. в начале
+      if (normalizedInput.endsWith(domain)) {
+        console.log(`[isAllowedOrigin] Matched wildcard domain: *.${domain}`);
+        return true;
+      }
+    }
+  }
+  
   // Special case for lovable.app subdomains
   if (normalizedInput.includes('lovable.app')) {
     console.log(`[isAllowedOrigin] Allowing lovable.app subdomain: ${normalizedInput}`);
     return true;
   }
   
+  // Special case for gptengineer.app subdomains
+  if (normalizedInput.includes('gptengineer.app')) {
+    console.log(`[isAllowedOrigin] Allowing gptengineer.app subdomain: ${normalizedInput}`);
+    return true;
+  }
+  
   // Check against all allowed domains
   for (const allowed of ALLOWED_ORIGINS) {
-    // Skip wildcard for production
-    if (allowed === '*' && process.env.NODE_ENV !== 'development') {
+    // Skip wildcard patterns
+    if (allowed === '*' || allowed.includes('*')) {
       continue;
     }
     

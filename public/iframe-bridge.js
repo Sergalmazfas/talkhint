@@ -55,10 +55,16 @@
     console.log(`[DEBUG] Raw message from ${event.origin}:`, event.data);
   }, true);
 
-  // Обработка сообщений от разрешенных domains
+  // Улучшенная обработка сообщений от разрешенных domains
   window.addEventListener('message', function(event) {
     try {
       console.log(`Processing message from ${event.origin}:`, event.data);
+      
+      // Проверяем ошибку React #301
+      if (event.data && event.data.type === 'REACT_ERROR') {
+        console.error('React Error detected:', event.data.error);
+        // Здесь можно добавить дополнительную обработку ошибок React
+      }
       
       // Создаем ответное сообщение
       const response = {
@@ -202,6 +208,33 @@
   } catch (e) {
     console.error('Could not override postMessage:', e);
   }
+  
+  // Функция для перехвата ошибок React
+  function listenForReactErrors() {
+    const originalError = console.error;
+    console.error = function(...args) {
+      originalError.apply(console, args);
+      
+      const errorStr = args.join(' ');
+      if (errorStr.includes('React error') || errorStr.includes('minified React')) {
+        try {
+          // Отправляем сообщение об ошибке родительскому окну
+          window.parent.postMessage({
+            type: 'REACT_ERROR',
+            error: errorStr,
+            timestamp: new Date().toISOString(),
+            location: window.location.href
+          }, '*');
+          console.log('Reported React error to parent window');
+        } catch (e) {
+          console.warn('Failed to report React error:', e);
+        }
+      }
+    };
+  }
+  
+  // Активируем перехват ошибок React
+  listenForReactErrors();
   
   console.log('iframe-bridge.js initialized with DEBUG_MODE:', DEBUG_MODE);
 })();

@@ -1,9 +1,10 @@
 
-import React, { forwardRef, useEffect, useState, useCallback } from 'react';
-import { RefreshCw, AlertTriangle, CheckCircle, Lock, Globe } from 'lucide-react';
+import React, { forwardRef, useEffect, useState, useCallback, useRef } from 'react';
+import { RefreshCw, AlertTriangle, CheckCircle, Lock, Globe, Info } from 'lucide-react';
 import { Button } from './ui/button';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { toast } from 'sonner';
 
 interface TestIframeProps {
   serverUrl: string;
@@ -18,6 +19,32 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
     const [messagesSent, setMessagesSent] = useState<number>(0);
     const [messagesReceived, setMessagesReceived] = useState<number>(0);
     const [errors, setErrors] = useState<string[]>([]);
+    const [reactErrors, setReactErrors] = useState<string[]>([]);
+    const iframeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    
+    // Добавляем функцию для отображения ошибки
+    const addError = useCallback((error: string) => {
+      setErrors(prev => {
+        // Проверяем, нет ли уже такой ошибки
+        if (prev.includes(error)) return prev;
+        // Добавляем новую ошибку в начало списка
+        return [error, ...prev].slice(0, 10); // Ограничиваем список 10 ошибками
+      });
+    }, []);
+    
+    // Функция для отображения ошибок React
+    const addReactError = useCallback((error: string) => {
+      setReactErrors(prev => {
+        if (prev.includes(error)) return prev;
+        return [error, ...prev].slice(0, 3); // Ограничиваем 3 ошибками
+      });
+      
+      // Также показываем тост с ошибкой
+      toast.error('React Error Detected', {
+        description: error.substring(0, 100) + (error.length > 100 ? '...' : ''),
+        duration: 5000,
+      });
+    }, []);
     
     // Select URL for iframe considering potential CORS issues
     const getIframeUrl = useCallback(() => {
@@ -44,20 +71,27 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         }
       } catch (e) {
         console.error('[TestIframe] Error parsing server URL:', e);
-        setErrors(prev => [...prev, `Error parsing URL: ${e instanceof Error ? e.message : String(e)}`]);
+        addError(`Error parsing URL: ${e instanceof Error ? e.message : String(e)}`);
       }
       
       // Use special test endpoint instead of /health
       const testUrl = `${serverUrl}/postmessage-test`;
       console.log(`[TestIframe] Using test URL: ${testUrl}`);
       return testUrl;
-    }, [serverUrl]);
+    }, [serverUrl, addError]);
 
     // Setup postMessage event listener
     useEffect(() => {
       const handleMessage = (event: MessageEvent) => {
         try {
           console.log(`[TestIframe] Received message from ${event.origin}:`, event.data);
+          
+          // Обрабатываем сообщения об ошибках React
+          if (event.data && event.data.type === 'REACT_ERROR') {
+            console.error('[TestIframe] React error reported from iframe:', event.data.error);
+            addReactError(event.data.error);
+            return;
+          }
           
           // Verify the message is from our iframe
           const iframeUrl = getIframeUrl();
@@ -71,15 +105,21 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
             console.warn('[TestIframe] Could not parse iframe URL:', e);
           }
           
-          if (event.data && (event.origin === iframeOrigin || 
-              event.origin.includes('localhost') || 
-              event.origin.includes('lovable') ||
-              process.env.NODE_ENV === 'development')) {
+          // Более мягкая проверка origin для тестирования
+          const isSameOrigin = event.origin === iframeOrigin;
+          const isAllowedDomain = event.origin.includes('localhost') || 
+                                 event.origin.includes('lovable') ||
+                                 process.env.NODE_ENV === 'development';
+          
+          if (event.data && (isSameOrigin || isAllowedDomain)) {
             setMessagesReceived(prev => prev + 1);
+            
+            // Для отладки показываем полученное сообщение
+            console.log('[TestIframe] Processed message:', event.data);
           }
         } catch (error) {
           console.error('[TestIframe] Error handling message:', error);
-          setErrors(prev => [...prev, `Error handling message: ${error instanceof Error ? error.message : String(error)}`]);
+          addError(`Error handling message: ${error instanceof Error ? error.message : String(error)}`);
         }
       };
       
@@ -90,12 +130,18 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
       return () => {
         window.removeEventListener('message', handleMessage);
       };
-    }, [getIframeUrl]);
+    }, [getIframeUrl, addError, addReactError]);
 
     // Handle iframe load
     const handleIframeLoad = () => {
       console.log('[TestIframe] Iframe loaded successfully');
       setConnectionStatus('success');
+      
+      // Clear timeout if it exists
+      if (iframeTimeoutRef.current) {
+        clearTimeout(iframeTimeoutRef.current);
+        iframeTimeoutRef.current = null;
+      }
       
       // Send init message to iframe
       const iframe = ref as React.RefObject<HTMLIFrameElement>;
@@ -124,7 +170,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           setMessagesSent(prev => prev + 1);
         } catch (error) {
           console.error('[TestIframe] Error sending init message:', error);
-          setErrors(prev => [...prev, `Error sending message: ${error instanceof Error ? error.message : String(error)}`]);
+          addError(`Error sending message: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     };
@@ -133,7 +179,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
     const handleIframeError = () => {
       console.error('[TestIframe] Error loading iframe');
       setConnectionStatus('error');
-      setErrors(prev => [...prev, 'Failed to load iframe']);
+      addError('Failed to load iframe');
     };
     
     // Check connection status on mount and URL change
@@ -142,9 +188,18 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
       console.log(`[TestIframe] Testing connection to ${serverUrl}`);
       setErrors([]);
       
+      // Set a timeout for iframe loading
+      iframeTimeoutRef.current = setTimeout(() => {
+        if (connectionStatus === 'loading') {
+          setConnectionStatus('error');
+          addError('Iframe loading timeout - no response after 10 seconds');
+        }
+      }, 10000);
+      
       // Check if URL includes protocol
       if (!serverUrl.startsWith('http:') && !serverUrl.startsWith('https:')) {
         console.warn('[TestIframe] Server URL does not include protocol, this may cause issues');
+        addError('Server URL missing protocol (http:// or https://)');
       }
       
       // Check for mixed content
@@ -184,16 +239,24 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         } catch (error) {
           console.error('[TestIframe] Server connection test failed:', error);
           setConnectionStatus('error');
-          setErrors(prev => [...prev, `Connection test failed: ${error instanceof Error ? error.message : String(error)}`]);
+          addError(`Connection test failed: ${error instanceof Error ? error.message : String(error)}`);
         }
       };
       
       testEndpoints();
-    }, [serverUrl]);
+      
+      // Cleanup
+      return () => {
+        if (iframeTimeoutRef.current) {
+          clearTimeout(iframeTimeoutRef.current);
+          iframeTimeoutRef.current = null;
+        }
+      };
+    }, [serverUrl, addError, connectionStatus]);
 
-    // Define additional attributes for iframe
+    // Define additional attributes for iframe with maximum permissions
     const getSandboxAttributes = () => {
-      return "allow-scripts allow-same-origin allow-forms allow-popups";
+      return "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals allow-presentation";
     };
     
     // Send test message to iframe
@@ -204,7 +267,8 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           const message = {
             type: 'TEST_MESSAGE',
             timestamp: new Date().toISOString(),
-            origin: window.location.origin
+            origin: window.location.origin,
+            counter: messagesSent + 1
           };
           
           // Try with wildcard (most compatible)
@@ -222,9 +286,21 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           }
           
           setMessagesSent(prev => prev + 1);
+          
+          // Показываем тост об успешной отправке
+          toast.success('Test message sent', {
+            description: `Message #${messagesSent + 1} sent to iframe`,
+            duration: 2000,
+          });
         } catch (error) {
           console.error('[TestIframe] Error sending test message:', error);
-          setErrors(prev => [...prev, `Error sending test message: ${error instanceof Error ? error.message : String(error)}`]);
+          addError(`Error sending test message: ${error instanceof Error ? error.message : String(error)}`);
+          
+          // Показываем тост об ошибке
+          toast.error('Failed to send message', {
+            description: error instanceof Error ? error.message : String(error),
+            duration: 3000,
+          });
         }
       }
     };
@@ -232,6 +308,13 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
     // Determine URL for iframe
     const iframeUrl = getIframeUrl();
     console.log(`[TestIframe] Using iframe URL: ${iframeUrl}`);
+    
+    // Функция очистки ошибок для пользователя
+    const clearErrors = () => {
+      setErrors([]);
+      setReactErrors([]);
+      toast.success('Errors cleared');
+    };
 
     return (
       <div className="mt-4 p-4 border rounded-md">
@@ -266,6 +349,15 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
               className="h-6"
             >
               Test Message
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={clearErrors}
+              className="h-6"
+              disabled={errors.length === 0 && reactErrors.length === 0}
+            >
+              Clear Errors
             </Button>
             <Button 
               variant="ghost" 
@@ -311,6 +403,23 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           </Alert>
         )}
         
+        {reactErrors.length > 0 && (
+          <Alert variant="destructive" className="mb-2">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>React Error Detected</AlertTitle>
+            <AlertDescription>
+              <div className="text-xs overflow-auto max-h-20">
+                {reactErrors[0]}
+              </div>
+              {reactErrors.length > 1 && (
+                <div className="text-xs mt-1">
+                  And {reactErrors.length - 1} more errors...
+                </div>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+        
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground">
             URL: <code>{iframeUrl}</code>
@@ -321,7 +430,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
             className="w-full h-40 border rounded"
             title="Test iframe for postMessage"
             sandbox={getSandboxAttributes()}
-            allow="allow-scripts; allow-same-origin; allow-forms"
+            allow="allow-scripts; allow-same-origin; allow-forms; allow-modals; allow-popups"
             onLoad={handleIframeLoad}
             onError={handleIframeError}
           />
@@ -339,7 +448,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
             <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-700">
               <p className="font-medium">Errors:</p>
               <ul className="list-disc list-inside">
-                {errors.slice(-3).map((error, index) => (
+                {errors.slice(0, 3).map((error, index) => (
                   <li key={index}>{error}</li>
                 ))}
                 {errors.length > 3 && <li>...and {errors.length - 3} more</li>}
@@ -347,9 +456,12 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
             </div>
           )}
           
-          <p className="text-xs text-muted-foreground">
-            This iframe tests message exchange between domains. All permissions enabled with sandbox="{getSandboxAttributes()}".
-          </p>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+            <Info className="h-3 w-3" />
+            <p>
+              This iframe tests message exchange between domains. Sandbox="{getSandboxAttributes()}"
+            </p>
+          </div>
         </div>
       </div>
     );
