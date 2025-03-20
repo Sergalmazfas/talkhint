@@ -57,6 +57,24 @@ class GPTService {
   public getUseServerProxy(): boolean {
     return this.suggestionsService.getUseServerProxy();
   }
+  
+  /**
+   * Set the server proxy URL for all services
+   */
+  public setServerProxyUrl(url: string): void {
+    console.log(`[${new Date().toISOString()}] Setting server proxy URL: ${url}`);
+    this.suggestionsService.setServerProxyUrl(url);
+    this.bilingualService.setServerProxyUrl(url);
+    this.translationService.setServerProxyUrl(url);
+    console.log(`[${new Date().toISOString()}] Server proxy URL set for all services`);
+  }
+  
+  /**
+   * Get the server proxy URL
+   */
+  public getServerProxyUrl(): string {
+    return this.suggestionsService.getServerProxyUrl();
+  }
 
   public setResponseStyle(style: string): void {
     console.log(`[${new Date().toISOString()}] Setting response style: ${style}`);

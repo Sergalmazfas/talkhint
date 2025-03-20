@@ -8,7 +8,9 @@ import {
   loadUseServerProxyFromStorage,
   saveUseServerProxyToStorage,
   loadResponseStyleFromStorage,
-  saveResponseStyleToStorage
+  saveResponseStyleToStorage,
+  loadServerProxyUrlFromStorage,
+  saveServerProxyUrlToStorage
 } from './config/GPTServiceConfig';
 import { GPTRequestService } from './utils/GPTRequestService';
 import { GPTLogger } from './utils/GPTLogger';
@@ -54,6 +56,13 @@ class GPTBaseService {
     if (useServerProxy !== null) {
       this.config.useServerProxy = useServerProxy;
       GPTLogger.log(undefined, `Server proxy setting loaded from storage: ${useServerProxy}`);
+    }
+    
+    // Load server proxy URL
+    const serverProxyUrl = loadServerProxyUrlFromStorage();
+    if (serverProxyUrl) {
+      this.config.serverProxyUrl = serverProxyUrl;
+      GPTLogger.log(undefined, `Server proxy URL loaded from storage: ${serverProxyUrl}`);
     }
     
     // Load response style
@@ -117,6 +126,28 @@ class GPTBaseService {
   
   public getUseServerProxy(): boolean {
     return this.config.useServerProxy;
+  }
+  
+  /**
+   * Set the server proxy URL
+   */
+  public setServerProxyUrl(url: string) {
+    if (!url || url.trim() === '') {
+      GPTLogger.warn(undefined, 'Attempted to set empty server proxy URL');
+      return;
+    }
+    
+    this.config.serverProxyUrl = url;
+    saveServerProxyUrlToStorage(url);
+    this.requestService.updateConfig(this.config);
+    GPTLogger.log(undefined, `Server proxy URL set to: ${url}`);
+  }
+  
+  /**
+   * Get the server proxy URL
+   */
+  public getServerProxyUrl(): string {
+    return this.config.serverProxyUrl;
   }
 
   /**
