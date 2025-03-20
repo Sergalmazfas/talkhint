@@ -1,63 +1,70 @@
 
 (function() {
-  // Расширенные разрешенные домены для коммуникации
+  // Extended allowed domains for communication
   const ALLOWED_ORIGINS = [
+    // Lovable domains
     'https://lovable.dev',
     'https://www.lovable.dev',
+    'http://lovable.dev',
+    'http://www.lovable.dev',
+    
+    // GPT Engineer domains
     'https://gptengineer.app',
     'https://www.gptengineer.app',
+    'http://gptengineer.app',
+    'http://www.gptengineer.app',
     'https://gptengineer.io',
     'https://www.gptengineer.io',
+    'http://gptengineer.io',
+    'http://www.gptengineer.io',
+    
+    // Localhost with various ports
     'http://localhost:3000',
     'https://localhost:3000',
     'http://localhost:8080',
     'https://localhost:8080',
     'http://localhost:5173',
     'https://localhost:5173',
-    '*' // Временно разрешаем любой домен для отладки
+    'http://localhost',
+    'https://localhost'
   ];
 
-  // Улучшенная проверка разрешенного домена с подробным логированием
+  // Enhanced allowed domain check with detailed logging
   function isAllowedOrigin(origin) {
     console.log(`[iframe-bridge] Checking if origin is allowed: ${origin}`);
     
-    // Если origin пустой или отсутствует, разрешаем для отладки
+    // If origin is empty or missing, allow for debugging
     if (!origin) {
       console.log('[iframe-bridge] Empty origin, allowing for debugging');
       return true;
     }
     
-    // В режиме разработки разрешаем localhost
+    // In development mode, allow localhost
     if (origin.includes('localhost')) {
       console.log('[iframe-bridge] Localhost origin detected, allowing');
       return true;
     }
     
-    if (origin === '*') {
-      console.log('[iframe-bridge] Wildcard origin, allowing');
-      return true;
-    }
-    
-    // Проверка www/без www вариантов (например, lovable.dev и www.lovable.dev)
-    const normalizedOrigin = origin.replace('www.', '');
+    // Check www/non-www variants (e.g., lovable.dev and www.lovable.dev)
+    const normalizedOrigin = origin.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\d+$/, '');
     console.log(`[iframe-bridge] Normalized origin: ${normalizedOrigin}`);
     
-    // Для остальных доменов проверяем по списку с нормализацией
+    // Check against all allowed domains with normalization
     const isAllowed = ALLOWED_ORIGINS.some(allowed => {
-      if (allowed === '*') return true;
-      return allowed.replace('www.', '') === normalizedOrigin;
+      const normalizedAllowed = allowed.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\d+$/, '');
+      return normalizedAllowed === normalizedOrigin;
     });
     
     console.log(`[iframe-bridge] Origin ${origin} allowed: ${isAllowed}`);
     return isAllowed;
   }
 
-  // Обработчик сообщений - улучшенная версия с детальным логированием
+  // Message handler - enhanced version with detailed logging
   window.addEventListener('message', function(event) {
-    // Подробное логирование origin
+    // Detailed origin logging
     console.log(`[iframe-bridge] Received message from ${event.origin || 'unknown origin'}`);
     
-    // Проверяем, разрешен ли источник сообщения
+    // Check if the message source is allowed
     const isAllowed = isAllowedOrigin(event.origin);
     console.log(`[iframe-bridge] Message from ${event.origin}, allowed: ${isAllowed}`);
     
@@ -68,17 +75,17 @@
 
     const message = event.data;
     
-    // Логирование полученного сообщения
+    // Log received message
     console.log(`[iframe-bridge] Received message from ${event.origin}:`, message);
     
-    // Обработка сообщения
+    // Process message
     try {
-      // В режиме разработки принимаем любые сообщения
+      // In development mode accept any messages
       const isDevelopment = 
         window.location.hostname === 'localhost' || 
         document.referrer.includes('localhost');
       
-      // Создаем ответное сообщение с расширенными метаданными
+      // Create response message with extended metadata
       const response = {
         type: 'IFRAME_RESPONSE',
         action: 'response',
@@ -92,18 +99,18 @@
         protocol: window.location.protocol
       };
       
-      // Отправляем ответ обратно отправителю
+      // Send response back to sender
       if (event.source) {
         console.log(`[iframe-bridge] Attempting to respond to ${event.origin}`);
         
         try {
-          // Сначала пробуем отправить на конкретный origin
+          // First try sending to the specific origin
           event.source.postMessage(response, event.origin);
           console.log(`[iframe-bridge] Sent response to ${event.origin}`);
         } catch (e) {
           console.warn(`[iframe-bridge] Failed to respond to ${event.origin}:`, e);
           
-          // Если не получилось, пробуем с любым origin (для отладки)
+          // If that fails, try with wildcard origin (for debugging)
           try {
             event.source.postMessage(response, '*');
             console.log('[iframe-bridge] Sent response using wildcard origin');
@@ -111,18 +118,18 @@
             console.error('[iframe-bridge] Failed to send even with wildcard:', e2);
           }
           
-          // Пробуем отправить на все известные домены
-          for (const origin of ALLOWED_ORIGINS) {
-            if (origin !== '*' && origin !== event.origin) {
+          // Try sending to all known domains
+          for (const domain of ALLOWED_ORIGINS) {
+            if (domain !== event.origin) {
               try {
                 event.source.postMessage({
                   ...response,
-                  _targetOrigin: origin,
+                  _targetOrigin: domain,
                   _note: 'Multi-origin fallback'
-                }, origin);
-                console.log(`[iframe-bridge] Tried fallback response to ${origin}`);
+                }, domain);
+                console.log(`[iframe-bridge] Tried fallback response to ${domain}`);
               } catch (e3) {
-                // Игнорируем ошибки при мультидоменной отправке
+                // Ignore errors in multi-domain sending
               }
             }
           }
@@ -133,11 +140,11 @@
     }
   });
   
-  // Отправляем сообщение о готовности - улучшенная версия
+  // Ready notification function - enhanced version
   function notifyReady() {
     try {
-      // Безопасно получаем origin родительского окна
-      let parentOrigin = '*'; // Fallback для отладки
+      // Safely get parent window origin
+      let parentOrigin = '*'; // Fallback for debugging
       
       try {
         if (document.referrer) {
@@ -148,7 +155,7 @@
         console.warn('[iframe-bridge] Could not parse referrer:', e);
       }
       
-      // Создаем сообщение о готовности с расширенными метаданными
+      // Create ready message with extended metadata
       const readyMessage = { 
         type: 'IFRAME_READY', 
         from: window.location.origin,
@@ -162,8 +169,8 @@
       
       console.log(`[iframe-bridge] Preparing to notify ready, parent: ${parentOrigin}`);
       
-      // Стратегия многоадресной отправки
-      // 1. Сначала пробуем отправить на конкретный домен, если он известен
+      // Multi-targeting strategy
+      // 1. First try sending to specific domain if known
       if (parentOrigin !== '*') {
         try {
           window.parent.postMessage(readyMessage, parentOrigin);
@@ -173,7 +180,7 @@
         }
       }
       
-      // 2. Затем отправляем сообщение с wildcard origin
+      // 2. Then send message with wildcard origin
       try {
         window.parent.postMessage({...readyMessage, _wildcard: true}, '*');
         console.log('[iframe-bridge] Sent wildcard ready notification');
@@ -181,9 +188,9 @@
         console.error('[iframe-bridge] Wildcard notification failed:', e);
       }
       
-      // 3. Дополнительно пробуем отправить на все известные домены
+      // 3. Additionally, try sending to all known domains
       for (const origin of ALLOWED_ORIGINS) {
-        if (origin !== '*' && origin !== parentOrigin) {
+        if (origin !== parentOrigin) {
           try {
             window.parent.postMessage({
               ...readyMessage, 
@@ -192,12 +199,12 @@
             }, origin);
             console.log(`[iframe-bridge] Sent broadcast notification to ${origin}`);
           } catch (e) {
-            // Игнорируем ошибки при мультидоменной отправке
+            // Ignore errors in multi-domain sending
           }
         }
       }
       
-      // 4. Для режима разработки добавляем информацию в DOM
+      // 4. For development mode, add information to the DOM
       if (window.location.hostname === 'localhost' || window.location.hostname.includes('localhost')) {
         const debugInfo = document.createElement('div');
         debugInfo.style.position = 'fixed';
@@ -223,21 +230,21 @@
     }
   }
   
-  // Уведомляем родительское окно, что iframe загружен и готов
-  // Используем более надежный подход с несколькими попытками
+  // Notify parent window that iframe is loaded and ready
+  // Using a more reliable approach with multiple attempts
   if (document.readyState === 'complete') {
     notifyReady();
   } else {
     window.addEventListener('load', notifyReady);
     
-    // Дополнительно пробуем отправить уведомление через определенные интервалы
-    // для обхода проблем с загрузкой в разных браузерах
+    // Additionally try sending notification at specific intervals
+    // to work around loading issues in different browsers
     setTimeout(notifyReady, 500);
     setTimeout(notifyReady, 1000);
     setTimeout(notifyReady, 3000);
   }
   
-  // Слушаем события DOMContentLoaded как еще один триггер
+  // Listen for DOMContentLoaded as another trigger
   document.addEventListener('DOMContentLoaded', function() {
     setTimeout(notifyReady, 100);
   });

@@ -14,47 +14,47 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
     const [httpsWarning, setHttpsWarning] = useState<boolean>(false);
     const [connectionStatus, setConnectionStatus] = useState<'loading' | 'success' | 'error'>('loading');
     
-    // Выбираем URL для iframe с учетом потенциальных CORS-проблем
+    // Select URL for iframe considering potential CORS issues
     const getIframeUrl = () => {
-      // Проверяем, запущено ли приложение через HTTPS
+      // Check if the app is running over HTTPS
       const isPageHttps = window.location.protocol === 'https:';
       
-      // Если страница на HTTPS, а сервер на HTTP, генерируем предупреждение
+      // If page is HTTPS but server is HTTP, generate warning
       if (isPageHttps && serverUrl.startsWith('http:')) {
         setHttpsWarning(true);
         console.log(`[TestIframe] Mixed content warning: page is HTTPS but server is HTTP (${serverUrl})`);
         
-        // Подменяем http: на https: для предотвращения проблем со смешанным контентом
+        // Replace http: with https: to prevent mixed content issues
         return serverUrl.replace('http:', 'https:') + '/postmessage-test';
       }
       
-      // Используем специальный тестовый endpoint вместо /health
+      // Use special test endpoint instead of /health
       return `${serverUrl}/postmessage-test`;
     };
 
-    // Обработчик загрузки iframe
+    // Handle iframe load
     const handleIframeLoad = () => {
       console.log('[TestIframe] Iframe loaded successfully');
       setConnectionStatus('success');
     };
 
-    // Обработчик ошибки загрузки iframe
+    // Handle iframe load error
     const handleIframeError = () => {
       console.error('[TestIframe] Error loading iframe');
       setConnectionStatus('error');
     };
     
-    // Проверяем статус соединения при монтировании и изменении URL
+    // Check connection status on mount and URL change
     useEffect(() => {
       setConnectionStatus('loading');
       console.log(`[TestIframe] Testing connection to ${serverUrl}`);
       
-      // Проверяем наличие протокола в URL
+      // Check if URL includes protocol
       if (!serverUrl.startsWith('http:') && !serverUrl.startsWith('https:')) {
         console.warn('[TestIframe] Server URL does not include protocol, this may cause issues');
       }
       
-      // Проверяем смешанный контент
+      // Check for mixed content
       const isPageHttps = window.location.protocol === 'https:';
       if (isPageHttps && serverUrl.startsWith('http:')) {
         setHttpsWarning(true);
@@ -63,7 +63,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         setHttpsWarning(false);
       }
       
-      // Тестируем соединение с сервером
+      // Test server connection
       fetch(`${serverUrl}/health`, { 
         mode: 'no-cors',
         cache: 'no-cache',
@@ -83,25 +83,25 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         });
     }, [serverUrl]);
 
-    // Определяем дополнительные атрибуты для iframe
+    // Define additional attributes for iframe
     const getSandboxAttributes = () => {
-      // В режиме разработки даем больше разрешений
+      // In development mode, give more permissions
       if (process.env.NODE_ENV === 'development') {
         return "allow-scripts allow-same-origin allow-forms allow-popups";
       }
       
-      // В production ограничиваем разрешения для безопасности
+      // In production, restrict permissions for security
       return "allow-scripts allow-same-origin allow-forms";
     };
 
-    // Определяем URL для iframe
+    // Determine URL for iframe
     const iframeUrl = getIframeUrl();
     console.log(`[TestIframe] Using iframe URL: ${iframeUrl}`);
 
     return (
       <div className="mt-4 p-4 border rounded-md">
         <div className="flex justify-between items-center mb-2">
-          <h3 className="text-sm font-medium">Тестовый iframe:</h3>
+          <h3 className="text-sm font-medium">Test iframe:</h3>
           <Button 
             variant="ghost" 
             size="sm" 
@@ -115,11 +115,11 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         {httpsWarning && (
           <Alert variant="default" className="mb-2 border-yellow-500 bg-yellow-50">
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
-            <AlertTitle>Предупреждение о смешанном контенте</AlertTitle>
+            <AlertTitle>Mixed Content Warning</AlertTitle>
             <AlertDescription>
-              Страница загружена через HTTPS, а сервер использует HTTP. 
-              Браузеры блокируют смешанный контент. Используйте HTTPS для сервера или 
-              запустите это приложение через HTTP.
+              Page is loaded over HTTPS, but server uses HTTP. 
+              Browsers block mixed content. Use HTTPS for server or 
+              run this app over HTTP.
             </AlertDescription>
           </Alert>
         )}
@@ -127,10 +127,10 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         {connectionStatus === 'error' && (
           <Alert variant="destructive" className="mb-2">
             <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Ошибка соединения с сервером</AlertTitle>
+            <AlertTitle>Server Connection Error</AlertTitle>
             <AlertDescription>
-              Не удалось подключиться к серверу. Убедитесь, что сервер запущен 
-              и доступен по адресу: {serverUrl}
+              Failed to connect to server. Make sure the server is running 
+              and accessible at: {serverUrl}
             </AlertDescription>
           </Alert>
         )}
@@ -138,9 +138,9 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         {connectionStatus === 'success' && (
           <Alert variant="default" className="mb-2 bg-green-50">
             <CheckCircle className="h-4 w-4 text-green-500" />
-            <AlertTitle>Соединение установлено</AlertTitle>
+            <AlertTitle>Connection Established</AlertTitle>
             <AlertDescription>
-              Успешное подключение к серверу по адресу: {serverUrl}
+              Successfully connected to server at: {serverUrl}
             </AlertDescription>
           </Alert>
         )}
@@ -153,16 +153,16 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
             ref={ref}
             src={iframeUrl}
             className="w-full h-40 border rounded"
-            title="Тестовый iframe для postMessage"
+            title="Test iframe for postMessage"
             sandbox={getSandboxAttributes()}
             allow="allow-scripts; allow-same-origin; allow-forms"
             onLoad={handleIframeLoad}
             onError={handleIframeError}
           />
           <p className="text-xs text-muted-foreground">
-            Этот iframe настроен для тестирования обмена сообщениями между разными доменами.
+            This iframe is configured to test message exchange between different domains.
             {process.env.NODE_ENV === 'development' && 
-              ' В режиме разработки включены расширенные разрешения.'}
+              ' Extended permissions are enabled in development mode.'}
           </p>
         </div>
       </div>

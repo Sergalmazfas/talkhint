@@ -1,4 +1,3 @@
-
 const cors = require("cors");
 const express = require("express");
 const app = express();
@@ -7,27 +6,38 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 
-// Расширенная конфигурация CORS для разрешения запросов с различных доменов
+// Extended CORS configuration to allow requests from various domains
 const ALLOWED_ORIGINS = [
     'https://lovable.dev', 
+    'https://www.lovable.dev', 
+    'http://lovable.dev',
+    'http://www.lovable.dev',
     'https://gptengineer.app',
+    'https://www.gptengineer.app',
+    'http://gptengineer.app',
+    'http://www.gptengineer.app',
     'https://gptengineer.io',
+    'https://www.gptengineer.io',
+    'http://gptengineer.io',
+    'http://www.gptengineer.io',
     'http://localhost:8080', 
     'https://localhost:8080',
     'http://localhost:5173', 
     'https://localhost:5173',
     'http://localhost:3000',
-    'https://localhost:3000'
+    'https://localhost:3000',
+    'http://localhost',
+    'https://localhost'
 ];
 
-// Middleware для проверки origin и настройки CORS
+// Middleware to check origin and configure CORS
 app.use((req, res, next) => {
     const origin = req.headers.origin;
     
-    // Лог всех запросов с их origin
+    // Log all requests with their origin
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${origin || 'unknown'}`);
     
-    // Разрешаем localhost в режиме разработки
+    // Allow localhost in development mode
     const isDevelopment = process.env.NODE_ENV !== 'production';
     if (isDevelopment && (origin?.includes('localhost') || !origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin || '*');
@@ -38,15 +48,29 @@ app.use((req, res, next) => {
         return;
     }
     
-    // Проверяем, разрешен ли origin
-    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    // Normalize origin for comparison (remove www. prefix and protocol)
+    const normalizeOrigin = (url) => {
+        if (!url) return '';
+        return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\d+$/, '');
+    };
+    
+    // Check if origin is allowed, including www/non-www variants
+    const normalizedRequestOrigin = normalizeOrigin(origin);
+    const isAllowed = ALLOWED_ORIGINS.some(allowed => 
+        normalizeOrigin(allowed) === normalizedRequestOrigin
+    );
+    
+    // Set CORS headers if origin is allowed
+    if (origin && isAllowed) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
         res.setHeader('Access-Control-Allow-Credentials', 'true');
+    } else if (origin) {
+        console.warn(`Request from non-allowed origin: ${origin}`);
     }
     
-    // Обработка preflight запросов OPTIONS
+    // Handle preflight OPTIONS requests
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
@@ -54,19 +78,31 @@ app.use((req, res, next) => {
     next();
 });
 
-// Дополнительно используем cors middleware для базовой поддержки
+// Use cors middleware for basic support
 app.use(cors({
     origin: function(origin, callback) {
-        // Разрешаем запросы без origin (например, от Postman)
+        // Allow requests without origin (e.g., from Postman)
         if (!origin) return callback(null, true);
         
-        // Разрешаем localhost в режиме разработки
+        // Allow localhost in development mode
         const isDevelopment = process.env.NODE_ENV !== 'production';
         if (isDevelopment && origin.includes('localhost')) {
             return callback(null, true);
         }
         
-        if (ALLOWED_ORIGINS.includes(origin)) {
+        // Normalize origin for comparison
+        const normalizeOrigin = (url) => {
+            if (!url) return '';
+            return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\d+$/, '');
+        };
+        
+        // Check if origin is allowed, including www/non-www variants
+        const normalizedRequestOrigin = normalizeOrigin(origin);
+        const isAllowed = ALLOWED_ORIGINS.some(allowed => 
+            normalizeOrigin(allowed) === normalizedRequestOrigin
+        );
+        
+        if (isAllowed) {
             callback(null, true);
         } else {
             console.warn(`CORS blocked request from: ${origin}`);
@@ -78,7 +114,7 @@ app.use(cors({
     credentials: true
 }));
 
-// Парсинг JSON в теле запроса
+// Parse JSON in request body
 app.use(express.json());
 
 // Simple chat endpoint
@@ -140,7 +176,7 @@ app.post("/api/openai/chat/completions", async (req, res) => {
     }
 });
 
-// Endpoint для тестирования CORS
+// Endpoint for testing CORS
 app.get("/cors-test", (req, res) => {
     res.json({
         success: true,
@@ -170,116 +206,214 @@ app.get("/health", (req, res) => {
     });
 });
 
-// Endpoint для тестирования postMessage
+// Endpoint for testing postMessage
 app.get("/postmessage-test", (req, res) => {
-    // Отправляем HTML страницу с JavaScript для тестирования postMessage
+    // Send HTML page with JavaScript for testing postMessage
     const html = `
     <!DOCTYPE html>
     <html>
     <head>
         <title>PostMessage Test</title>
         <script>
-            // Настраиваем обработчик для приема сообщений
+            // Set up handler to receive messages
             window.addEventListener('message', (event) => {
+                // List all allowed origins explicitly for clarity
                 const allowedOrigins = [
                     'https://lovable.dev', 
+                    'https://www.lovable.dev',
+                    'http://lovable.dev',
+                    'http://www.lovable.dev',
                     'https://gptengineer.app',
+                    'https://www.gptengineer.app',
+                    'http://gptengineer.app',
+                    'http://www.gptengineer.app',
+                    'https://gptengineer.io',
+                    'https://www.gptengineer.io',
+                    'http://gptengineer.io',
+                    'http://www.gptengineer.io',
                     'http://localhost:3000',
                     'https://localhost:3000',
                     'http://localhost:8080',
                     'https://localhost:8080',
                     'http://localhost:5173',
-                    'https://localhost:5173'
+                    'https://localhost:5173',
+                    'http://localhost',
+                    'https://localhost'
                 ];
                 
-                // В режиме разработки принимаем любые сообщения
+                // In development mode, accept any messages
                 const isDevelopment = window.location.hostname === 'localhost';
                 
-                if (isDevelopment || allowedOrigins.includes(event.origin)) {
-                    console.log('Received message:', event.data);
+                // Normalize origin for comparison (remove protocol and www.)
+                const normalizeOrigin = (url) => {
+                    if (!url) return '';
+                    return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\\d+$/, '');
+                };
+                
+                // Check if origin is allowed
+                const normalizedEventOrigin = normalizeOrigin(event.origin);
+                const isAllowed = isDevelopment || allowedOrigins.some(allowed => 
+                    normalizeOrigin(allowed) === normalizedEventOrigin
+                );
+                
+                if (isAllowed) {
+                    console.log('Received message from ' + event.origin + ':', event.data);
+                    document.getElementById('messages').innerHTML += 
+                        '<div><strong>From:</strong> ' + event.origin + 
+                        '<br><pre>' + JSON.stringify(event.data, null, 2) + '</pre></div>';
                     
-                    // Отвечаем на сообщение
+                    // Respond to message
                     if (event.source) {
-                        event.source.postMessage({
-                            type: 'RESPONSE',
-                            receivedData: event.data,
-                            from: window.location.origin,
-                            timestamp: new Date().toISOString()
-                        }, event.origin);
-                        console.log('Responded to:', event.origin);
+                        try {
+                            // First try specific origin
+                            event.source.postMessage({
+                                type: 'RESPONSE',
+                                receivedData: event.data,
+                                from: window.location.origin,
+                                timestamp: new Date().toISOString()
+                            }, event.origin);
+                            console.log('Responded to:', event.origin);
+                        } catch (e) {
+                            console.warn('Failed to respond to specific origin:', e);
+                            
+                            // Try with wildcard as fallback
+                            try {
+                                event.source.postMessage({
+                                    type: 'RESPONSE',
+                                    receivedData: event.data,
+                                    from: window.location.origin,
+                                    timestamp: new Date().toISOString(),
+                                    note: 'Using wildcard origin as fallback'
+                                }, '*');
+                                console.log('Responded using wildcard origin');
+                            } catch (e2) {
+                                console.error('All response attempts failed:', e2);
+                            }
+                        }
                     }
                 } else {
                     console.warn('Received message from non-allowed origin:', event.origin);
+                    document.getElementById('blocked').innerHTML += 
+                        '<div><strong>Blocked from:</strong> ' + event.origin + '</div>';
                 }
             });
             
-            // Отправляем сообщение родительскому окну при загрузке
+            // Send message to parent window on load
             window.addEventListener('load', () => {
                 try {
-                    window.parent.postMessage({
-                        type: 'IFRAME_LOADED',
-                        from: window.location.origin,
-                        timestamp: new Date().toISOString()
-                    }, '*');
-                    console.log('Sent IFRAME_LOADED message to parent');
+                    // Debug info in DOM
+                    document.getElementById('debug').innerHTML = 
+                        '<div>URL: ' + window.location.href + '</div>' +
+                        '<div>Origin: ' + window.location.origin + '</div>' +
+                        '<div>Protocol: ' + window.location.protocol + '</div>' +
+                        '<div>Referrer: ' + document.referrer + '</div>';
                     
-                    // Пробуем отправить на конкретные домены
-                    const knownOrigins = [
-                        'https://lovable.dev', 
-                        'https://gptengineer.app',
-                        'http://localhost:3000',
-                        'https://localhost:3000',
-                        'http://localhost:8080',
-                        'http://localhost:5173'
-                    ];
-                    
-                    // Находим origin из referrer, если доступен
-                    let referrerOrigin = null;
+                    // First try to get parent origin from referrer
+                    let parentOrigin = '*';
                     if (document.referrer) {
                         try {
-                            referrerOrigin = new URL(document.referrer).origin;
-                            console.log('Detected referrer origin:', referrerOrigin);
+                            parentOrigin = new URL(document.referrer).origin;
+                            console.log('Detected parent origin from referrer:', parentOrigin);
                         } catch (e) {
                             console.warn('Failed to parse referrer:', e);
                         }
                     }
                     
-                    // Если referrer найден, отправляем ему сообщение
-                    if (referrerOrigin) {
-                        window.parent.postMessage({
-                            type: 'IFRAME_LOADED',
-                            from: window.location.origin,
-                            timestamp: new Date().toISOString(),
-                            target: 'referrer'
-                        }, referrerOrigin);
-                        console.log('Sent IFRAME_LOADED message to referrer:', referrerOrigin);
+                    // Ready message
+                    const readyMessage = {
+                        type: 'IFRAME_LOADED',
+                        from: window.location.origin,
+                        timestamp: new Date().toISOString(),
+                        url: window.location.href,
+                        referrer: document.referrer
+                    };
+                    
+                    // First try specific parent origin if available
+                    if (parentOrigin !== '*') {
+                        try {
+                            window.parent.postMessage(readyMessage, parentOrigin);
+                            console.log('Sent IFRAME_LOADED message to referrer:', parentOrigin);
+                            document.getElementById('sent').innerHTML += 
+                                '<div>Sent to: ' + parentOrigin + '</div>';
+                        } catch (e) {
+                            console.warn('Failed to send to referrer:', e);
+                        }
                     }
                     
-                    // Отправляем на все известные домены
-                    knownOrigins.forEach(origin => {
-                        try {
-                            window.parent.postMessage({
-                                type: 'IFRAME_LOADED',
-                                from: window.location.origin,
-                                timestamp: new Date().toISOString(),
-                                target: origin
-                            }, origin);
-                            console.log('Sent IFRAME_LOADED message to:', origin);
-                        } catch (e) {
-                            console.warn('Failed to send to:', origin, e);
+                    // Then try wildcard origin
+                    try {
+                        window.parent.postMessage({...readyMessage, note: 'Using wildcard origin'}, '*');
+                        console.log('Sent IFRAME_LOADED message using wildcard origin');
+                        document.getElementById('sent').innerHTML += 
+                            '<div>Sent to: * (wildcard)</div>';
+                    } catch (e) {
+                        console.error('Failed to send with wildcard:', e);
+                    }
+                    
+                    // Also try well-known domains
+                    const knownDomains = [
+                        'https://lovable.dev',
+                        'https://gptengineer.app',
+                        'http://localhost:3000',
+                        'https://localhost:3000'
+                    ];
+                    
+                    knownDomains.forEach(domain => {
+                        if (domain !== parentOrigin) {
+                            try {
+                                window.parent.postMessage({
+                                    ...readyMessage, 
+                                    note: 'Broadcast to known domain',
+                                    target: domain
+                                }, domain);
+                                console.log('Sent IFRAME_LOADED message to:', domain);
+                                document.getElementById('sent').innerHTML += 
+                                    '<div>Sent to: ' + domain + '</div>';
+                            } catch (e) {
+                                console.warn('Failed to send to:', domain);
+                            }
                         }
                     });
                 } catch (e) {
-                    console.error('Error sending postMessage:', e);
+                    console.error('Error in load handler:', e);
+                    document.getElementById('errors').innerHTML += 
+                        '<div>' + e.toString() + '</div>';
                 }
             });
         </script>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow: auto; }
+            #messages div, #blocked div, #sent div { 
+                margin-bottom: 10px; 
+                padding: 10px; 
+                border: 1px solid #ddd; 
+                border-radius: 5px; 
+            }
+            #messages div { background: #e8f5e9; }
+            #blocked div { background: #ffebee; }
+            #sent div { background: #e3f2fd; }
+            #debug { background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+            h3 { margin-top: 20px; }
+        </style>
     </head>
     <body>
         <h1>PostMessage Test Page</h1>
-        <p>This page is ready to receive and respond to postMessage events.</p>
-        <p>Origin: <code>${req.headers.origin || 'Unknown'}</code></p>
+        <p>This page tests cross-origin communication with postMessage.</p>
+        
+        <div id="debug"></div>
+        
+        <h3>Sent Messages:</h3>
+        <div id="sent"></div>
+        
+        <h3>Received Messages:</h3>
         <div id="messages"></div>
+        
+        <h3>Blocked Origins:</h3>
+        <div id="blocked"></div>
+        
+        <h3>Errors:</h3>
+        <div id="errors"></div>
     </body>
     </html>
     `;

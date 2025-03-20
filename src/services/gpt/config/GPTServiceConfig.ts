@@ -40,8 +40,8 @@ export const PROXY_SERVERS = {
 };
 
 /**
- * Расширенные разрешенные домены для postMessage взаимодействия
- * Добавлены все возможные варианты доменов и протоколов
+ * Extended allowed domains for postMessage communication
+ * Added all possible domain and protocol variants
  */
 export const ALLOWED_ORIGINS = [
   // Lovable domains
@@ -75,16 +75,16 @@ export const ALLOWED_ORIGINS = [
 ];
 
 /**
- * Улучшенная проверка разрешенного домена с подробным логированием
- * @param origin Домен для проверки
- * @returns true если домен разрешен, false если не разрешен
+ * Enhanced allowed domain check with detailed logging
+ * @param origin Domain to check
+ * @returns true if domain is allowed, false otherwise
  */
 export function isAllowedOrigin(origin: string): boolean {
   console.log(`[isAllowedOrigin] Checking if origin is allowed: ${origin}`);
   
-  // Для отладки и локальной разработки
+  // For debugging and local development
   if (process.env.NODE_ENV === 'development') {
-    // В режиме разработки разрешаем любые localhost или пустой origin
+    // In development mode, allow any localhost or empty origin
     if (origin === '*' || 
         !origin || 
         origin.includes('localhost') || 
@@ -94,51 +94,51 @@ export function isAllowedOrigin(origin: string): boolean {
     }
   }
   
-  // Если origin пустой, разрешаем только в режиме разработки
+  // If origin is empty, allow only in development mode
   if (!origin) {
     const isDev = process.env.NODE_ENV === 'development';
     console.log(`[isAllowedOrigin] Empty origin, allowed: ${isDev}`);
     return isDev;
   }
   
-  // Для wildcard origin - разрешаем только в режиме разработки
+  // For wildcard origin - allow only in development mode
   if (origin === '*') {
     const isDev = process.env.NODE_ENV === 'development';
     console.log(`[isAllowedOrigin] Wildcard origin, allowed: ${isDev}`);
     return isDev;
   }
   
-  // Проверка базовых доменов независимо от протокола и www
+  // Check basic domains regardless of protocol and www
   function normalizeOrigin(url: string): string {
-    return url.replace(/^https?:\/\//, '')  // Удаляем протокол
-              .replace(/^www\./, '')        // Удаляем www.
-              .replace(/:\d+$/, '');        // Удаляем порт
+    return url.replace(/^https?:\/\//, '')  // Remove protocol
+              .replace(/^www\./, '')        // Remove www.
+              .replace(/:\d+$/, '');        // Remove port
   }
   
   const normalizedInput = normalizeOrigin(origin);
   console.log(`[isAllowedOrigin] Normalized input: ${normalizedInput}`);
   
-  // Проверяем по всем разрешенным доменам
+  // Check against all allowed domains
   for (const allowed of ALLOWED_ORIGINS) {
-    // Пропускаем wildcard для продакшена
+    // Skip wildcard for production
     if (allowed === '*' && process.env.NODE_ENV !== 'development') {
       continue;
     }
     
-    // Точное совпадение
+    // Exact match
     if (origin === allowed) {
       console.log(`[isAllowedOrigin] Exact match with ${allowed}`);
       return true;
     }
     
-    // Сравнение нормализованных доменов
+    // Normalized domains comparison
     const normalizedAllowed = normalizeOrigin(allowed);
     if (normalizedInput === normalizedAllowed) {
       console.log(`[isAllowedOrigin] Normalized match: ${normalizedInput} === ${normalizedAllowed}`);
       return true;
     }
     
-    // Проверка локальных адресов
+    // Check for localhost addresses
     if (process.env.NODE_ENV === 'development' && 
         (normalizedInput.includes('localhost') || normalizedAllowed.includes('localhost'))) {
       console.log(`[isAllowedOrigin] Development localhost match`);
