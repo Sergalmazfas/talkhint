@@ -22,6 +22,10 @@ import { GPTClientFactory } from './utils/GPTClientFactory';
 class GPTBaseService {
   protected config: GPTServiceConfig;
   protected requestService: GPTRequestService;
+  private connectionCheckCache: {
+    timestamp: number;
+    status: boolean;
+  } | null = null;
 
   constructor() {
     // Initialize with default config
@@ -103,6 +107,10 @@ class GPTBaseService {
     this.config.apiKey = key;
     saveApiKeyToStorage(key);
     this.requestService.updateConfig(this.config);
+    
+    // Reset connection check cache when API key changes
+    this.connectionCheckCache = null;
+    
     GPTLogger.log(undefined, 'API key set and saved to storage');
   }
 
@@ -141,10 +149,27 @@ class GPTBaseService {
       return;
     }
     
-    this.config.serverProxyUrl = url;
-    saveServerProxyUrlToStorage(url);
+    // Reset connection check cache when proxy URL changes
+    this.connectionCheckCache = null;
+    
+    // Make sure URL has correct format (has protocol)
+    let formattedUrl = url.trim();
+    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+      // Default to https if no protocol specified
+      formattedUrl = 'https://' + formattedUrl;
+      GPTLogger.log(undefined, `Added HTTPS protocol to URL: ${formattedUrl}`);
+    }
+    
+    // Remove trailing slash if present
+    if (formattedUrl.endsWith('/')) {
+      formattedUrl = formattedUrl.slice(0, -1);
+      GPTLogger.log(undefined, `Removed trailing slash from URL: ${formattedUrl}`);
+    }
+    
+    this.config.serverProxyUrl = formattedUrl;
+    saveServerProxyUrlToStorage(formattedUrl);
     this.requestService.updateConfig(this.config);
-    GPTLogger.log(undefined, `Server proxy URL set to: ${url}`);
+    GPTLogger.log(undefined, `Server proxy URL set to: ${formattedUrl}`);
   }
   
   /**
@@ -168,10 +193,19 @@ class GPTBaseService {
 
   /**
    * Check connection to the API server
+   * Added caching to prevent too many requests
    */
   public async checkConnection(): Promise<boolean> {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     GPTLogger.log(requestId, 'Checking connection to API server');
+    
+    // Check cache first (valid for 30 seconds)
+    const CACHE_TTL = 30 * 1000; // 30 seconds
+    if (this.connectionCheckCache && 
+        (Date.now() - this.connectionCheckCache.timestamp) < CACHE_TTL) {
+      GPTLogger.log(requestId, `Using cached connection status: ${this.connectionCheckCache.status}`);
+      return this.connectionCheckCache.status;
+    }
     
     try {
       // First try the health endpoint
@@ -179,6 +213,9 @@ class GPTBaseService {
       GPTLogger.log(requestId, `Testing health endpoint: ${healthUrl}`);
       
       try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
         const response = await fetch(healthUrl, {
           method: 'GET',
           headers: {
@@ -188,11 +225,21 @@ class GPTBaseService {
           },
           mode: 'cors',
           credentials: 'omit',
-          redirect: 'follow'
+          redirect: 'follow',
+          signal: controller.signal
         });
         
+        clearTimeout(timeoutId);
+        
         if (response.ok) {
-          GPTLogger.log(requestId, 'Health check succeeded');
+          const result = await response.json();
+          GPTLogger.log(requestId, `Health check succeeded: ${JSON.stringify(result)}`);
+          
+          this.connectionCheckCache = {
+            timestamp: Date.now(),
+            status: true
+          };
+          
           return true;
         }
       } catch (healthError) {
@@ -206,9 +253,21 @@ class GPTBaseService {
       const result = await this.callOpenAI(testPrompt, 0.1, 5);
       
       GPTLogger.log(requestId, 'API connection check successful');
+      
+      this.connectionCheckCache = {
+        timestamp: Date.now(),
+        status: !!result
+      };
+      
       return !!result;
     } catch (error) {
       GPTLogger.error(requestId, 'API connection check failed', error);
+      
+      this.connectionCheckCache = {
+        timestamp: Date.now(),
+        status: false
+      };
+      
       return false;
     }
   }

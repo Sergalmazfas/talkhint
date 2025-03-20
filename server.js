@@ -1,3 +1,4 @@
+
 const cors = require("cors");
 const express = require("express");
 const app = express();
@@ -12,6 +13,8 @@ const ALLOWED_ORIGINS = [
     'https://www.lovable.dev', 
     'http://lovable.dev',
     'http://www.lovable.dev',
+    'https://id-preview--be5c3e65-2457-46cb-a8e0-02444f6fdcc1.lovable.app',
+    'https://id-preview--be5c3e65-2457-46cb-a8e0-02444f6fdcc1.lovable.app:3000',
     'https://gptengineer.app',
     'https://www.gptengineer.app',
     'http://gptengineer.app',
@@ -36,6 +39,7 @@ app.use((req, res, next) => {
     
     // Log all requests with their origin
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${origin || 'unknown'}`);
+    console.log('Headers:', JSON.stringify(req.headers));
     
     // Allow localhost in development mode
     const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -57,7 +61,8 @@ app.use((req, res, next) => {
     // Check if origin is allowed, including www/non-www variants
     const normalizedRequestOrigin = normalizeOrigin(origin);
     const isAllowed = ALLOWED_ORIGINS.some(allowed => 
-        normalizeOrigin(allowed) === normalizedRequestOrigin
+        normalizeOrigin(allowed) === normalizedRequestOrigin || 
+        normalizedRequestOrigin.includes('lovable.app')
     );
     
     // Set CORS headers if origin is allowed
@@ -99,7 +104,8 @@ app.use(cors({
         // Check if origin is allowed, including www/non-www variants
         const normalizedRequestOrigin = normalizeOrigin(origin);
         const isAllowed = ALLOWED_ORIGINS.some(allowed => 
-            normalizeOrigin(allowed) === normalizedRequestOrigin
+            normalizeOrigin(allowed) === normalizedRequestOrigin || 
+            normalizedRequestOrigin.includes('lovable.app')
         );
         
         if (isAllowed) {
@@ -117,16 +123,26 @@ app.use(cors({
 // Parse JSON in request body
 app.use(express.json());
 
+// Log all request body for debugging
+app.use((req, res, next) => {
+    if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+        console.log(`Request body for ${req.url}:`, JSON.stringify(req.body, null, 2));
+    }
+    next();
+});
+
 // Simple chat endpoint
 app.post("/api/chat", (req, res) => {
     try {
         const { message } = req.body;
+        console.log("Chat request received:", message);
+        console.log("Authorization header:", req.headers.authorization);
         
         if (!message) {
             return res.status(400).json({ error: "Message is required" });
         }
         
-        // Простой ответ для тестирования
+        // Simple test response
         res.json({ 
             success: true, 
             received: message,
@@ -139,9 +155,10 @@ app.post("/api/chat", (req, res) => {
     }
 });
 
-// Прокси-маршрут для OpenAI API
+// Proxy route for OpenAI API
 app.post("/api/openai/chat/completions", async (req, res) => {
     try {
+        // Get API key from request or env
         const apiKey = req.headers.authorization?.split(" ")[1] || process.env.OPENAI_API_KEY;
         
         if (!apiKey) {
@@ -150,29 +167,42 @@ app.post("/api/openai/chat/completions", async (req, res) => {
         
         console.log(`Forwarding request to OpenAI API with ${req.body.messages?.length || 0} messages`);
         
-        const response = await axios.post(
-            "https://api.openai.com/v1/chat/completions",
-            req.body,
-            {
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${apiKey}`
-                },
-                timeout: 60000 // 60 секунд таймаут
+        // Log API key for debugging (mask it for security)
+        const maskedKey = apiKey.substring(0, 5) + '***' + apiKey.substring(apiKey.length - 4);
+        console.log(`Using API key: ${maskedKey}`);
+        
+        // Prepare OpenAI API request
+        try {
+            const response = await axios.post(
+                "https://api.openai.com/v1/chat/completions",
+                req.body,
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${apiKey}`
+                    },
+                    timeout: 60000 // 60 second timeout
+                }
+            );
+            
+            console.log(`Response received from OpenAI API with status ${response.status}`);
+            res.json(response.data);
+        } catch (apiError) {
+            console.error("Error from OpenAI API:", apiError.message);
+            if (apiError.response) {
+                console.error("API error details:", apiError.response.data);
+                res.status(apiError.response.status).json(apiError.response.data);
+            } else {
+                res.status(500).json({ 
+                    error: "Error calling OpenAI API", 
+                    message: apiError.message,
+                    stack: apiError.stack 
+                });
             }
-        );
-        
-        console.log(`Response received from OpenAI API with status ${response.status}`);
-        res.json(response.data);
-    } catch (error) {
-        console.error("Error proxying to OpenAI:", error.response?.data || error.message);
-        
-        if (error.response) {
-            // Передаем оригинальный ответ об ошибке от OpenAI
-            res.status(error.response.status).json(error.response.data);
-        } else {
-            res.status(500).json({ error: "Error processing request", message: error.message });
         }
+    } catch (error) {
+        console.error("Error proxying to OpenAI:", error.message);
+        res.status(500).json({ error: "Error processing request", message: error.message });
     }
 });
 
@@ -191,7 +221,7 @@ app.get("/cors-test", (req, res) => {
     });
 });
 
-// Проверка здоровья системы
+// Health check endpoint
 app.get("/health", (req, res) => {
     res.json({ 
         status: "ok", 
@@ -206,223 +236,7 @@ app.get("/health", (req, res) => {
     });
 });
 
-// Endpoint for testing postMessage
-app.get("/postmessage-test", (req, res) => {
-    // Send HTML page with JavaScript for testing postMessage
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>PostMessage Test</title>
-        <script>
-            // Set up handler to receive messages
-            window.addEventListener('message', (event) => {
-                // List all allowed origins explicitly for clarity
-                const allowedOrigins = [
-                    'https://lovable.dev', 
-                    'https://www.lovable.dev',
-                    'http://lovable.dev',
-                    'http://www.lovable.dev',
-                    'https://gptengineer.app',
-                    'https://www.gptengineer.app',
-                    'http://gptengineer.app',
-                    'http://www.gptengineer.app',
-                    'https://gptengineer.io',
-                    'https://www.gptengineer.io',
-                    'http://gptengineer.io',
-                    'http://www.gptengineer.io',
-                    'http://localhost:3000',
-                    'https://localhost:3000',
-                    'http://localhost:8080',
-                    'https://localhost:8080',
-                    'http://localhost:5173',
-                    'https://localhost:5173',
-                    'http://localhost',
-                    'https://localhost'
-                ];
-                
-                // In development mode, accept any messages
-                const isDevelopment = window.location.hostname === 'localhost';
-                
-                // Normalize origin for comparison (remove protocol and www.)
-                const normalizeOrigin = (url) => {
-                    if (!url) return '';
-                    return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\\d+$/, '');
-                };
-                
-                // Check if origin is allowed
-                const normalizedEventOrigin = normalizeOrigin(event.origin);
-                const isAllowed = isDevelopment || allowedOrigins.some(allowed => 
-                    normalizeOrigin(allowed) === normalizedEventOrigin
-                );
-                
-                if (isAllowed) {
-                    console.log('Received message from ' + event.origin + ':', event.data);
-                    document.getElementById('messages').innerHTML += 
-                        '<div><strong>From:</strong> ' + event.origin + 
-                        '<br><pre>' + JSON.stringify(event.data, null, 2) + '</pre></div>';
-                    
-                    // Respond to message
-                    if (event.source) {
-                        try {
-                            // First try specific origin
-                            event.source.postMessage({
-                                type: 'RESPONSE',
-                                receivedData: event.data,
-                                from: window.location.origin,
-                                timestamp: new Date().toISOString()
-                            }, event.origin);
-                            console.log('Responded to:', event.origin);
-                        } catch (e) {
-                            console.warn('Failed to respond to specific origin:', e);
-                            
-                            // Try with wildcard as fallback
-                            try {
-                                event.source.postMessage({
-                                    type: 'RESPONSE',
-                                    receivedData: event.data,
-                                    from: window.location.origin,
-                                    timestamp: new Date().toISOString(),
-                                    note: 'Using wildcard origin as fallback'
-                                }, '*');
-                                console.log('Responded using wildcard origin');
-                            } catch (e2) {
-                                console.error('All response attempts failed:', e2);
-                            }
-                        }
-                    }
-                } else {
-                    console.warn('Received message from non-allowed origin:', event.origin);
-                    document.getElementById('blocked').innerHTML += 
-                        '<div><strong>Blocked from:</strong> ' + event.origin + '</div>';
-                }
-            });
-            
-            // Send message to parent window on load
-            window.addEventListener('load', () => {
-                try {
-                    // Debug info in DOM
-                    document.getElementById('debug').innerHTML = 
-                        '<div>URL: ' + window.location.href + '</div>' +
-                        '<div>Origin: ' + window.location.origin + '</div>' +
-                        '<div>Protocol: ' + window.location.protocol + '</div>' +
-                        '<div>Referrer: ' + document.referrer + '</div>';
-                    
-                    // First try to get parent origin from referrer
-                    let parentOrigin = '*';
-                    if (document.referrer) {
-                        try {
-                            parentOrigin = new URL(document.referrer).origin;
-                            console.log('Detected parent origin from referrer:', parentOrigin);
-                        } catch (e) {
-                            console.warn('Failed to parse referrer:', e);
-                        }
-                    }
-                    
-                    // Ready message
-                    const readyMessage = {
-                        type: 'IFRAME_LOADED',
-                        from: window.location.origin,
-                        timestamp: new Date().toISOString(),
-                        url: window.location.href,
-                        referrer: document.referrer
-                    };
-                    
-                    // First try specific parent origin if available
-                    if (parentOrigin !== '*') {
-                        try {
-                            window.parent.postMessage(readyMessage, parentOrigin);
-                            console.log('Sent IFRAME_LOADED message to referrer:', parentOrigin);
-                            document.getElementById('sent').innerHTML += 
-                                '<div>Sent to: ' + parentOrigin + '</div>';
-                        } catch (e) {
-                            console.warn('Failed to send to referrer:', e);
-                        }
-                    }
-                    
-                    // Then try wildcard origin
-                    try {
-                        window.parent.postMessage({...readyMessage, note: 'Using wildcard origin'}, '*');
-                        console.log('Sent IFRAME_LOADED message using wildcard origin');
-                        document.getElementById('sent').innerHTML += 
-                            '<div>Sent to: * (wildcard)</div>';
-                    } catch (e) {
-                        console.error('Failed to send with wildcard:', e);
-                    }
-                    
-                    // Also try well-known domains
-                    const knownDomains = [
-                        'https://lovable.dev',
-                        'https://gptengineer.app',
-                        'http://localhost:3000',
-                        'https://localhost:3000'
-                    ];
-                    
-                    knownDomains.forEach(domain => {
-                        if (domain !== parentOrigin) {
-                            try {
-                                window.parent.postMessage({
-                                    ...readyMessage, 
-                                    note: 'Broadcast to known domain',
-                                    target: domain
-                                }, domain);
-                                console.log('Sent IFRAME_LOADED message to:', domain);
-                                document.getElementById('sent').innerHTML += 
-                                    '<div>Sent to: ' + domain + '</div>';
-                            } catch (e) {
-                                console.warn('Failed to send to:', domain);
-                            }
-                        }
-                    });
-                } catch (e) {
-                    console.error('Error in load handler:', e);
-                    document.getElementById('errors').innerHTML += 
-                        '<div>' + e.toString() + '</div>';
-                }
-            });
-        </script>
-        <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow: auto; }
-            #messages div, #blocked div, #sent div { 
-                margin-bottom: 10px; 
-                padding: 10px; 
-                border: 1px solid #ddd; 
-                border-radius: 5px; 
-            }
-            #messages div { background: #e8f5e9; }
-            #blocked div { background: #ffebee; }
-            #sent div { background: #e3f2fd; }
-            #debug { background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
-            h3 { margin-top: 20px; }
-        </style>
-    </head>
-    <body>
-        <h1>PostMessage Test Page</h1>
-        <p>This page tests cross-origin communication with postMessage.</p>
-        
-        <div id="debug"></div>
-        
-        <h3>Sent Messages:</h3>
-        <div id="sent"></div>
-        
-        <h3>Received Messages:</h3>
-        <div id="messages"></div>
-        
-        <h3>Blocked Origins:</h3>
-        <div id="blocked"></div>
-        
-        <h3>Errors:</h3>
-        <div id="errors"></div>
-    </body>
-    </html>
-    `;
-    
-    res.setHeader('Content-Type', 'text/html');
-    res.send(html);
-});
-
-// Проверка доступности прокси OpenAI API
+// Test endpoint for OpenAI API proxy
 app.get("/api/openai/health", (req, res) => {
     res.json({ 
         status: "ok", 
@@ -434,66 +248,140 @@ app.get("/api/openai/health", (req, res) => {
     });
 });
 
-// Обработчик для iframe-bridge.js
-app.get("/iframe-bridge.js", (req, res) => {
-    fs.readFile('public/iframe-bridge.js', 'utf8', (err, data) => {
-        if (err) {
-            console.error('Error reading iframe-bridge.js:', err);
-            return res.status(500).send('Error loading iframe-bridge.js');
-        }
-        res.setHeader('Content-Type', 'application/javascript');
-        res.send(data);
-    });
-});
-
-// Определяем порт для HTTP-сервера
-const PORT = process.env.PORT || 3000;
-
-// Функция для запуска HTTP-сервера
-function startHttpServer() {
-    const httpServer = http.createServer(app);
-    httpServer.listen(PORT, () => {
-        console.log(`HTTP Server running on port ${PORT}`);
-        console.log(`CORS enabled for:`, ALLOWED_ORIGINS);
-    });
-}
-
-// Функция для запуска HTTPS-сервера (если есть сертификаты)
-function startHttpsServer() {
-    try {
-        // Проверяем наличие SSL-сертификатов
-        if (fs.existsSync('./ssl/key.pem') && fs.existsSync('./ssl/cert.pem')) {
-            const options = {
-                key: fs.readFileSync('./ssl/key.pem'),
-                cert: fs.readFileSync('./ssl/cert.pem')
-            };
-            
-            const httpsServer = https.createServer(options, app);
-            const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-            
-            httpsServer.listen(HTTPS_PORT, () => {
-                console.log(`HTTPS Server running on port ${HTTPS_PORT}`);
-                console.log(`CORS enabled for:`, ALLOWED_ORIGINS);
+// Endpoint for postMessage test page
+app.get("/postmessage-test", (req, res) => {
+    // Send HTML page with JavaScript for testing postMessage
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>PostMessage Test</title>
+        <script>
+            // Set up handler to receive messages
+            window.addEventListener('message', (event) => {
+                // In development mode, accept any messages
+                const isDevelopment = true; // Always accept for testing
+                
+                console.log('Received message from ' + event.origin + ':', event.data);
+                document.getElementById('messages').innerHTML += 
+                    '<div><strong>From:</strong> ' + event.origin + 
+                    '<br><pre>' + JSON.stringify(event.data, null, 2) + '</pre></div>';
+                
+                // Respond to message
+                if (event.source) {
+                    try {
+                        // First try with wildcard (most reliable for testing)
+                        event.source.postMessage({
+                            type: 'RESPONSE',
+                            receivedData: event.data,
+                            from: window.location.origin,
+                            timestamp: new Date().toISOString(),
+                            note: 'Using wildcard origin'
+                        }, '*');
+                        console.log('Responded using wildcard origin');
+                        
+                        // Also try with specific origin
+                        event.source.postMessage({
+                            type: 'RESPONSE',
+                            receivedData: event.data,
+                            from: window.location.origin,
+                            timestamp: new Date().toISOString()
+                        }, event.origin);
+                        console.log('Responded to:', event.origin);
+                    } catch (e) {
+                        console.error('Response attempt failed:', e);
+                    }
+                }
             });
             
-            return true;
-        }
-        return false;
-    } catch (error) {
-        console.warn('Failed to start HTTPS server:', error.message);
-        return false;
-    }
-}
+            // Send message to parent window on load
+            window.addEventListener('load', () => {
+                try {
+                    // Debug info
+                    document.getElementById('debug').innerHTML = 
+                        '<div>URL: ' + window.location.href + '</div>' +
+                        '<div>Origin: ' + window.location.origin + '</div>' +
+                        '<div>Protocol: ' + window.location.protocol + '</div>' +
+                        '<div>Referrer: ' + document.referrer + '</div>';
+                    
+                    // Ready message
+                    const readyMessage = {
+                        type: 'IFRAME_LOADED',
+                        from: window.location.origin,
+                        timestamp: new Date().toISOString(),
+                        url: window.location.href,
+                        referrer: document.referrer
+                    };
+                    
+                    // Try wildcard first (most reliable)
+                    window.parent.postMessage(readyMessage, '*');
+                    console.log('Sent IFRAME_LOADED message using wildcard origin');
+                    
+                    // Also try specific parent if available
+                    if (document.referrer) {
+                        try {
+                            const parentOrigin = new URL(document.referrer).origin;
+                            window.parent.postMessage(readyMessage, parentOrigin);
+                            console.log('Sent IFRAME_LOADED message to referrer:', parentOrigin);
+                        } catch (e) {
+                            console.warn('Failed to send to referrer:', e);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error in load handler:', e);
+                    document.getElementById('errors').innerHTML += 
+                        '<div>' + e.toString() + '</div>';
+                }
+            });
+        </script>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            pre { background: #f0f0f0; padding: 10px; border-radius: 5px; overflow: auto; }
+            #messages div { 
+                margin-bottom: 10px; 
+                padding: 10px; 
+                border: 1px solid #ddd; 
+                border-radius: 5px; 
+                background: #e8f5e9;
+            }
+            #debug { background: #fff3e0; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+            h3 { margin-top: 20px; }
+        </style>
+    </head>
+    <body>
+        <h1>PostMessage Test Page</h1>
+        <p>This page tests cross-origin communication with postMessage.</p>
+        
+        <div id="debug"></div>
+        
+        <h3>Received Messages:</h3>
+        <div id="messages"></div>
+        
+        <h3>Errors:</h3>
+        <div id="errors"></div>
+        
+        <button onclick="window.parent.postMessage({type: 'TEST', time: new Date().toISOString()}, '*')">
+            Send Test Message to Parent
+        </button>
+    </body>
+    </html>
+    `;
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+});
 
-// Запуск серверов
-startHttpServer();
-const httpsStarted = startHttpsServer();
-if (!httpsStarted) {
-    console.log('HTTPS server not started. Create SSL certificates to enable HTTPS.');
-    console.log('For local development, you can use: openssl req -x509 -newkey rsa:4096 -keyout ssl/key.pem -out ssl/cert.pem -days 365 -nodes');
-}
+// Define port for HTTP server
+const PORT = process.env.PORT || 3000;
 
-// Обработка ошибок для предотвращения падения сервера
+// Start HTTP server
+const httpServer = http.createServer(app);
+httpServer.listen(PORT, () => {
+    console.log(`HTTP Server running on port ${PORT}`);
+    console.log(`CORS enabled for:`, ALLOWED_ORIGINS);
+});
+
+// Handle errors for preventing server crashes
 process.on('uncaughtException', (error) => {
     console.error('Uncaught Exception:', error);
 });
