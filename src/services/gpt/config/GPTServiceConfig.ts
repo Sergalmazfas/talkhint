@@ -1,3 +1,4 @@
+
 /**
  * Configuration for OpenAI API services
  */
@@ -16,11 +17,21 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  // Use a direct CORS proxy that doesn't require a backend server
-  serverProxyUrl: 'https://corsproxy.io/?https://api.openai.com/v1', 
+  // Using more reliable proxy service
+  serverProxyUrl: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1', 
   useServerProxy: true, // Using server proxy by default
   maxRetries: 3,
   timeoutMs: 60000,
+};
+
+/**
+ * Available proxy servers for CORS issues
+ */
+export const PROXY_SERVERS = {
+  ALLORIGINS: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1',
+  CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
+  THINGPROXY: 'https://thingproxy.freeboard.io/fetch/https://api.openai.com/v1',
+  DIRECT: 'https://api.openai.com/v1',
 };
 
 /**
@@ -92,5 +103,29 @@ export function saveUseServerProxyToStorage(useProxy: boolean): void {
     localStorage.setItem('use_server_proxy', String(useProxy));
   } catch (error) {
     console.error('Error saving proxy setting to storage:', error);
+  }
+}
+
+/**
+ * Load the server proxy URL from localStorage
+ */
+export function loadServerProxyUrlFromStorage(): string | null {
+  try {
+    const proxyUrl = localStorage.getItem('server_proxy_url');
+    return proxyUrl || null;
+  } catch (error) {
+    console.error('Error loading proxy URL from storage:', error);
+    return null;
+  }
+}
+
+/**
+ * Save the server proxy URL to localStorage
+ */
+export function saveServerProxyUrlToStorage(url: string): void {
+  try {
+    localStorage.setItem('server_proxy_url', url);
+  } catch (error) {
+    console.error('Error saving proxy URL to storage:', error);
   }
 }

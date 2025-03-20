@@ -8,10 +8,15 @@ import ListeningIndicator from '@/components/ListeningIndicator';
 import BilingualResponsePanel from '@/components/BilingualResponsePanel';
 import SpeechService from '@/services/SpeechService';
 import GPTService from '@/services/GPTService';
+import { PROXY_SERVERS } from '@/services/gpt/config/GPTServiceConfig';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { InfoIcon } from 'lucide-react';
 
 const PhoneCall = () => {
   const [isListening, setIsListening] = useState(false);
@@ -24,6 +29,8 @@ const PhoneCall = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [useServerProxy, setUseServerProxy] = useState(() => GPTService.getUseServerProxy());
+  const [selectedProxy, setSelectedProxy] = useState('');
+  const [proxyTesting, setProxyTesting] = useState(false);
 
   const toggleCall = () => {
     if (isCallActive) {
@@ -174,12 +181,50 @@ const PhoneCall = () => {
     }
   };
 
+  const testProxyConnection = async (proxyUrl: string) => {
+    setProxyTesting(true);
+    try {
+      // Save current settings to restore later
+      const originalUrl = GPTService.getServerProxyUrl();
+      const originalUseProxy = GPTService.getUseServerProxy();
+      
+      // Temporarily set the new proxy for testing
+      GPTService.setServerProxyUrl(proxyUrl);
+      GPTService.setUseServerProxy(true);
+      
+      const connected = await GPTService.checkConnection();
+      
+      // Restore original settings
+      GPTService.setServerProxyUrl(originalUrl);
+      GPTService.setUseServerProxy(originalUseProxy);
+      
+      if (connected) {
+        toast.success(`Прокси ${getProxyName(proxyUrl)} работает!`);
+      } else {
+        toast.error(`Прокси ${getProxyName(proxyUrl)} не работает`);
+      }
+      
+      return connected;
+    } catch (error) {
+      toast.error(`Ошибка при тестировании прокси: ${error instanceof Error ? error.message : 'неизвестная ошибка'}`);
+      return false;
+    } finally {
+      setProxyTesting(false);
+    }
+  };
+
+  const getProxyName = (url: string): string => {
+    if (url.includes('allorigins')) return 'AllOrigins';
+    if (url.includes('corsproxy.io')) return 'CORS Proxy';
+    if (url.includes('thingproxy')) return 'ThingProxy';
+    if (url === PROXY_SERVERS.DIRECT) return 'Без прокси';
+    return 'Неизвестный прокси';
+  };
+
   const saveSettings = () => {
-    if (apiKey.trim()) {
-      GPTService.setApiKey(apiKey.trim());
-      toast.success('API ключ сохранен');
-    } else if (!useServerProxy) {
-      toast.warning('API ключ необходим для прямых запросов к OpenAI');
+    if (selectedProxy) {
+      GPTService.setServerProxyUrl(selectedProxy);
+      toast.success(`Прокси ${getProxyName(selectedProxy)} установлен`);
     }
     
     GPTService.setUseServerProxy(useServerProxy);
@@ -187,17 +232,23 @@ const PhoneCall = () => {
       ? 'Использование прокси-сервера включено' 
       : 'Прямое подключение к API включено');
     
+    if (apiKey.trim()) {
+      GPTService.setApiKey(apiKey.trim());
+      toast.success('API ключ сохранен');
+    } else if (!useServerProxy) {
+      toast.warning('API ключ необходим для прямых запросов к OpenAI');
+    }
+    
     setShowSettings(false);
     
     checkApiConnection().then(connected => {
       if (connected) {
         toast.success('Подключение к OpenAI API успешно');
       } else {
-        // Only show error and reopen settings if not using proxy and no key
         if (!useServerProxy && !apiKey.trim()) {
           toast.error('API ключ необходим для прямого подключения к OpenAI API');
           setShowSettings(true);
-        } else if (!connected) {
+        } else {
           toast.warning('Проверка подключения к OpenAI API не удалась. Продолжаем с текущими настройками.');
         }
       }
@@ -251,6 +302,14 @@ const PhoneCall = () => {
       stopListening();
     }
   }, [isCallActive, isListening]);
+
+  useEffect(() => {
+    if (showSettings) {
+      setApiKey(GPTService.getApiKey() || '');
+      setUseServerProxy(GPTService.getUseServerProxy());
+      setSelectedProxy(GPTService.getServerProxyUrl());
+    }
+  }, [showSettings]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
@@ -368,13 +427,74 @@ const PhoneCall = () => {
       </div>
 
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Настройки OpenAI API</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {isApiConnected !== null && (
+              <Alert variant={isApiConnected ? "default" : "destructive"} className={isApiConnected ? "bg-green-50 border-green-200" : ""}>
+                <AlertDescription>
+                  {isApiConnected 
+                    ? "✅ Подключение к OpenAI API успешно" 
+                    : "❌ Проблема с подключением к OpenAI API"}
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="api-key">API ключ OpenAI</Label>
+              <Label htmlFor="use-proxy" className="text-sm font-medium">
+                Использовать прокси-сервер
+              </Label>
+              <Switch
+                id="use-proxy"
+                checked={useServerProxy}
+                onCheckedChange={setUseServerProxy}
+              />
+              <p className="text-xs text-muted-foreground">
+                {useServerProxy 
+                  ? "API запросы будут отправляться через прокси для обхода CORS" 
+                  : "API запросы будут отправляться напрямую с использованием API ключа"}
+              </p>
+            </div>
+
+            {useServerProxy && (
+              <div className="space-y-2">
+                <Label htmlFor="proxy-server" className="text-sm font-medium">
+                  Выберите прокси-сервер
+                </Label>
+                <Select
+                  value={selectedProxy}
+                  onValueChange={setSelectedProxy}
+                >
+                  <SelectTrigger id="proxy-server">
+                    <SelectValue placeholder="Выберите прокси-сервер" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={PROXY_SERVERS.ALLORIGINS}>AllOrigins</SelectItem>
+                    <SelectItem value={PROXY_SERVERS.CORSPROXY}>CORS Proxy</SelectItem>
+                    <SelectItem value={PROXY_SERVERS.THINGPROXY}>ThingProxy</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex justify-end">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={!selectedProxy || proxyTesting}
+                    onClick={() => testProxyConnection(selectedProxy)}
+                  >
+                    {proxyTesting ? 'Тестирование...' : 'Тест прокси'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <Separator />
+
+            <div className="space-y-2">
+              <Label htmlFor="api-key" className="text-sm font-medium">
+                API ключ OpenAI {!useServerProxy && <span className="text-red-500">*</span>}
+              </Label>
               <Input
                 id="api-key"
                 type="password"
@@ -383,23 +503,18 @@ const PhoneCall = () => {
                 onChange={(e) => setApiKey(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Оставьте пустым, если используете прокси-сервер
+                {useServerProxy 
+                  ? "Оставьте пустым, если используете прокси-сервер" 
+                  : "Обязательно для прямого подключения к API"}
               </p>
             </div>
-            
-            <div className="flex items-center justify-between">
-              <Label htmlFor="use-proxy">Использовать прокси-сервер</Label>
-              <Switch
-                id="use-proxy"
-                checked={useServerProxy}
-                onCheckedChange={setUseServerProxy}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {useServerProxy
-                ? "API запросы будут отправляться через сервер Lovable для обхода CORS"
-                : "API запросы будут отправляться напрямую с использованием API ключа"}
-            </p>
+
+            <Alert>
+              <InfoIcon className="h-4 w-4" />
+              <AlertDescription>
+                Если один прокси-сервер не работает, попробуйте другой
+              </AlertDescription>
+            </Alert>
           </div>
           <DialogFooter>
             <Button 

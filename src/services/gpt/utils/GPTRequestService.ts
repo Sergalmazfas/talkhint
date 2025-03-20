@@ -1,7 +1,6 @@
-
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
-import { GPTServiceConfig } from "../config/GPTServiceConfig";
+import { GPTServiceConfig, PROXY_SERVERS } from "../config/GPTServiceConfig";
 
 /**
  * Service to handle OpenAI API requests
@@ -76,12 +75,29 @@ export class GPTRequestService {
     
     GPTLogger.log(requestId, 'Request payload prepared');
     GPTLogger.log(requestId, `Using proxy server: ${this.config.useServerProxy ? 'yes' : 'no'}`);
+    if (this.config.useServerProxy) {
+      GPTLogger.log(requestId, `Proxy URL: ${this.config.serverProxyUrl}`);
+    }
 
     let currentRetry = 0;
     
     while (currentRetry <= this.config.maxRetries) {
       if (currentRetry > 0) {
         GPTLogger.log(requestId, `Retry attempt ${currentRetry}/${this.config.maxRetries}`);
+        
+        // If we've had multiple failures with one proxy, try another one
+        if (currentRetry >= 2 && this.config.useServerProxy) {
+          // Get a list of available proxies
+          const proxyOptions = Object.values(PROXY_SERVERS);
+          const currentIndex = proxyOptions.indexOf(this.config.serverProxyUrl);
+          const nextIndex = (currentIndex + 1) % proxyOptions.length;
+          const newProxyUrl = proxyOptions[nextIndex];
+          
+          if (newProxyUrl !== this.config.serverProxyUrl) {
+            GPTLogger.log(requestId, `Switching to alternative proxy: ${newProxyUrl}`);
+            this.config.serverProxyUrl = newProxyUrl;
+          }
+        }
       }
       
       const startTime = Date.now();
@@ -162,9 +178,9 @@ export class GPTRequestService {
     }, this.config.timeoutMs);
 
     // Different proxies have different URL patterns
-    const isCorsproxy = this.config.serverProxyUrl.includes('corsproxy.io');
     const isAllOrigins = this.config.serverProxyUrl.includes('allorigins');
-    const isCorsAnywhere = this.config.serverProxyUrl.includes('cors-anywhere');
+    const isCorsproxy = this.config.serverProxyUrl.includes('corsproxy.io');
+    const isThingproxy = this.config.serverProxyUrl.includes('thingproxy');
     
     try {
       let url;
@@ -178,18 +194,17 @@ export class GPTRequestService {
       }
       
       // Different URL construction based on proxy type
-      if (isCorsproxy) {
-        // For corsproxy.io, the URL already includes the target
+      if (isAllOrigins) {
+        // For allorigins, the target is already in the URL
         url = `${this.config.serverProxyUrl}/chat/completions`;
-      } else if (isAllOrigins) {
-        // For allorigins, the URL is already constructed with the target
+      } else if (isCorsproxy) {
+        // For corsproxy.io, the target is already in the URL
         url = `${this.config.serverProxyUrl}/chat/completions`;
-      } else if (isCorsAnywhere) {
-        // For CORS Anywhere, add the endpoint
+      } else if (isThingproxy) {
+        // For thingproxy, the target is already in the URL
         url = `${this.config.serverProxyUrl}/chat/completions`;
-        headers['X-Requested-With'] = 'XMLHttpRequest';
       } else {
-        // Default behavior
+        // Default behavior for direct or unknown proxies
         url = `${this.config.serverProxyUrl}/chat/completions`;
       }
       
@@ -201,6 +216,8 @@ export class GPTRequestService {
         headers,
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
+        mode: 'cors',
+        credentials: 'omit'  // Don't send cookies with CORS requests
       });
       
       clearTimeout(timeoutId);
