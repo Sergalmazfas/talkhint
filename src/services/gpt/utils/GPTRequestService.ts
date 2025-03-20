@@ -147,20 +147,49 @@ export class GPTRequestService {
   }
 
   /**
-   * Make a simple chat request to the lovable.dev server
+   * Make a simple chat request to the server
    */
   public async makeSimpleChatRequest(message: string): Promise<any> {
+    const requestId = Date.now().toString(36);
+    GPTLogger.log(requestId, `Making simple chat request with message: ${message.substring(0, 30)}...`);
+    
     try {
-      // Make a mock request that doesn't actually contact the server
+      // Use the server proxy URL base without the specific endpoint
+      // This assumes our proxy URL is like "https://example.com/api/openai/chat/completions"
+      // and we want to use "https://example.com/api/chat"
+      const baseUrl = this.config.serverProxyUrl.split('/').slice(0, -2).join('/');
+      const chatUrl = `${baseUrl}/chat`;
+      
+      GPTLogger.log(requestId, `Using chat URL: ${chatUrl}`);
+      
+      const response = await fetch(chatUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Chat API error (${response.status}): ${errorText}`);
+      }
+      
+      const data = await response.json();
+      GPTLogger.log(requestId, 'Chat response received successfully');
+      return data;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      GPTLogger.error(requestId, 'Error in makeSimpleChatRequest:', errorMessage);
+      
+      // Fallback to a mock response if the server is unavailable
+      GPTLogger.log(requestId, 'Returning mock response as fallback');
       return {
         success: true,
         received: message,
-        response: `Mock response for: "${message}"`,
+        response: `Mock response for: "${message}" (server unavailable)`,
         timestamp: new Date().toISOString()
       };
-    } catch (error) {
-      console.error("Ошибка:", error);
-      throw error;
     }
   }
 

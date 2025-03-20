@@ -7,13 +7,14 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/gpt';
+import { toast } from 'sonner';
 
 const DirectOpenAIExample = () => {
   const [prompt, setPrompt] = useState<string>('Write a one-sentence bedtime story about a unicorn.');
   const [response, setResponse] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [method, setMethod] = useState<'client' | 'proxy' | 'chat'>('client');
+  const [method, setMethod] = useState<'client' | 'vercel' | 'chat'>('vercel');
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -22,7 +23,7 @@ const DirectOpenAIExample = () => {
 
     try {
       if (method === 'chat') {
-        // Use the new lovable.dev chat API
+        // Use the new chat API
         const result = await GPTService.sendChatMessage(prompt);
         setResponse(JSON.stringify(result, null, 2));
       } else if (method === 'client') {
@@ -47,23 +48,35 @@ const DirectOpenAIExample = () => {
 
         setResponse(completion.choices[0].message.content || 'No response received');
       } else {
-        // Proxy server method
-        const response = await fetch('http://localhost:3000/api/chat', {
+        // Vercel proxy server method
+        const proxyUrl = GPTService.getServerProxyUrl();
+        
+        toast.info(`Sending request to ${proxyUrl}/openai/chat/completions`);
+        
+        const response = await fetch(`${proxyUrl}/openai/chat/completions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${GPTService.getApiKey()}`
           },
           body: JSON.stringify({
-            message: prompt
+            model: "gpt-4o-mini",
+            messages: [{
+              role: "user",
+              content: prompt,
+            }],
+            temperature: 0.7,
+            max_tokens: 150,
           }),
         });
 
         if (!response.ok) {
-          throw new Error(`Server responded with status: ${response.status}`);
+          const errorData = await response.json();
+          throw new Error(`Server responded with status: ${response.status}. ${JSON.stringify(errorData)}`);
         }
 
         const data = await response.json();
-        setResponse(JSON.stringify(data, null, 2));
+        setResponse(data.choices[0].message.content || JSON.stringify(data, null, 2));
       }
     } catch (err) {
       console.error('Error calling API:', err);
@@ -76,9 +89,9 @@ const DirectOpenAIExample = () => {
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>API Example</CardTitle>
+        <CardTitle>OpenAI API Proxy Test</CardTitle>
         <CardDescription>
-          Send messages directly to lovable.dev/api/chat or through different methods
+          Test your connection to OpenAI API through different methods
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -90,25 +103,25 @@ const DirectOpenAIExample = () => {
           </Alert>
         )}
         
-        <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'proxy' | 'chat')}>
+        <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'vercel' | 'chat')}>
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="client">OpenAI Client</TabsTrigger>
-            <TabsTrigger value="proxy">Express Proxy</TabsTrigger>
-            <TabsTrigger value="chat">Lovable Chat</TabsTrigger>
+            <TabsTrigger value="client">Direct Client</TabsTrigger>
+            <TabsTrigger value="vercel">Vercel Proxy</TabsTrigger>
+            <TabsTrigger value="chat">Simple Chat</TabsTrigger>
           </TabsList>
           <TabsContent value="client">
             <p className="text-sm text-muted-foreground mb-4">
-              Using the OpenAI client directly with your API key
+              Using the OpenAI client directly with your API key (API key required)
             </p>
           </TabsContent>
-          <TabsContent value="proxy">
+          <TabsContent value="vercel">
             <p className="text-sm text-muted-foreground mb-4">
-              Using your Express proxy server (make sure it's running on localhost:3000)
+              Using our Vercel proxy server to avoid CORS issues (API key required)
             </p>
           </TabsContent>
           <TabsContent value="chat">
             <p className="text-sm text-muted-foreground mb-4">
-              Using the lovable.dev/api/chat endpoint for direct messaging
+              Using a simple chat endpoint that doesn't require an API key
             </p>
           </TabsContent>
         </Tabs>
