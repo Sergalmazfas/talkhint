@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,6 @@ import ListeningIndicator from '@/components/ListeningIndicator';
 import BilingualResponsePanel from '@/components/BilingualResponsePanel';
 import SpeechService from '@/services/SpeechService';
 import GPTService from '@/services/GPTService';
-import { BilingualService } from '@/services/gpt';
 import { PROXY_SERVERS } from '@/services/gpt/config/GPTServiceConfig';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
@@ -115,7 +113,7 @@ const PhoneCall = () => {
         toast.loading('Получение ответов...', { id: 'getting-responses' });
         
         try {
-          const bilingualResult = await BilingualService.getBilingualResponses(text);
+          const bilingualResult = await GPTService.getBilingualResponses(text);
           toast.dismiss('getting-responses');
           
           if (bilingualResult && bilingualResult.responses && bilingualResult.responses.length > 0) {

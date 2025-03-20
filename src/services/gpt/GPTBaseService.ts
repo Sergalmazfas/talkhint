@@ -22,23 +22,13 @@ import { GPTClientFactory } from './utils/GPTClientFactory';
 class GPTBaseService {
   protected config: GPTServiceConfig;
   protected requestService: GPTRequestService;
-  private connectionCheckCache: {
-    timestamp: number;
-    status: boolean;
-  } | null = null;
 
   constructor() {
     // Initialize with default config
     this.config = { ...DEFAULT_CONFIG };
     
-    // Always use server proxy
-    this.config.useServerProxy = true;
-    
     // Try to load settings from localStorage on initialization
     this.loadSettingsFromStorage();
-    
-    // Ensure server proxy is always on
-    this.config.useServerProxy = true;
     
     // Initialize the request service
     this.requestService = new GPTRequestService(this.config);
@@ -61,11 +51,11 @@ class GPTBaseService {
       GPTLogger.log(undefined, 'No API key found in storage');
     }
     
-    // Load response style
-    const responseStyle = loadResponseStyleFromStorage();
-    if (responseStyle) {
-      this.config.responseStyle = responseStyle;
-      GPTLogger.log(undefined, `Response style loaded from storage: ${responseStyle}`);
+    // Load proxy setting
+    const useServerProxy = loadUseServerProxyFromStorage();
+    if (useServerProxy !== null) {
+      this.config.useServerProxy = useServerProxy;
+      GPTLogger.log(undefined, `Server proxy setting loaded from storage: ${useServerProxy}`);
     }
     
     // Load server proxy URL
@@ -75,8 +65,12 @@ class GPTBaseService {
       GPTLogger.log(undefined, `Server proxy URL loaded from storage: ${serverProxyUrl}`);
     }
     
-    // We don't load the useServerProxy setting as we always want it to be true
-    GPTLogger.log(undefined, 'Server proxy enforced: always enabled');
+    // Load response style
+    const responseStyle = loadResponseStyleFromStorage();
+    if (responseStyle) {
+      this.config.responseStyle = responseStyle;
+      GPTLogger.log(undefined, `Response style loaded from storage: ${responseStyle}`);
+    }
   }
 
   /**
@@ -91,11 +85,10 @@ class GPTBaseService {
 
   /**
    * Get a configured OpenAI client instance
-   * Always returns null when server proxy is enforced
+   * Returns null if no API key is set
    */
   public getOpenAIClient(): OpenAI | null {
-    // When server proxy is enforced, we don't need an OpenAI client
-    return null;
+    return GPTClientFactory.createClient(this.config);
   }
 
   public setApiKey(key: string) {
@@ -107,10 +100,6 @@ class GPTBaseService {
     this.config.apiKey = key;
     saveApiKeyToStorage(key);
     this.requestService.updateConfig(this.config);
-    
-    // Reset connection check cache when API key changes
-    this.connectionCheckCache = null;
-    
     GPTLogger.log(undefined, 'API key set and saved to storage');
   }
 
@@ -129,15 +118,14 @@ class GPTBaseService {
   }
 
   public setUseServerProxy(use: boolean) {
-    // Always keep server proxy enabled regardless of the input
-    this.config.useServerProxy = true;
-    saveUseServerProxyToStorage(true);
+    this.config.useServerProxy = use;
+    saveUseServerProxyToStorage(use);
     this.requestService.updateConfig(this.config);
-    GPTLogger.log(undefined, `Server proxy usage enforced: always enabled`);
+    GPTLogger.log(undefined, `Server proxy usage set to: ${use}`);
   }
   
   public getUseServerProxy(): boolean {
-    return this.config.useServerProxy; // Always returns true
+    return this.config.useServerProxy;
   }
   
   /**
@@ -149,27 +137,10 @@ class GPTBaseService {
       return;
     }
     
-    // Reset connection check cache when proxy URL changes
-    this.connectionCheckCache = null;
-    
-    // Make sure URL has correct format (has protocol)
-    let formattedUrl = url.trim();
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-      // Default to https if no protocol specified
-      formattedUrl = 'https://' + formattedUrl;
-      GPTLogger.log(undefined, `Added HTTPS protocol to URL: ${formattedUrl}`);
-    }
-    
-    // Remove trailing slash if present
-    if (formattedUrl.endsWith('/')) {
-      formattedUrl = formattedUrl.slice(0, -1);
-      GPTLogger.log(undefined, `Removed trailing slash from URL: ${formattedUrl}`);
-    }
-    
-    this.config.serverProxyUrl = formattedUrl;
-    saveServerProxyUrlToStorage(formattedUrl);
+    this.config.serverProxyUrl = url;
+    saveServerProxyUrlToStorage(url);
     this.requestService.updateConfig(this.config);
-    GPTLogger.log(undefined, `Server proxy URL set to: ${formattedUrl}`);
+    GPTLogger.log(undefined, `Server proxy URL set to: ${url}`);
   }
   
   /**
@@ -191,83 +162,30 @@ class GPTBaseService {
     }
   }
 
-  /**
-   * Check connection to the API server
-   * Added caching to prevent too many requests
-   */
-  public async checkConnection(): Promise<boolean> {
-    const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
-    GPTLogger.log(requestId, 'Checking connection to API server');
+  public async checkApiConnection(): Promise<boolean> {
+    GPTLogger.log(undefined, 'Checking GPT API connection');
     
-    // Check cache first (valid for 30 seconds)
-    const CACHE_TTL = 30 * 1000; // 30 seconds
-    if (this.connectionCheckCache && 
-        (Date.now() - this.connectionCheckCache.timestamp) < CACHE_TTL) {
-      GPTLogger.log(requestId, `Using cached connection status: ${this.connectionCheckCache.status}`);
-      return this.connectionCheckCache.status;
+    // Always consider connection successful when using the proxy
+    if (this.config.useServerProxy) {
+      GPTLogger.log(undefined, 'Using proxy service - assuming connection is valid');
+      return true;
     }
     
+    // For direct connection, we need an API key
+    if (!this.config.apiKey) {
+      GPTLogger.error(undefined, 'Cannot check API connection: API key is missing');
+      return false;
+    }
+    
+    // Try direct connection with API key
     try {
-      // First try the health endpoint
-      const healthUrl = `${this.config.serverProxyUrl}/health`;
-      GPTLogger.log(requestId, `Testing health endpoint: ${healthUrl}`);
-      
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-        
-        const response = await fetch(healthUrl, {
-          method: 'GET',
-          headers: {
-            'Origin': window.location.origin,
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          },
-          mode: 'cors',
-          credentials: 'omit',
-          redirect: 'follow',
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (response.ok) {
-          const result = await response.json();
-          GPTLogger.log(requestId, `Health check succeeded: ${JSON.stringify(result)}`);
-          
-          this.connectionCheckCache = {
-            timestamp: Date.now(),
-            status: true
-          };
-          
-          return true;
-        }
-      } catch (healthError) {
-        GPTLogger.warn(requestId, `Health check failed: ${String(healthError)}`);
-        // Continue to API check even if health check fails
-      }
-      
-      // Use a minimalist test request as fallback
-      GPTLogger.log(requestId, 'Attempting API test request');
+      // Use a minimalist test request
       const testPrompt = [{ role: 'user', content: 'Test' }];
       const result = await this.callOpenAI(testPrompt, 0.1, 5);
-      
-      GPTLogger.log(requestId, 'API connection check successful');
-      
-      this.connectionCheckCache = {
-        timestamp: Date.now(),
-        status: !!result
-      };
-      
+      GPTLogger.log(undefined, 'API connection check successful');
       return !!result;
     } catch (error) {
-      GPTLogger.error(requestId, 'API connection check failed', error);
-      
-      this.connectionCheckCache = {
-        timestamp: Date.now(),
-        status: false
-      };
-      
+      GPTLogger.error(undefined, 'API connection check failed', error);
       return false;
     }
   }

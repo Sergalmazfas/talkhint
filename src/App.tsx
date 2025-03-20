@@ -8,20 +8,8 @@ import Index from "./pages/Index";
 import Translation from "./pages/Translation";
 import PhoneCall from "./pages/PhoneCall";
 import NotFound from "./pages/NotFound";
-import { Suspense, lazy } from "react";
 
-// Create a new QueryClient for React Query
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
-// Simple fallback for lazy-loaded components
-const LoadingFallback = () => <div className="p-8 text-center">Loading...</div>;
+const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -29,14 +17,12 @@ const App = () => (
       <Toaster />
       <Sonner position="top-center" />
       <BrowserRouter>
-        <Suspense fallback={<LoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/translation" element={<Translation />} />
-            <Route path="/phonecall" element={<PhoneCall />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/translation" element={<Translation />} />
+          <Route path="/phonecall" element={<PhoneCall />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

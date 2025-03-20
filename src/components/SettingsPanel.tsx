@@ -9,12 +9,10 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from '@/components/ui/dialog';
-import { QrCode, Share2, Server, InfoIcon } from 'lucide-react';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { QrCode, Share2 } from 'lucide-react';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
 import ApiSettingsQRCode from './ApiSettingsQRCode';
-import { PROXY_SERVERS } from '@/services/gpt/config/GPTServiceConfig';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -34,27 +32,18 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSettingsChange 
 }) => {
   const [apiKey, setApiKey] = useState('');
-  const [serverUrl, setServerUrl] = useState('');
-  const [selectedProxyServer, setSelectedProxyServer] = useState('VERCEL');
+  const [useProxy, setUseProxy] = useState(false);
+  const [serverUrl, setServerUrl] = useState('http://localhost:3000/chat');
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
   
-  const isProduction = window.location.hostname === 'lovable.dev';
-  
+  // Load settings when opening
   useEffect(() => {
     if (isOpen) {
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
-      
-      const currentProxyUrl = GPTService.getServerProxyUrl();
-      const proxyEntries = Object.entries(PROXY_SERVERS);
-      const foundProxy = proxyEntries.find(([_, url]) => url === currentProxyUrl);
-      if (foundProxy) {
-        setSelectedProxyServer(foundProxy[0]);
-      }
-      
-      setServerUrl(currentProxyUrl);
+      setUseProxy(GPTService.getUseServerProxy());
       checkApiConnection();
     }
   }, [isOpen]);
@@ -70,39 +59,41 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       setConnectionStatus(connected);
       
       if (connected) {
-        toast.success('Connection to server successful');
+        toast.success('Подключение к OpenAI API успешно');
       } else {
-        toast.error('Failed to connect to server');
+        if (!GPTService.getApiKey() && !useProxy) {
+          toast.error('API ключ необходим для подключения к OpenAI API');
+        } else {
+          toast.error('Не удалось подключиться к OpenAI API');
+        }
       }
     } catch (error) {
       setConnectionStatus(false);
-      toast.error('Error checking connection');
+      toast.error('Ошибка при проверке подключения');
       console.error('Connection check error:', error);
     } finally {
       setCheckingConnection(false);
     }
   };
 
-  const handleProxyServerChange = (serverKey: string) => {
-    setSelectedProxyServer(serverKey);
-    const newUrl = PROXY_SERVERS[serverKey as keyof typeof PROXY_SERVERS] || '';
-    setServerUrl(newUrl);
-  };
-
   const handleSave = () => {
+    // Update proxy settings
+    GPTService.setUseServerProxy(useProxy);
+    
+    // Set API key if provided
     if (apiKey.trim()) {
       GPTService.setApiKey(apiKey.trim());
-      toast.success('API key saved');
+      toast.success('API ключ сохранен');
+    } else if (!useProxy) {
+      // Warn if no key is provided for direct connection
+      toast.warning('API ключ необходим для прямых запросов к OpenAI');
     }
     
-    if (serverUrl) {
-      GPTService.setServerProxyUrl(serverUrl);
-      toast.success('Server URL saved');
-    }
-    
+    // Set response style
     GPTService.setResponseStyle(settings.responseStyle);
-    toast.success('Settings saved');
+    toast.success('Настройки сохранены');
     
+    // Check connection with new settings
     checkApiConnection();
     
     onClose();
@@ -125,19 +116,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       >
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold">Settings</h2>
+            <h2 className="text-xl font-semibold">Настройки</h2>
             <div className="flex">
-              <Button variant="ghost" size="icon" onClick={() => setShowQRCodeDialog(true)}>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Share2 size={18} />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      Share settings
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+              <Button variant="ghost" size="icon" onClick={() => setShowQRCodeDialog(true)} title="Поделиться настройками">
+                <Share2 size={18} />
               </Button>
               <Button variant="ghost" size="icon" onClick={onClose}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -153,68 +135,33 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <Alert variant={connectionStatus ? "default" : "destructive"} className={connectionStatus ? "bg-green-50 border-green-200" : ""}>
                 <AlertDescription>
                   {connectionStatus 
-                    ? "✅ Connection to server successful" 
-                    : "❌ Problem connecting to server"}
+                    ? "✅ Подключение к OpenAI API успешно установлено" 
+                    : "❌ Проблема с подключением к OpenAI API"}
                 </AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Server className="h-4 w-4 text-blue-500" />
-                  <Label className="text-sm text-foreground/80">
-                    Using server proxy (always enabled)
-                  </Label>
-                </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      All requests are routed through a proxy server
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Label htmlFor="useProxy" className="text-sm text-foreground/80">
+                  Использовать CORS Anywhere прокси
+                </Label>
+                <Switch
+                  id="useProxy"
+                  checked={useProxy}
+                  onCheckedChange={setUseProxy}
+                />
               </div>
               <p className="text-xs text-muted-foreground">
-                All requests are sent through a proxy server to solve CORS issues
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              <Label htmlFor="proxyServer" className="text-sm text-foreground/80">
-                Select proxy server
-              </Label>
-              <Select value={selectedProxyServer} onValueChange={handleProxyServerChange}>
-                <SelectTrigger id="proxyServer">
-                  <SelectValue placeholder="Select proxy server" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="VERCEL">Vercel (recommended)</SelectItem>
-                  <SelectItem value="CORS_ANYWHERE">CORS Anywhere</SelectItem>
-                  <SelectItem value="ALLORIGINS">All Origins</SelectItem>
-                  <SelectItem value="CORSPROXY">CORS Proxy.io</SelectItem>
-                  <SelectItem value="THINGPROXY">Thing Proxy</SelectItem>
-                  {!isProduction && <SelectItem value="LOCAL">Local server (localhost:3000)</SelectItem>}
-                </SelectContent>
-              </Select>
-              <Input
-                type="text"
-                value={serverUrl}
-                onChange={(e) => setServerUrl(e.target.value)}
-                placeholder="Proxy server URL"
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground">
-                Proxy server URL for bypassing CORS restrictions
+                {useProxy 
+                  ? "Запросы отправляются через CORS Anywhere прокси, решающий проблемы с CORS" 
+                  : "Запросы отправляются напрямую с использованием вашего API ключа"}
               </p>
             </div>
 
             <div className="space-y-3">
               <Label htmlFor="apiKey" className="text-sm text-foreground/80">
-                OpenAI API Key (optional)
+                OpenAI API Key {!useProxy && <span className="text-red-500">*</span>}
               </Label>
               <Input
                 id="apiKey"
@@ -225,7 +172,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                API key is used for requests through the proxy; if not provided, the server key is used
+                {useProxy 
+                  ? "API ключ требуется для запросов через CORS Anywhere прокси" 
+                  : "API ключ обязателен для прямого подключения к OpenAI API"}
               </p>
             </div>
 
@@ -235,12 +184,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               className="w-full"
               disabled={checkingConnection}
             >
-              {checkingConnection ? "Checking..." : "Test Connection"}
+              {checkingConnection ? "Проверка..." : "Проверить подключение"}
             </Button>
 
             <div className="space-y-3">
               <Label htmlFor="sensitivity" className="text-sm text-foreground/80">
-                Microphone sensitivity
+                Чувствительность микрофона
               </Label>
               <Slider
                 id="sensitivity"
@@ -252,34 +201,34 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="py-2"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Low</span>
-                <span>High</span>
+                <span>Низкая</span>
+                <span>Высокая</span>
               </div>
             </div>
 
             <div className="space-y-3">
               <Label htmlFor="responseStyle" className="text-sm text-foreground/80">
-                Response style
+                Стиль ответов
               </Label>
               <Select
                 value={settings.responseStyle}
                 onValueChange={(value) => onSettingsChange('responseStyle', value)}
               >
                 <SelectTrigger id="responseStyle" className="w-full">
-                  <SelectValue placeholder="Select style" />
+                  <SelectValue placeholder="Выберите стиль" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="casual">Casual</SelectItem>
-                  <SelectItem value="formal">Formal</SelectItem>
-                  <SelectItem value="friendly">Friendly</SelectItem>
-                  <SelectItem value="professional">Professional</SelectItem>
+                  <SelectItem value="casual">Повседневный</SelectItem>
+                  <SelectItem value="formal">Формальный</SelectItem>
+                  <SelectItem value="friendly">Дружелюбный</SelectItem>
+                  <SelectItem value="professional">Профессиональный</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="flex items-center justify-between">
               <Label htmlFor="autoActivate" className="text-sm text-foreground/80">
-                Auto-activate during calls
+                Автоактивация во время звонков
               </Label>
               <Switch
                 id="autoActivate"
@@ -292,7 +241,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         
         <div className="p-4 border-t border-border">
           <Button className="w-full" onClick={handleSave}>
-            Save
+            Сохранить
           </Button>
         </div>
       </motion.div>
@@ -300,7 +249,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       <Dialog open={showQRCodeDialog} onOpenChange={setShowQRCodeDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Share Settings</DialogTitle>
+            <DialogTitle>Поделиться настройками</DialogTitle>
           </DialogHeader>
           <ApiSettingsQRCode onClose={() => setShowQRCodeDialog(false)} />
         </DialogContent>

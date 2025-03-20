@@ -8,7 +8,6 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeftRight, Copy, Settings } from 'lucide-react';
 import GPTService from '@/services/GPTService';
-import { TranslationService } from '@/services/gpt';
 
 const Translation = () => {
   const [inputText, setInputText] = useState('');
@@ -30,7 +29,7 @@ const Translation = () => {
 
     setIsTranslating(true);
     try {
-      const response = await TranslationService.getTranslation(
+      const response = await GPTService.getTranslation(
         inputText,
         sourceLanguage,
         targetLanguage
