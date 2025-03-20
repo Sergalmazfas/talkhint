@@ -1,4 +1,3 @@
-
 import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
 
 /**
@@ -71,3 +70,12 @@ export function isSafeMessageOrigin(window: Window, messageOrigin: string): bool
 // Add compatibility function for the older API that was referenced in index.ts
 export const isOriginAllowed = isSafeMessageOrigin;
 
+/**
+ * Проверяет, разрешен ли указанный origin для данного окна
+ * @param window Текущее окно
+ * @param originToCheck Origin для проверки
+ * @returns true если origin разрешен
+ */
+export function isOriginAllowed(window: Window, originToCheck: string): boolean {
+  return isSafeMessageOrigin(window, originToCheck);
+}

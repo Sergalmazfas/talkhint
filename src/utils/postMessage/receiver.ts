@@ -113,7 +113,8 @@ export function getMessageReceiver(window: Window = globalThis.window): SafeMess
 }
 
 /**
- * For backward compatibility with code that uses the old API
+ * Для обратной совместимости с кодом, использующим старый API.
+ * Создаёт обработчик сообщений, совместимый с типом (event: MessageEvent) => void
  */
 export function setupMessageListener(
   handler: (event: MessageEvent) => void,
@@ -129,7 +130,8 @@ export function setupMessageListener(
 }
 
 /**
- * For backward compatibility with code that uses the old API
+ * Для обратной совместимости с кодом, использующим старый API.
+ * Проверяет, является ли источник сообщения безопасным.
  */
 export function handleSafePostMessage(event: MessageEvent, window: Window = globalThis.window): boolean {
   const isAllowed = BYPASS_ORIGIN_CHECK || isSafeMessageOrigin(window, event.origin);
