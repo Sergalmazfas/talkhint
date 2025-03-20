@@ -89,8 +89,8 @@ export class GPTRequestService {
         let response;
         
         if (this.config.useServerProxy) {
-          // Using proxy server
-          response = await this.makeServerProxyRequest(requestId, requestPayload);
+          // Using CORS Anywhere proxy server
+          response = await this.makeCorsAnywhereRequest(requestId, requestPayload);
         } else {
           // Direct API access with OpenAI SDK
           response = await this.makeDirectOpenAIRequest(requestId, messages, temperature, maxTokens, n);
@@ -131,10 +131,10 @@ export class GPTRequestService {
   }
 
   /**
-   * Make a request using the server proxy
+   * Make a request using the CORS Anywhere proxy
    */
-  private async makeServerProxyRequest(requestId: string, requestPayload: any): Promise<any> {
-    GPTLogger.log(requestId, `Making request to proxy server: ${this.config.serverProxyUrl}`);
+  private async makeCorsAnywhereRequest(requestId: string, requestPayload: any): Promise<any> {
+    GPTLogger.log(requestId, `Making request to CORS Anywhere proxy: ${this.config.serverProxyUrl}`);
     
     // Create a controller for timeout handling
     const controller = new AbortController();
@@ -144,16 +144,21 @@ export class GPTRequestService {
     }, this.config.timeoutMs);
     
     try {
-      // When using the server proxy, we don't need to send the API key in the Authorization header
-      // The server will use its own API key from the environment
-      const response = await fetch(this.config.serverProxyUrl, {
+      // When using CORS Anywhere proxy, we need to add the API key as Authorization header
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add API key if available
+      if (this.config.apiKey) {
+        headers['Authorization'] = `Bearer ${this.config.apiKey}`;
+      }
+      
+      const response = await fetch(`${this.config.serverProxyUrl}/chat/completions`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
-        mode: 'cors', // Ensure CORS is enabled
       });
       
       clearTimeout(timeoutId);

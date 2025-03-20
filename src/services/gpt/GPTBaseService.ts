@@ -92,24 +92,28 @@ class GPTBaseService {
   }
 
   public async checkApiConnection(): Promise<boolean> {
-    // If using proxy server, we only need to make sure the server is reachable
+    // If using CORS Anywhere proxy, we need to check differently
     if (this.config.useServerProxy) {
       try {
-        // Send a simple ping to the proxy server
-        const pingUrl = this.config.serverProxyUrl.includes('/openai-proxy') 
-          ? this.config.serverProxyUrl.replace('/openai-proxy', '/ping') 
-          : this.config.serverProxyUrl.replace('/chat', '/ping');
-          
-        const response = await fetch(pingUrl, {
+        GPTLogger.log(undefined, 'Testing connection to CORS Anywhere proxy');
+        
+        // For CORS Anywhere, make a simple request to test the connection
+        const testUrl = this.config.serverProxyUrl;
+        const response = await fetch(`${testUrl}/models`, {
           method: 'GET',
-          mode: 'cors',
+          headers: {
+            'Authorization': `Bearer ${this.config.apiKey || 'sk-test'}` // Send a test API key if none is set
+          }
         }).catch(() => null);
         
         if (response && response.ok) {
+          GPTLogger.log(undefined, 'Connection to CORS Anywhere proxy successful');
           return true;
         }
+        
+        GPTLogger.warn(undefined, 'Connection to CORS Anywhere proxy failed');
       } catch (error) {
-        GPTLogger.warn(undefined, 'Server proxy ping failed, falling back to API test');
+        GPTLogger.warn(undefined, 'CORS Anywhere proxy test failed:', error);
         // Fall through to API test
       }
     }
