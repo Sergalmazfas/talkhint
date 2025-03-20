@@ -67,3 +67,7 @@ export function isSafeMessageOrigin(window: Window, messageOrigin: string): bool
     return false;
   }
 }
+
+// Add compatibility function for the older API that was referenced in index.ts
+export const isOriginAllowed = isSafeMessageOrigin;
+

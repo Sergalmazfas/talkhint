@@ -15,3 +15,4 @@ export const isDevelopmentMode = (window: Window): boolean => {
 
 // Флаг для байпаса проверки origin для отладки
 export const BYPASS_ORIGIN_CHECK = true;
+

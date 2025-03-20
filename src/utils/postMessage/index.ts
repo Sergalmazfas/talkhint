@@ -5,8 +5,8 @@ export {
 } from './sender';
 
 export { 
-  handleSafePostMessage,
-  setupMessageListener 
+  getMessageReceiver,
+  SafeMessageReceiver
 } from './receiver';
 
 export { 
@@ -20,7 +20,7 @@ export {
 } from './constants';
 
 export {
-  isOriginAllowed,
-  isSafeTargetOrigin
+  isSafeTargetOrigin,
+  isSafeMessageOrigin
 } from './validators';
 
