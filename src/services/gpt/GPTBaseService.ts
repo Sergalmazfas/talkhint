@@ -1,4 +1,3 @@
-
 import OpenAI from "openai";
 import { 
   GPTServiceConfig, 
@@ -27,8 +26,14 @@ class GPTBaseService {
     // Initialize with default config
     this.config = { ...DEFAULT_CONFIG };
     
+    // Always use server proxy
+    this.config.useServerProxy = true;
+    
     // Try to load settings from localStorage on initialization
     this.loadSettingsFromStorage();
+    
+    // Ensure server proxy is always on
+    this.config.useServerProxy = true;
     
     // Initialize the request service
     this.requestService = new GPTRequestService(this.config);
@@ -51,11 +56,11 @@ class GPTBaseService {
       GPTLogger.log(undefined, 'No API key found in storage');
     }
     
-    // Load proxy setting
-    const useServerProxy = loadUseServerProxyFromStorage();
-    if (useServerProxy !== null) {
-      this.config.useServerProxy = useServerProxy;
-      GPTLogger.log(undefined, `Server proxy setting loaded from storage: ${useServerProxy}`);
+    // Load response style
+    const responseStyle = loadResponseStyleFromStorage();
+    if (responseStyle) {
+      this.config.responseStyle = responseStyle;
+      GPTLogger.log(undefined, `Response style loaded from storage: ${responseStyle}`);
     }
     
     // Load server proxy URL
@@ -65,12 +70,8 @@ class GPTBaseService {
       GPTLogger.log(undefined, `Server proxy URL loaded from storage: ${serverProxyUrl}`);
     }
     
-    // Load response style
-    const responseStyle = loadResponseStyleFromStorage();
-    if (responseStyle) {
-      this.config.responseStyle = responseStyle;
-      GPTLogger.log(undefined, `Response style loaded from storage: ${responseStyle}`);
-    }
+    // We don't load the useServerProxy setting as we always want it to be true
+    GPTLogger.log(undefined, 'Server proxy enforced: always enabled');
   }
 
   /**
@@ -118,14 +119,15 @@ class GPTBaseService {
   }
 
   public setUseServerProxy(use: boolean) {
-    this.config.useServerProxy = use;
-    saveUseServerProxyToStorage(use);
+    // Always keep server proxy enabled regardless of the input
+    this.config.useServerProxy = true;
+    saveUseServerProxyToStorage(true);
     this.requestService.updateConfig(this.config);
-    GPTLogger.log(undefined, `Server proxy usage set to: ${use}`);
+    GPTLogger.log(undefined, `Server proxy usage enforced: always enabled`);
   }
   
   public getUseServerProxy(): boolean {
-    return this.config.useServerProxy;
+    return this.config.useServerProxy; // Always returns true
   }
   
   /**
@@ -165,19 +167,7 @@ class GPTBaseService {
   public async checkApiConnection(): Promise<boolean> {
     GPTLogger.log(undefined, 'Checking GPT API connection');
     
-    // Always consider connection successful when using the proxy
-    if (this.config.useServerProxy) {
-      GPTLogger.log(undefined, 'Using proxy service - assuming connection is valid');
-      return true;
-    }
-    
-    // For direct connection, we need an API key
-    if (!this.config.apiKey) {
-      GPTLogger.error(undefined, 'Cannot check API connection: API key is missing');
-      return false;
-    }
-    
-    // Try direct connection with API key
+    // Always try through proxy
     try {
       // Use a minimalist test request
       const testPrompt = [{ role: 'user', content: 'Test' }];

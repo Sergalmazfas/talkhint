@@ -19,7 +19,7 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
   responseStyle: 'casual',
   // Using Vercel-hosted server proxy as default
   serverProxyUrl: 'https://lovable-server.vercel.app', 
-  useServerProxy: true, // Using server proxy by default
+  useServerProxy: true, // Always using server proxy
   maxRetries: 3,
   timeoutMs: 60000,
 };

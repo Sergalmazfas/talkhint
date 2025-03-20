@@ -16,7 +16,7 @@ const DirectOpenAIExample = () => {
   const [response, setResponse] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [method, setMethod] = useState<'client' | 'proxy' | 'chat'>('client');
+  const [method, setMethod] = useState<'proxy' | 'chat'>('proxy');
   const [messages, setMessages] = useState<any[]>([]);
   const [testResults, setTestResults] = useState<Record<string, boolean> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -88,27 +88,6 @@ const DirectOpenAIExample = () => {
         // Use the chat API
         const result = await GPTService.sendChatMessage(prompt);
         setResponse(JSON.stringify(result, null, 2));
-      } else if (method === 'client') {
-        // Direct OpenAI client method
-        const client = GPTService.getOpenAIClient();
-        
-        if (!client) {
-          setError('OpenAI client not available. Please set your API key in Settings.');
-          setLoading(false);
-          return;
-        }
-
-        const completion = await client.chat.completions.create({
-          model: "gpt-4o-mini", // Using smaller model for efficiency
-          messages: [{
-            role: "user",
-            content: prompt,
-          }],
-          temperature: 0.7,
-          max_tokens: 150,
-        });
-
-        setResponse(completion.choices[0].message.content || 'No response received');
       } else {
         // Proxy server method
         const serverUrl = getServerUrl();
@@ -210,7 +189,7 @@ const DirectOpenAIExample = () => {
       <CardHeader>
         <CardTitle>API Example</CardTitle>
         <CardDescription>
-          Отправка сообщений через различные методы API
+          Отправка сообщений через сервер
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -222,17 +201,11 @@ const DirectOpenAIExample = () => {
           </Alert>
         )}
         
-        <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'proxy' | 'chat')}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="client">OpenAI Client</TabsTrigger>
+        <Tabs value={method} onValueChange={(v) => setMethod(v as 'proxy' | 'chat')}>
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="proxy">Прокси-сервер</TabsTrigger>
             <TabsTrigger value="chat">Lovable API</TabsTrigger>
           </TabsList>
-          <TabsContent value="client">
-            <p className="text-sm text-muted-foreground mb-4">
-              Прямое использование OpenAI API с вашим ключом API
-            </p>
-          </TabsContent>
           <TabsContent value="proxy">
             <p className="text-sm text-muted-foreground mb-4">
               Использование прокси-сервера: {getServerUrl()}

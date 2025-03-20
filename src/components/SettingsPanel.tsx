@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Slider } from '@/components/ui/slider';
@@ -32,7 +33,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSettingsChange 
 }) => {
   const [apiKey, setApiKey] = useState('');
-  const [useProxy, setUseProxy] = useState(false);
   const [serverUrl, setServerUrl] = useState('');
   const [selectedProxyServer, setSelectedProxyServer] = useState('VERCEL');
   const [checkingConnection, setCheckingConnection] = useState(false);
@@ -45,7 +45,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     if (isOpen) {
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
-      setUseProxy(GPTService.getUseServerProxy());
       
       const currentProxyUrl = GPTService.getServerProxyUrl();
       const proxyEntries = Object.entries(PROXY_SERVERS);
@@ -70,13 +69,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       setConnectionStatus(connected);
       
       if (connected) {
-        toast.success('Подключение к OpenAI API успешно');
+        toast.success('Подключение к серверу успешно');
       } else {
-        if (!GPTService.getApiKey() && !useProxy) {
-          toast.error('API ключ необходим для подключения к OpenAI API');
-        } else {
-          toast.error('Не удалось подключиться к OpenAI API');
-        }
+        toast.error('Не удалось подключиться к серверу');
       }
     } catch (error) {
       setConnectionStatus(false);
@@ -94,13 +89,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const handleSave = () => {
-    GPTService.setUseServerProxy(useProxy);
-    
     if (apiKey.trim()) {
       GPTService.setApiKey(apiKey.trim());
       toast.success('API ключ сохранен');
-    } else if (!useProxy) {
-      toast.warning('API ключ необходим для прямых запросов к OpenAI');
     }
     
     if (serverUrl) {
@@ -152,65 +143,58 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <Alert variant={connectionStatus ? "default" : "destructive"} className={connectionStatus ? "bg-green-50 border-green-200" : ""}>
                 <AlertDescription>
                   {connectionStatus 
-                    ? "✅ Подключение к OpenAI API успешно установлено" 
-                    : "❌ Проблема с подключением к OpenAI API"}
+                    ? "✅ Подключение к серверу успешно установлено" 
+                    : "❌ Проблема с подключением к серверу"}
                 </AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label htmlFor="useProxy" className="text-sm text-foreground/80">
-                  Использовать прокси-сервер
-                </Label>
-                <Switch
-                  id="useProxy"
-                  checked={useProxy}
-                  onCheckedChange={setUseProxy}
-                />
+                <div className="flex items-center space-x-2">
+                  <Server className="h-4 w-4 text-blue-500" />
+                  <Label className="text-sm text-foreground/80">
+                    Работа через прокси-сервер (всегда включено)
+                  </Label>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                {useProxy 
-                  ? "Запросы отправляются через прокси-сервер, решающий проблемы с CORS" 
-                  : "Запросы отправляются напрямую с использованием вашего API ключа"}
+                Все запросы отправляются через прокси-сервер, решающий проблемы с CORS
               </p>
             </div>
 
-            {useProxy && (
-              <div className="space-y-3">
-                <Label htmlFor="proxyServer" className="text-sm text-foreground/80">
-                  Выберите прокси-сервер
-                </Label>
-                <Select value={selectedProxyServer} onValueChange={handleProxyServerChange}>
-                  <SelectTrigger id="proxyServer">
-                    <SelectValue placeholder="Выберите прокси-сервер" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="VERCEL">Vercel (рекомендуется)</SelectItem>
-                    <SelectItem value="CORS_ANYWHERE">CORS Anywhere</SelectItem>
-                    <SelectItem value="ALLORIGINS">All Origins</SelectItem>
-                    <SelectItem value="CORSPROXY">CORS Proxy.io</SelectItem>
-                    <SelectItem value="THINGPROXY">Thing Proxy</SelectItem>
-                    {!isProduction && <SelectItem value="LOCAL">Локальный сервер (localhost:3000)</SelectItem>}
-                    <SelectItem value="DIRECT">Прямое подключение (без прокси)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="text"
-                  value={serverUrl}
-                  onChange={(e) => setServerUrl(e.target.value)}
-                  placeholder="URL прокси-сервера"
-                  className="font-mono text-xs"
-                />
-                <p className="text-xs text-muted-foreground">
-                  URL прокси-сервера для обхода CORS-ограничений
-                </p>
-              </div>
-            )}
+            <div className="space-y-3">
+              <Label htmlFor="proxyServer" className="text-sm text-foreground/80">
+                Выберите прокси-сервер
+              </Label>
+              <Select value={selectedProxyServer} onValueChange={handleProxyServerChange}>
+                <SelectTrigger id="proxyServer">
+                  <SelectValue placeholder="Выберите прокси-сервер" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="VERCEL">Vercel (рекомендуется)</SelectItem>
+                  <SelectItem value="CORS_ANYWHERE">CORS Anywhere</SelectItem>
+                  <SelectItem value="ALLORIGINS">All Origins</SelectItem>
+                  <SelectItem value="CORSPROXY">CORS Proxy.io</SelectItem>
+                  <SelectItem value="THINGPROXY">Thing Proxy</SelectItem>
+                  {!isProduction && <SelectItem value="LOCAL">Локальный сервер (localhost:3000)</SelectItem>}
+                </SelectContent>
+              </Select>
+              <Input
+                type="text"
+                value={serverUrl}
+                onChange={(e) => setServerUrl(e.target.value)}
+                placeholder="URL прокси-сервера"
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground">
+                URL прокси-сервера для обхода CORS-ограничений
+              </p>
+            </div>
 
             <div className="space-y-3">
               <Label htmlFor="apiKey" className="text-sm text-foreground/80">
-                OpenAI API Key {!useProxy && <span className="text-red-500">*</span>}
+                OpenAI API Key (опционально)
               </Label>
               <Input
                 id="apiKey"
@@ -221,9 +205,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 className="font-mono text-xs"
               />
               <p className="text-xs text-muted-foreground">
-                {useProxy 
-                  ? "API ключ требуется для запросов через прокси" 
-                  : "API ключ обязателен для прямого подключения к OpenAI API"}
+                API ключ используется для запросов через прокси, если не указан - используется серверный ключ
               </p>
             </div>
 
