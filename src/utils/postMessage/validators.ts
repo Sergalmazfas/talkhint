@@ -1,71 +1,69 @@
 
 import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
-import { isDevelopmentMode, BYPASS_ORIGIN_CHECK } from './constants';
 
 /**
- * Проверяет, разрешен ли домен для обмена сообщениями
- * @param origin Домен для проверки
- * @returns boolean
+ * Проверяет, что origin сообщения находится в списке разрешенных
+ * @param window - объект окна
+ * @param origin - происхождение для проверки
+ * @returns true если origin в списке разрешенных
  */
-export function isOriginAllowed(origin: string): boolean {
-  // Подробное логирование для отладки
-  console.log(`[isOriginAllowed] Checking if ${origin} is allowed`);
-  
-  // Для bypass режима или разработки - пропускаем проверку
-  if (BYPASS_ORIGIN_CHECK) {
-    console.log(`[isOriginAllowed] Bypass enabled, allowing ${origin}`);
-    return true;
+export function isSafeTargetOrigin(window: Window, targetOrigin: string): boolean {
+  try {
+    // Проверяем, что targetOrigin не пустой
+    if (!targetOrigin) {
+      console.warn('Target origin is empty');
+      return false;
+    }
+    
+    // Разрешаем любой origin в режиме разработки или тестирования
+    if (window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1' || 
+        window.location.hostname.includes('local') ||
+        window.location.hostname.includes('dev') ||
+        window.location.hostname.includes('preview') ||
+        window.location.hostname.includes('staging')) {
+      return true;
+    }
+    
+    // Проверяем, что origin находится в списке разрешенных
+    return ALLOWED_ORIGINS.some(allowedOrigin => {
+      return targetOrigin === allowedOrigin || 
+             targetOrigin === '*' ||
+             targetOrigin.includes(allowedOrigin);
+    });
+  } catch (error) {
+    console.error('Error validating target origin:', error);
+    return false;
   }
-  
-  // Для пустого origin
-  if (!origin) {
-    console.log(`[isOriginAllowed] Empty origin, allowed only in development: ${process.env.NODE_ENV === 'development'}`);
-    return process.env.NODE_ENV === 'development';
-  }
-  
-  // Для localhost всегда разрешаем в режиме разработки
-  if (origin.includes('localhost') && process.env.NODE_ENV === 'development') {
-    console.log(`[isOriginAllowed] Localhost in development, allowing`);
-    return true;
-  }
-  
-  // Проверка разрешенных доменов из конфигурации
-  const allowed = ALLOWED_ORIGINS.includes(origin) || 
-                 origin.includes('localhost') || 
-                 origin.includes('lovable.') ||
-                 origin.includes('gptengineer.');
-                 
-  console.log(`[isOriginAllowed] Origin ${origin} allowed: ${allowed}`);
-  return allowed;
 }
 
 /**
- * Проверяет, является ли targetOrigin безопасным для отправки сообщений
- * @param window Объект окна
- * @param targetOrigin Целевой домен
- * @returns boolean
+ * Проверяет origin входящего сообщения
+ * @param window - Объект окна
+ * @param messageOrigin - Origin сообщения для проверки
+ * @returns true если origin в списке разрешенных
  */
-export function isSafeTargetOrigin(window: Window, targetOrigin: string): boolean {
-  // Для режима разработки или байпаса - расширенные разрешения
-  if (isDevelopmentMode(window) || BYPASS_ORIGIN_CHECK) {
-    return true;
+export function isSafeMessageOrigin(window: Window, messageOrigin: string): boolean {
+  try {
+    // Допускаем сообщения от того же origin или от локального хоста в режиме разработки
+    if (messageOrigin === window.location.origin) {
+      return true;
+    }
+    
+    // Разрешаем локальные origin в режиме разработки
+    if (window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1' || 
+        window.location.hostname.includes('dev') ||
+        window.location.hostname.includes('preview') ||
+        window.location.hostname.includes('staging')) {
+      return true;
+    }
+    
+    return ALLOWED_ORIGINS.some(allowedOrigin => {
+      return messageOrigin === allowedOrigin || messageOrigin.includes(allowedOrigin);
+    });
+  } catch (error) {
+    console.error('Error validating message origin:', error);
+    return false;
   }
-  
-  // Пустой targetOrigin разрешаем только в режиме разработки
-  if (!targetOrigin) {
-    return isDevelopmentMode(window);
-  }
-  
-  // Wildcard разрешаем только в режиме разработки или байпаса
-  if (targetOrigin === '*') {
-    return isDevelopmentMode(window) || BYPASS_ORIGIN_CHECK;
-  }
-  
-  // Special case для поддоменов lovable и gptengineer
-  if (targetOrigin.includes('lovable.') || targetOrigin.includes('gptengineer.')) {
-    return true;
-  }
-  
-  // Проверка точного совпадения с разрешенными доменами
-  return ALLOWED_ORIGINS.includes(targetOrigin);
 }

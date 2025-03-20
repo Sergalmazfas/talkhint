@@ -1,18 +1,17 @@
 
-import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
-
 /**
- * Определяет, работает ли приложение в режиме разработки
- * @param window Объект окна
- * @returns boolean
+ * Константы для системы postMessage
  */
-export function isDevelopmentMode(window: Window): boolean {
-  return process.env.NODE_ENV === 'development' || 
-         window.location.hostname === 'localhost';
-}
 
-/**
- * Временный флаг для обхода проверки доменов (для тестирования)
- * Установите в false для продакшена
- */
+// Режим разработки по умолчанию определяется по URL
+export const isDevelopmentMode = (window: Window): boolean => {
+  return window.location.hostname === 'localhost' || 
+         window.location.hostname === '127.0.0.1' || 
+         window.location.hostname.includes('local') ||
+         window.location.hostname.includes('dev') ||
+         window.location.hostname.includes('preview') ||
+         window.location.hostname.includes('staging');
+};
+
+// Флаг для байпаса проверки origin для отладки
 export const BYPASS_ORIGIN_CHECK = true;
