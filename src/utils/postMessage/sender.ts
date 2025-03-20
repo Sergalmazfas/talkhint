@@ -8,17 +8,17 @@ let messageCounter = 0;
 const MAX_MESSAGES_PER_SECOND = 30;
 const messageTimestamps: number[] = [];
 
-// Кэш для отслеживания недавно отправленных сообщений
+// Cache for tracking recently sent messages
 const recentlySentMessages = new Set<string>();
 const MAX_RECENT_MESSAGES = 100;
 
 /**
- * Безопасная отправка сообщений с проверкой разрешенных доменов
- * @param window Объект окна
- * @param targetWindow Целевое окно (например, iframe.contentWindow)
- * @param message Сообщение для отправки
- * @param targetOrigin Целевой домен
- * @returns true если сообщение было отправлено, false если целевой домен не разрешен
+ * Safe message sending with allowed domain checks
+ * @param window Window object
+ * @param targetWindow Target window (e.g., iframe.contentWindow)
+ * @param message Message to send
+ * @param targetOrigin Target domain
+ * @returns true if message was sent, false if target domain not allowed
  */
 export function safePostMessage(
   window: Window,
@@ -31,57 +31,57 @@ export function safePostMessage(
     return false;
   }
 
-  // Проверка, не отправляем ли мы сообщение самим себе
+  // Check if we're sending a message to ourselves
   if (targetWindow === window) {
     console.warn('[safePostMessage] Trying to send message to self, aborting');
     return false;
   }
 
-  // Защита от отправки одинаковых сообщений несколько раз подряд
+  // Prevent sending the same message multiple times in a row
   const messageKey = `${targetOrigin}:${safeStringify(message)}`;
   if (recentlySentMessages.has(messageKey)) {
     console.warn('[safePostMessage] Duplicate message detected, skipping to prevent loops');
     return false;
   }
   
-  // Добавляем сообщение в кэш отправленных
+  // Add message to sent cache
   recentlySentMessages.add(messageKey);
   
-  // Ограничиваем размер кэша
+  // Limit cache size
   if (recentlySentMessages.size > MAX_RECENT_MESSAGES) {
     const iterator = recentlySentMessages.values();
     recentlySentMessages.delete(iterator.next().value);
   }
 
-  // Проверка лимита сообщений для предотвращения зацикливания
+  // Message rate limiting to prevent loops
   const now = Date.now();
   messageTimestamps.push(now);
   
-  // Удаляем старые временные метки (старше 1 секунды)
+  // Remove old timestamps (older than 1 second)
   while (messageTimestamps.length > 0 && messageTimestamps[0] < now - 1000) {
     messageTimestamps.shift();
   }
   
-  // Проверяем, не превышен ли лимит сообщений
+  // Check message rate
   if (messageTimestamps.length > MAX_MESSAGES_PER_SECOND) {
     console.error(`[safePostMessage] Too many messages (${messageTimestamps.length}) in the last second. Potential infinite loop detected.`);
     return false;
   }
   
-  // Определяем режим - разработка или продакшн
+  // Determine mode - development or production
   const isDevelopment = isDevelopmentMode(window);
   
-  // Если targetWindow это то же самое окно или iframe без контентного окна
+  // If targetWindow is the same window or an iframe without a content window
   if (targetWindow === window || !targetWindow.postMessage) {
     console.warn('[safePostMessage] Target window is the same as source or invalid');
     return false;
   }
 
-  // Подробное логирование для отладки
+  // Detailed logging for debugging
   console.log(`[safePostMessage] Attempting to send message to ${targetOrigin || 'unknown'}`);
   console.log(`[safePostMessage] Current origin: ${window.location.origin}`);
 
-  // Обогащаем сообщение отладочной информацией
+  // Enrich message with debug info
   const enrichedMessage = {
     ...message,
     _source: window.location.origin,
@@ -90,21 +90,21 @@ export function safePostMessage(
   };
 
   try {
-    // Для локальной разработки - используем '*' для простоты тестирования
+    // For local development - use '*' for easier testing
     if (isDevelopment) {
       console.log('[DEV] Sending message with wildcard origin for development');
       targetWindow.postMessage(enrichedMessage, '*');
       return true;
     }
     
-    // Проверяем, разрешен ли домен в обычном режиме
+    // Check if domain is allowed in normal mode
     const allowed = BYPASS_ORIGIN_CHECK || isSafeTargetOrigin(window, targetOrigin);
     console.log(`[safePostMessage] Target origin ${targetOrigin} allowed: ${allowed}`);
     
     if (!allowed) {
       console.error(`Target origin ${targetOrigin} is not in the allowed list`, ALLOWED_ORIGINS);
       
-      // В режиме байпаса или разработки отправляем сообщение для отладки
+      // In bypass mode or development send message for debugging
       if (BYPASS_ORIGIN_CHECK || isDevelopment) {
         console.warn('[BYPASS/DEV] Sending despite origin check failure');
         targetWindow.postMessage(enrichedMessage, '*');
@@ -114,7 +114,7 @@ export function safePostMessage(
       return false;
     }
     
-    // В продакшене отправляем сообщение только на проверенный origin
+    // In production send message only to verified origin
     console.log(`Sending message to ${targetOrigin}:`, enrichedMessage);
     targetWindow.postMessage(enrichedMessage, targetOrigin);
     
@@ -122,7 +122,7 @@ export function safePostMessage(
   } catch (error) {
     console.error('[safePostMessage] Error posting message:', error);
     
-    // Попытка отправить через wildcard в режиме разработки
+    // Try to send via wildcard in development mode
     if (isDevelopment || BYPASS_ORIGIN_CHECK) {
       try {
         console.warn('[safePostMessage] Attempting fallback with wildcard origin');

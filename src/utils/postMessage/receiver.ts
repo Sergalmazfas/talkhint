@@ -2,9 +2,9 @@
 import { isDevelopmentMode, BYPASS_ORIGIN_CHECK, safeStringify } from './constants';
 import { isSafeMessageOrigin } from './validators';
 
-// Сет для отслеживания уже обработанных сообщений (защита от зацикливания)
+// Set for tracking already processed messages (protect against loops)
 const processedMessages = new Set<string>();
-const MAX_PROCESSED_MESSAGES = 200; // Максимальный размер кэша обработанных сообщений
+const MAX_PROCESSED_MESSAGES = 200; // Maximum cache size for processed messages
 
 /**
  * Class that safely handles postMessage events
@@ -28,7 +28,7 @@ export class SafeMessageReceiver {
    * @param handler Function to call when a safe message is received
    */
   public addHandler(handler: (event: MessageEvent) => void): void {
-    // Проверяем, не добавлен ли уже этот обработчик
+    // Check if handler already exists
     if (this.handlers.includes(handler)) {
       console.warn('[SafeMessageReceiver] Handler already added, skipping duplicate');
       return;
@@ -78,41 +78,41 @@ export class SafeMessageReceiver {
   }
 
   /**
-   * Проверяет, не обрабатывалось ли уже это сообщение
-   * @param event Сообщение для проверки
-   * @returns true если сообщение уже обрабатывалось
+   * Check if a message has already been processed
+   * @param event Message to check
+   * @returns true if message has already been processed
    */
   private isMessageProcessed(event: MessageEvent): boolean {
-    // Проверка частоты сообщений для предотвращения зацикливания
+    // Rate limiting to prevent infinite loops
     const now = Date.now();
     this.messageTimestamps.push(now);
     
-    // Удаляем устаревшие метки (старше 1 секунды)
+    // Remove timestamps older than 1 second
     while (this.messageTimestamps.length > 0 && this.messageTimestamps[0] < now - 1000) {
       this.messageTimestamps.shift();
     }
     
-    // Проверяем превышение лимита сообщений
+    // Check message rate limit
     if (this.messageTimestamps.length > this.MAX_MESSAGES_PER_SECOND) {
       console.error(`[SafeMessageReceiver] Too many messages (${this.messageTimestamps.length}) in the last second. Potential infinite loop detected.`);
       return true;
     }
     
     try {
-      // Создаем уникальный ключ для сообщения
+      // Create unique key for the message
       const messageKey = `${event.origin}:${safeStringify(event.data)}:${this.messageCount++}`;
       
-      // Проверяем, обрабатывали ли мы уже это сообщение
+      // Check if we've already processed this message
       if (processedMessages.has(messageKey)) {
         return true;
       }
       
-      // Добавляем сообщение в список обработанных
+      // Add message to processed list
       processedMessages.add(messageKey);
       
-      // Ограничиваем размер кэша обработанных сообщений
+      // Limit the size of the processed messages cache
       if (processedMessages.size > MAX_PROCESSED_MESSAGES) {
-        // Удаляем самые старые сообщения
+        // Remove oldest messages
         const iterator = processedMessages.values();
         for (let i = 0; i < 50; i++) {
           processedMessages.delete(iterator.next().value);
@@ -141,7 +141,7 @@ export class SafeMessageReceiver {
         console.log(`[SafeMessageReceiver] Received message from ${event.origin}:`, event.data);
       }
       
-      // Проверяем, не обрабатывали ли мы уже это сообщение (защита от зацикливания)
+      // Check if we've already processed this message (prevent loops)
       if (this.isMessageProcessed(event)) {
         console.warn(`[SafeMessageReceiver] Skipping already processed message from ${event.origin}`);
         return;
@@ -183,8 +183,8 @@ export function getMessageReceiver(window: Window = globalThis.window): SafeMess
 }
 
 /**
- * Для обратной совместимости с кодом, использующим старый API.
- * Создаёт обработчик сообщений, совместимый с типом (event: MessageEvent) => void
+ * For backward compatibility with code using the old API.
+ * Creates a message handler compatible with the (event: MessageEvent) => void type
  */
 export function setupMessageListener(
   handler: (event: MessageEvent) => void,
@@ -200,8 +200,8 @@ export function setupMessageListener(
 }
 
 /**
- * Для обратной совместимости с кодом, использующим старый API.
- * Проверяет, является ли источник сообщения безопасным.
+ * For backward compatibility with code using the old API.
+ * Checks if a message origin is safe.
  */
 export function handleSafePostMessage(event: MessageEvent, window: Window = globalThis.window): boolean {
   const isAllowed = BYPASS_ORIGIN_CHECK || isSafeMessageOrigin(window, event.origin);

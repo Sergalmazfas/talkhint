@@ -1,9 +1,9 @@
 
 /**
- * Константы для системы postMessage
+ * Constants for postMessage system
  */
 
-// Режим разработки по умолчанию определяется по URL
+// Determine development mode based on URL
 export const isDevelopmentMode = (window: Window): boolean => {
   const hostname = window.location.hostname;
   const isDev = hostname === 'localhost' || 
@@ -13,16 +13,16 @@ export const isDevelopmentMode = (window: Window): boolean => {
                 hostname.includes('preview') ||
                 hostname.includes('staging');
   
-  // Добавляем логирование для отладки
+  // Log for debugging
   console.log(`[isDevelopmentMode] Current hostname: ${hostname}, isDev: ${isDev}`);
   return isDev;
 };
 
-// Флаг для байпаса проверки origin для отладки
-// В продакшене этот флаг должен быть false
+// Flag to bypass origin check for debugging
+// In production this flag must be false
 export const BYPASS_ORIGIN_CHECK = process.env.NODE_ENV === 'development';
 
-// Добавим метод для защиты от циклических ссылок при JSON.stringify
+// Add method to protect against circular references in JSON.stringify
 export function safeStringify(obj: any): string {
   try {
     const seen = new WeakSet();

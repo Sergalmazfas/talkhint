@@ -1,6 +1,6 @@
 
 (function() {
-  // Расширенный список разрешенных доменов
+  // Extended list of allowed domains
   const ALLOWED_ORIGINS = [
     'https://lovable.dev',
     'https://www.lovable.dev',
@@ -24,25 +24,30 @@
     'https://localhost:5173',
     'http://localhost',
     'https://localhost',
-    'https://lovable-server.vercel.app'
+    'https://lovable-server.vercel.app',
+    'http://lovable-server.vercel.app'
   ];
 
-  // Всегда принимать сообщения в режиме отладки
-  const DEBUG_MODE = true;
+  // Always accept messages in debug mode
+  const DEBUG_MODE = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.hostname.includes('dev') ||
+                    window.location.hostname.includes('preview') ||
+                    window.location.hostname.includes('staging');
   
-  // Счетчик отправленных сообщений для предотвращения зацикливания
+  // Counter for sent messages to prevent loops
   let messageCounter = 0;
   const MAX_MESSAGES = 100;
 
-  // Проверка разрешенного домена
+  // Check allowed domain
   function isAllowedOrigin(origin) {
-    if (DEBUG_MODE) return true; // В режиме отладки пропускаем все домены
-    if (!origin) return true; // Разрешаем пустой origin для тестирования
-    if (origin.includes('localhost')) return true; // Всегда разрешаем localhost
-    if (origin.includes('lovable.')) return true; // Всегда разрешаем домены lovable
-    if (origin.includes('gptengineer.')) return true; // Всегда разрешаем домены gptengineer
+    if (DEBUG_MODE) return true; // In debug mode, allow all domains
+    if (!origin) return false; // Empty origin not allowed in production
+    if (origin.includes('localhost')) return true; // Always allow localhost
+    if (origin.includes('lovable.')) return true; // Always allow lovable domains
+    if (origin.includes('gptengineer.')) return true; // Always allow gptengineer domains
     
-    // Нормализация доменов для сравнения
+    // Normalize domains for comparison
     const normalizeOrigin = (url) => {
       try {
         return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\d+$/, '').toLowerCase();
@@ -56,27 +61,60 @@
     return ALLOWED_ORIGINS.some(allowed => normalizeOrigin(allowed) === normalizedOrigin);
   }
 
-  // Хранение уже полученных сообщений для предотвращения дублирования обработки
+  // Store already received messages to prevent duplicate processing
   const processedMessages = new Set();
+  const messageTimestamps = [];
+  const MAX_MESSAGES_PER_SECOND = 20;
   
-  // Защита от зацикливания постоянной отправки сообщений
+  // Prevent loops by checking if message has been processed
   function isMessageProcessed(event) {
-    // Создаем уникальный хеш-ключ для сообщения на основе его содержимого и источника
+    // Check message rate limit
+    const now = Date.now();
+    messageTimestamps.push(now);
+    
+    // Remove timestamps older than 1 second
+    while (messageTimestamps.length > 0 && messageTimestamps[0] < now - 1000) {
+      messageTimestamps.shift();
+    }
+    
+    // Check for excessive message rate
+    if (messageTimestamps.length > MAX_MESSAGES_PER_SECOND) {
+      console.error(`Too many messages (${messageTimestamps.length}/second). Blocking potential infinite loop.`);
+      return true;
+    }
+    
+    // Create a unique hash-key for the message based on content and source
     try {
-      const messageData = JSON.stringify(event.data);
+      // Safe stringify with circular reference protection
+      const safeStringify = (obj) => {
+        try {
+          const seen = new WeakSet();
+          return JSON.stringify(obj, (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+              if (seen.has(value)) return '[Circular]';
+              seen.add(value);
+            }
+            return value;
+          });
+        } catch (e) {
+          return `[Unstringifiable: ${typeof obj}]`;
+        }
+      };
+      
+      const messageData = safeStringify(event.data);
       const messageKey = `${event.origin}:${messageData}`;
       
-      // Проверяем, не обрабатывали ли мы уже это сообщение
+      // Check if we've already processed this message
       if (processedMessages.has(messageKey)) {
         return true;
       }
       
-      // Добавляем сообщение в список обработанных
+      // Add message to processed list
       processedMessages.add(messageKey);
       
-      // Ограничиваем размер кэша обработанных сообщений
+      // Limit the size of the processed messages cache
       if (processedMessages.size > 200) {
-        // Удаляем самые старые сообщения
+        // Remove oldest messages
         const iterator = processedMessages.values();
         for (let i = 0; i < 50; i++) {
           processedMessages.delete(iterator.next().value);
@@ -90,35 +128,41 @@
     }
   }
 
-  // Отладка всех сообщений независимо от origin
+  // Debug all messages regardless of origin
   window.addEventListener('message', function(event) {
     console.log(`[DEBUG] Raw message from ${event.origin}:`, event.data);
   }, true);
 
-  // Улучшенная обработка сообщений от разрешенных domains
+  // Improved message handler for allowed domains
   window.addEventListener('message', function(event) {
     try {
-      // Защита от зацикливания: если счетчик превышает MAX_MESSAGES, перестаем обрабатывать
+      // Loop protection: if counter exceeds MAX_MESSAGES, stop processing
       if (messageCounter > MAX_MESSAGES) {
         console.error(`[SAFETY] Too many messages processed (${messageCounter}). Stopping to prevent infinite loop.`);
         return;
       }
       
-      // Проверяем, не обрабатывали ли мы уже это сообщение
+      // Check if we've already processed this message
       if (isMessageProcessed(event)) {
+        return;
+      }
+      
+      // Check if origin is allowed
+      if (!isAllowedOrigin(event.origin) && !DEBUG_MODE) {
+        console.warn(`Message from non-allowed origin rejected: ${event.origin}`);
         return;
       }
       
       messageCounter++;
       console.log(`Processing message #${messageCounter} from ${event.origin}:`, event.data);
       
-      // Проверяем ошибку React #301
+      // Check for React error #301
       if (event.data && event.data.type === 'REACT_ERROR') {
         console.error('React Error detected:', event.data.error);
-        // Здесь можно добавить дополнительную обработку ошибок React
+        // Here you can add additional React error handling
       }
       
-      // Создаем ответное сообщение
+      // Create response message
       const response = {
         type: 'IFRAME_RESPONSE',
         action: 'response',
@@ -128,9 +172,9 @@
         messageCount: messageCounter
       };
       
-      // Отправка ответа разными способами
+      // Send response in different ways
       if (event.source) {
-        // Пробуем wildcard (наиболее надежный для тестирования)
+        // Try wildcard (most reliable for testing)
         try {
           event.source.postMessage(response, '*');
           console.log('Sent response using wildcard origin');
@@ -138,7 +182,7 @@
           console.error('Wildcard response failed:', e);
         }
         
-        // Пробуем конкретный origin
+        // Try specific origin
         if (event.origin) {
           try {
             event.source.postMessage(response, event.origin);
@@ -153,9 +197,9 @@
     }
   });
   
-  // Уведомление родительского окна, что iframe готов
+  // Notify parent window that iframe is ready
   function notifyReady() {
-    // Проверяем, доступно ли parent окно и можем ли мы отправлять сообщения
+    // Check if parent window is accessible and we can send messages
     if (!window.parent || !window.parent.postMessage) {
       console.warn('Parent window is not accessible for postMessage');
       return;
@@ -169,13 +213,13 @@
         timestamp: new Date().toISOString()
       };
       
-      // Отправка со всеми доступными методами
+      // Send with all available methods
       
-      // Через wildcard (наиболее надежный)
+      // Via wildcard (most reliable)
       window.parent.postMessage(readyMessage, '*');
       console.log('Sent ready notification with wildcard origin');
       
-      // Через конкретный parent, если доступен
+      // Via specific parent if available
       if (document.referrer) {
         try {
           const parentOrigin = new URL(document.referrer).origin;
@@ -190,23 +234,25 @@
     }
   }
   
-  // Отправка уведомления о готовности
+  // Send ready notification
   if (document.readyState === 'complete') {
     notifyReady();
   } else {
     window.addEventListener('load', notifyReady);
   }
   
-  // Функция для перехвата ошибок React
+  // Function to catch React errors
   function listenForReactErrors() {
     const originalError = console.error;
     console.error = function(...args) {
       originalError.apply(console, args);
       
       const errorStr = args.join(' ');
-      if (errorStr.includes('React error') || errorStr.includes('minified React') || errorStr.includes('Error #301')) {
+      if (errorStr.includes('React error') || 
+          errorStr.includes('minified React') || 
+          errorStr.includes('Error #301')) {
         try {
-          // Отправляем сообщение об ошибке родительскому окну
+          // Send error message to parent window
           window.parent.postMessage({
             type: 'REACT_ERROR',
             error: errorStr,
@@ -221,7 +267,7 @@
     };
   }
   
-  // Активируем перехват ошибок React
+  // Activate React error catching
   listenForReactErrors();
   
   console.log('iframe-bridge.js initialized with DEBUG_MODE:', DEBUG_MODE);

@@ -1,4 +1,3 @@
-
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
 import { GPTServiceConfig, PROXY_SERVERS } from "../config/GPTServiceConfig";
@@ -45,6 +44,13 @@ export class GPTRequestService {
     };
     
     GPTLogger.log(requestId, 'Request payload prepared');
+    
+    // Make sure we're using the lovable-server.vercel.app proxy
+    if (!this.config.serverProxyUrl.includes('lovable-server.vercel.app')) {
+      console.warn(`[GPTRequestService] Changing proxy from ${this.config.serverProxyUrl} to lovable-server.vercel.app`);
+      this.config.serverProxyUrl = PROXY_SERVERS.VERCEL;
+    }
+    
     GPTLogger.log(requestId, `Proxy URL: ${this.config.serverProxyUrl}`);
 
     let currentRetry = 0;
@@ -52,20 +58,6 @@ export class GPTRequestService {
     while (currentRetry <= this.config.maxRetries) {
       if (currentRetry > 0) {
         GPTLogger.log(requestId, `Retry attempt ${currentRetry}/${this.config.maxRetries}`);
-        
-        // If we've had multiple failures with one proxy, try another one
-        if (currentRetry >= 2) {
-          // Get a list of available proxies
-          const proxyOptions = Object.values(PROXY_SERVERS);
-          const currentIndex = proxyOptions.indexOf(this.config.serverProxyUrl);
-          const nextIndex = (currentIndex + 1) % proxyOptions.length;
-          const newProxyUrl = proxyOptions[nextIndex];
-          
-          if (newProxyUrl !== this.config.serverProxyUrl) {
-            GPTLogger.log(requestId, `Switching to alternative proxy: ${newProxyUrl}`);
-            this.config.serverProxyUrl = newProxyUrl;
-          }
-        }
       }
       
       const startTime = Date.now();
@@ -82,18 +74,7 @@ export class GPTRequestService {
         const errorMessage = error instanceof Error ? error.message : String(error);
         GPTLogger.error(requestId, 'Error in API request:', errorMessage);
         
-        // Check if it's a timeout
-        if (errorMessage.includes('abort') || errorMessage.includes('timeout')) {
-          GPTLogger.warn(requestId, `Request timed out after ${this.config.timeoutMs}ms`);
-          
-          if (currentRetry < this.config.maxRetries) {
-            await this.backoff(requestId, currentRetry);
-            currentRetry++;
-            continue;
-          }
-        }
-        
-        // For other errors, retry if possible
+        // For any errors, retry if possible
         if (currentRetry < this.config.maxRetries) {
           await this.backoff(requestId, currentRetry);
           currentRetry++;

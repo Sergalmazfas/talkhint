@@ -32,10 +32,8 @@ export const PROXY_SERVERS = {
   VERCEL: 'https://lovable-server.vercel.app',
   GPTENGINEER: 'https://gptengineer.app',
   
-  // Fallback proxies
-  ALLORIGINS: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1',
+  // Fallback proxies - These should only be used if main proxies fail
   CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
-  THINGPROXY: 'https://thingproxy.freeboard.io/fetch/https://api.openai.com/v1',
   CORS_ANYWHERE: 'https://cors-anywhere-lyart-seven.vercel.app',
   
   // Development proxies
@@ -86,6 +84,9 @@ export const ALLOWED_ORIGINS = [
   // Дополнительно добавим все возможные поддомены lovable.app и gptengineer.app
   '*.lovable.app',
   '*.gptengineer.app',
+  
+  // Include any active deployment domain
+  '*.vercel.app',
   
   // Wildcard for development only - will be filtered in production
   '*'

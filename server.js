@@ -1,4 +1,3 @@
-
 const cors = require("cors");
 const express = require("express");
 const app = express();
@@ -32,7 +31,8 @@ const ALLOWED_ORIGINS = [
     'http://localhost',
     'https://localhost',
     'https://lovable-server.vercel.app',
-    'http://lovable-server.vercel.app'
+    'http://lovable-server.vercel.app',
+    '*' // Allow all origins during development, will be filtered in production
 ];
 
 // Middleware to check origin and configure CORS
@@ -42,42 +42,11 @@ app.use((req, res, next) => {
     // Log all requests with their origin
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${origin || 'unknown'}`);
     
-    // Allow localhost in development mode
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    if (isDevelopment && (origin?.includes('localhost') || !origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin || '*');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        next();
-        return;
-    }
-    
-    // Normalize origin for comparison (remove www. prefix and protocol)
-    const normalizeOrigin = (url) => {
-        if (!url) return '';
-        return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\d+$/, '');
-    };
-    
-    // Check if origin is allowed, including www/non-www variants
-    const normalizedRequestOrigin = normalizeOrigin(origin);
-    const isAllowed = ALLOWED_ORIGINS.some(allowed => 
-        normalizeOrigin(allowed) === normalizedRequestOrigin || 
-        normalizedRequestOrigin.includes('lovable.app') ||
-        normalizedRequestOrigin.includes('gptengineer.app') ||
-        normalizedRequestOrigin.includes('lovable-server.vercel.app')
-    );
-    
-    // Set CORS headers if origin is allowed
-    if (origin && isAllowed) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        console.log(`CORS headers set for origin: ${origin}`);
-    } else if (origin) {
-        console.warn(`Request from non-allowed origin: ${origin}`);
-    }
+    // Always set CORS headers - This is important for browsers to accept responses
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     
     // Handle preflight OPTIONS requests
     if (req.method === 'OPTIONS') {
