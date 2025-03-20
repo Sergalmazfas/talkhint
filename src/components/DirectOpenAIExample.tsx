@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -26,7 +27,9 @@ const DirectOpenAIExample = () => {
   };
 
   useEffect(() => {
-    const cleanupListener = setupMessageListener((data, origin) => {
+    const cleanupListener = setupMessageListener((event) => {
+      // Extract data and origin from the event
+      const { data, origin } = event;
       console.log(`Received message from ${origin}:`, data);
       setMessages(prev => [...prev, { origin, data, timestamp: new Date().toISOString() }]);
     });
