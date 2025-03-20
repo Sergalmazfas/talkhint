@@ -1,4 +1,3 @@
-
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
 import { GPTServiceConfig } from "../config/GPTServiceConfig";
@@ -89,8 +88,8 @@ export class GPTRequestService {
         let response;
         
         if (this.config.useServerProxy) {
-          // Using CORS Anywhere proxy server
-          response = await this.makeCorsAnywhereRequest(requestId, requestPayload);
+          // Using proxy server
+          response = await this.makeProxyRequest(requestId, requestPayload);
         } else {
           // Direct API access with OpenAI SDK
           response = await this.makeDirectOpenAIRequest(requestId, messages, temperature, maxTokens, n);
@@ -149,10 +148,10 @@ export class GPTRequestService {
   }
 
   /**
-   * Make a request using the CORS Anywhere proxy
+   * Make a request using the proxy service
    */
-  private async makeCorsAnywhereRequest(requestId: string, requestPayload: any): Promise<any> {
-    GPTLogger.log(requestId, `Making request via CORS Anywhere proxy: ${this.config.serverProxyUrl}`);
+  private async makeProxyRequest(requestId: string, requestPayload: any): Promise<any> {
+    GPTLogger.log(requestId, `Making request via proxy: ${this.config.serverProxyUrl}`);
     
     // Create a controller for timeout handling
     const controller = new AbortController();
@@ -162,15 +161,28 @@ export class GPTRequestService {
     }, this.config.timeoutMs);
     
     try {
-      // When using CORS Anywhere proxy, use the proper endpoint for chat completions
-      const chatCompletionsUrl = 'chat/completions';
-      const headers: Record<string, string> = {
+      // For AllOrigins proxy, we need to construct the URL differently
+      const isAllOrigins = this.config.serverProxyUrl.includes('allorigins');
+      
+      let url;
+      let headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`,
-        'X-Requested-With': 'XMLHttpRequest'
+        'Authorization': `Bearer ${this.config.apiKey}`
       };
       
-      const response = await fetch(`${this.config.serverProxyUrl}/${chatCompletionsUrl}`, {
+      if (isAllOrigins) {
+        // For allorigins, the URL is already constructed
+        url = `${this.config.serverProxyUrl}`;
+        // Add additional headers for allorigins if needed
+      } else {
+        // For other proxies like CORS Anywhere
+        url = `${this.config.serverProxyUrl}/chat/completions`;
+        headers['X-Requested-With'] = 'XMLHttpRequest';
+      }
+      
+      GPTLogger.log(requestId, `Constructed request URL: ${url}`);
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestPayload),

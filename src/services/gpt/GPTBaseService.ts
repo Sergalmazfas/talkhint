@@ -115,9 +115,9 @@ class GPTBaseService {
     // Try direct connection with API key
     if (this.config.apiKey) {
       try {
-        // Use a simple test prompt
-        const testPrompt = [{ role: 'user', content: 'Connection check' }];
-        const result = await this.callOpenAI(testPrompt, 0.1, 10);
+        // Use a simpler test that's less likely to fail
+        const testPrompt = [{ role: 'user', content: 'Connection test' }];
+        const result = await this.callOpenAI(testPrompt, 0.1, 5);
         return !!result;
       } catch (error) {
         GPTLogger.error(undefined, 'API connection check failed', error);
