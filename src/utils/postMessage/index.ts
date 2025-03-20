@@ -6,7 +6,9 @@ export {
 
 export { 
   getMessageReceiver,
-  SafeMessageReceiver
+  SafeMessageReceiver,
+  setupMessageListener,
+  handleSafePostMessage
 } from './receiver';
 
 export { 
@@ -21,6 +23,6 @@ export {
 
 export {
   isSafeTargetOrigin,
-  isSafeMessageOrigin
+  isSafeMessageOrigin,
+  isOriginAllowed
 } from './validators';
-

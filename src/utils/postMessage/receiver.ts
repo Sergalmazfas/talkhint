@@ -1,222 +1,137 @@
 
-import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
 import { isDevelopmentMode, BYPASS_ORIGIN_CHECK } from './constants';
 import { isSafeMessageOrigin } from './validators';
 
-// Флаг установки обработчика для предотвращения дублирования
-let handlerInstalled = false;
-
 /**
- * Типы сообщений для приема
- */
-export type MessageDataType = {
-  type: string;
-  payload?: any;
-  _source?: string;
-  _timestamp?: string;
-  _id?: number;
-};
-
-/**
- * Обработчик сообщений
- */
-export type MessageHandler = (data: MessageDataType) => void;
-
-/**
- * Опции для настройки приема сообщений
- */
-export type MessageReceiverOptions = {
-  debugLog?: boolean;
-  bypassOriginCheck?: boolean;
-};
-
-/**
- * Класс для безопасного приема сообщений с проверкой разрешенных доменов
+ * Class that safely handles postMessage events
  */
 export class SafeMessageReceiver {
-  private readonly window: Window;
-  private readonly handlers: Map<string, Set<MessageHandler>> = new Map();
-  private readonly defaultHandler: Set<MessageHandler> = new Set();
-  private debugLog: boolean;
-  private bypassOriginCheck: boolean;
-  private boundMessageHandler: (event: MessageEvent) => void;
+  private window: Window;
+  private handlers: Array<(event: MessageEvent) => void> = [];
+  private isListening: boolean = false;
+  private boundListener: (event: MessageEvent) => void;
 
-  /**
-   * Создает новый экземпляр для приема сообщений
-   * @param window Объект окна
-   * @param options Опции конфигурации
-   */
-  constructor(window: Window, options: MessageReceiverOptions = {}) {
+  constructor(window: Window) {
     this.window = window;
-    this.debugLog = options.debugLog || false;
-    this.bypassOriginCheck = options.bypassOriginCheck || BYPASS_ORIGIN_CHECK;
-    this.boundMessageHandler = this.handleMessage.bind(this);
+    this.boundListener = this.handleMessage.bind(this);
+  }
+
+  /**
+   * Add a message handler function
+   * @param handler Function to call when a safe message is received
+   */
+  public addHandler(handler: (event: MessageEvent) => void): void {
+    this.handlers.push(handler);
     
-    // Устанавливаем обработчик только один раз
-    if (!handlerInstalled) {
-      this.window.addEventListener('message', this.boundMessageHandler);
-      handlerInstalled = true;
-      if (this.debugLog) {
-        console.log('[SafeMessageReceiver] Message handler installed');
-      }
+    // Start listening if not already
+    if (!this.isListening) {
+      this.startListening();
     }
   }
 
   /**
-   * Регистрирует обработчик для определенного типа сообщений
-   * @param type Тип сообщения
-   * @param handler Функция обработчик
+   * Remove a previously added handler
+   * @param handler The handler to remove
    */
-  public on(type: string, handler: MessageHandler): void {
-    if (!this.handlers.has(type)) {
-      this.handlers.set(type, new Set());
-    }
-    this.handlers.get(type)?.add(handler);
+  public removeHandler(handler: (event: MessageEvent) => void): void {
+    this.handlers = this.handlers.filter(h => h !== handler);
     
-    if (this.debugLog) {
-      console.log(`[SafeMessageReceiver] Handler registered for type: ${type}`);
+    // Stop listening if no handlers left
+    if (this.handlers.length === 0) {
+      this.stopListening();
     }
   }
 
   /**
-   * Регистрирует обработчик для всех типов сообщений
-   * @param handler Функция обработчик
+   * Start listening for messages
    */
-  public onAny(handler: MessageHandler): void {
-    this.defaultHandler.add(handler);
-    
-    if (this.debugLog) {
-      console.log('[SafeMessageReceiver] Default handler registered');
+  private startListening(): void {
+    if (!this.isListening) {
+      this.window.addEventListener('message', this.boundListener);
+      this.isListening = true;
     }
   }
 
   /**
-   * Удаляет обработчик для определенного типа сообщений
-   * @param type Тип сообщения
-   * @param handler Функция обработчик
+   * Stop listening for messages
    */
-  public off(type: string, handler: MessageHandler): void {
-    if (this.handlers.has(type)) {
-      this.handlers.get(type)?.delete(handler);
-      if (this.debugLog) {
-        console.log(`[SafeMessageReceiver] Handler removed for type: ${type}`);
-      }
+  private stopListening(): void {
+    if (this.isListening) {
+      this.window.removeEventListener('message', this.boundListener);
+      this.isListening = false;
     }
   }
 
   /**
-   * Удаляет обработчик для всех типов сообщений
-   * @param handler Функция обработчик
-   */
-  public offAny(handler: MessageHandler): void {
-    this.defaultHandler.delete(handler);
-    if (this.debugLog) {
-      console.log('[SafeMessageReceiver] Default handler removed');
-    }
-  }
-
-  /**
-   * Очищает все обработчики
-   */
-  public clearHandlers(): void {
-    this.handlers.clear();
-    this.defaultHandler.clear();
-    if (this.debugLog) {
-      console.log('[SafeMessageReceiver] All handlers cleared');
-    }
-  }
-
-  /**
-   * Обрабатывает входящие сообщения
-   * @param event Событие сообщения
+   * Handle an incoming message event
    */
   private handleMessage(event: MessageEvent): void {
     try {
-      const isDevelopment = isDevelopmentMode(this.window);
-      
-      // Проверяем origin сообщения, кроме режима разработки
-      if (!this.bypassOriginCheck && !isDevelopment) {
-        const isOriginSafe = isSafeMessageOrigin(this.window, event.origin);
-        
-        if (!isOriginSafe) {
-          if (this.debugLog) {
-            console.warn(`[SafeMessageReceiver] Message from untrusted origin rejected: ${event.origin}`);
-          }
-          return;
-        }
-      }
-      
-      // Валидация данных сообщения
-      if (!event.data || typeof event.data !== 'object') {
-        if (this.debugLog) {
-          console.warn('[SafeMessageReceiver] Invalid message format rejected', event.data);
-        }
+      // Skip if no data
+      if (!event.data) {
         return;
       }
       
-      const { type, ...data } = event.data;
+      // Log message in development mode
+      if (isDevelopmentMode(this.window)) {
+        console.log(`[SafeMessageReceiver] Received message from ${event.origin}:`, event.data);
+      }
       
-      if (!type || typeof type !== 'string') {
-        if (this.debugLog) {
-          console.warn('[SafeMessageReceiver] Message without type rejected', event.data);
-        }
+      // Check if origin is allowed
+      const isAllowed = BYPASS_ORIGIN_CHECK || isSafeMessageOrigin(this.window, event.origin);
+      
+      if (!isAllowed) {
+        console.warn(`[SafeMessageReceiver] Message from non-allowed origin: ${event.origin}`);
         return;
       }
       
-      if (this.debugLog) {
-        console.log(`[SafeMessageReceiver] Message received of type: ${type}`, data);
-      }
-      
-      // Вызываем обработчики для данного типа
-      if (this.handlers.has(type)) {
-        const typeHandlers = this.handlers.get(type);
-        typeHandlers?.forEach(handler => {
-          try {
-            handler(event.data);
-          } catch (error) {
-            console.error(`[SafeMessageReceiver] Error in handler for type ${type}:`, error);
-          }
-        });
-      }
-      
-      // Вызываем общие обработчики
-      this.defaultHandler.forEach(handler => {
+      // Process message with all handlers
+      for (const handler of this.handlers) {
         try {
-          handler(event.data);
-        } catch (error) {
-          console.error('[SafeMessageReceiver] Error in default handler:', error);
+          handler(event);
+        } catch (handlerError) {
+          console.error(`[SafeMessageReceiver] Handler error:`, handlerError);
         }
-      });
+      }
     } catch (error) {
-      console.error('[SafeMessageReceiver] Error processing message:', error);
-    }
-  }
-
-  /**
-   * Освобождает ресурсы и удаляет обработчик сообщений
-   */
-  public destroy(): void {
-    this.window.removeEventListener('message', this.boundMessageHandler);
-    handlerInstalled = false;
-    this.clearHandlers();
-    if (this.debugLog) {
-      console.log('[SafeMessageReceiver] Destroyed');
+      console.error(`[SafeMessageReceiver] Error processing message:`, error);
     }
   }
 }
 
-// Экспортируем singleton для удобства использования
+// Singleton instance for the current window
 let globalReceiver: SafeMessageReceiver | null = null;
 
 /**
- * Создает или возвращает глобальный экземпляр приемника сообщений
+ * Get the message receiver singleton for the current window
  */
-export function getMessageReceiver(window: Window, options: MessageReceiverOptions = {}): SafeMessageReceiver {
+export function getMessageReceiver(window: Window = globalThis.window): SafeMessageReceiver {
   if (!globalReceiver) {
-    globalReceiver = new SafeMessageReceiver(window, {
-      ...options,
-      bypassOriginCheck: options.bypassOriginCheck || BYPASS_ORIGIN_CHECK
-    });
+    globalReceiver = new SafeMessageReceiver(window);
   }
   return globalReceiver;
+}
+
+/**
+ * For backward compatibility with code that uses the old API
+ */
+export function setupMessageListener(
+  handler: (event: MessageEvent) => void,
+  window: Window = globalThis.window
+): () => void {
+  const receiver = getMessageReceiver(window);
+  receiver.addHandler(handler);
+  
+  // Return a cleanup function
+  return () => {
+    receiver.removeHandler(handler);
+  };
+}
+
+/**
+ * For backward compatibility with code that uses the old API
+ */
+export function handleSafePostMessage(event: MessageEvent, window: Window = globalThis.window): boolean {
+  const isAllowed = BYPASS_ORIGIN_CHECK || isSafeMessageOrigin(window, event.origin);
+  return isAllowed;
 }
