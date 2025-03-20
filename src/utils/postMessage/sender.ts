@@ -22,248 +22,77 @@ export function safePostMessage(
     return false;
   }
 
+  // Определяем режим - разработка или продакшн
+  const isDevelopment = isDevelopmentMode(window);
+  
+  // Если targetWindow это то же самое окно или iframe без контентного окна
+  if (targetWindow === window || !targetWindow.postMessage) {
+    console.warn('[safePostMessage] Target window is the same as source or invalid');
+    return false;
+  }
+
   // Подробное логирование для отладки
   console.log(`[safePostMessage] Attempting to send message to ${targetOrigin || 'unknown'}`);
   console.log(`[safePostMessage] Current origin: ${window.location.origin}`);
-  
-  // Определяем режим - разработка или продакшн
-  const isDevelopment = isDevelopmentMode(window);
 
-  // Для локальной разработки - максимально расширенные разрешения
-  if (isDevelopment && (
-      targetOrigin === '*' ||
-      !targetOrigin ||
-      targetOrigin.includes('localhost') || 
-      window.location.hostname === 'localhost'
-  )) {
-    return sendDevModeMessage(window, targetWindow, message, targetOrigin);
-  }
+  // Обогащаем сообщение отладочной информацией
+  const enrichedMessage = {
+    ...message,
+    _source: window.location.origin,
+    _timestamp: new Date().toISOString(),
+    _via: isDevelopment ? 'safePostMessage-dev' : 'safePostMessage-prod',
+    _allowedOrigins: ALLOWED_ORIGINS
+  };
 
-  // Проверяем, разрешен ли домен в обычном режиме
-  const allowed = isSafeTargetOrigin(window, targetOrigin);
-  console.log(`[safePostMessage] Target origin ${targetOrigin} allowed: ${allowed} (bypass: ${BYPASS_ORIGIN_CHECK})`);
-  
-  if (!allowed) {
-    console.error(`Target origin ${targetOrigin} is not in the allowed list`, ALLOWED_ORIGINS);
-    
-    // В режиме разработки всё равно пробуем отправить для отладки
-    if (isDevelopment || BYPASS_ORIGIN_CHECK) {
-      return sendFallbackMessage(window, targetWindow, message, targetOrigin);
-    }
-    
-    return false;
-  }
-
-  return sendProductionMessage(window, targetWindow, message, targetOrigin);
-}
-
-/**
- * Отправка сообщения в режиме разработки
- * @param window Объект окна
- * @param targetWindow Целевое окно
- * @param message Сообщение для отправки
- * @param targetOrigin Целевой домен
- * @returns boolean
- */
-function sendDevModeMessage(
-  window: Window,
-  targetWindow: Window,
-  message: any,
-  targetOrigin: string
-): boolean {
   try {
-    // Добавляем информацию об источнике сообщения
-    const enrichedMessage = {
-      ...message,
-      _source: window.location.origin,
-      _timestamp: new Date().toISOString(),
-      _debug: true,
-      _via: 'safePostMessage-dev',
-      _allowedOrigins: ALLOWED_ORIGINS
-    };
-
-    console.log(`[DEV] Sending message to ${targetOrigin || 'unknown'}:`, enrichedMessage);
-    
-    // В режиме разработки сначала пробуем с точным origin, если он известен
-    if (targetOrigin && targetOrigin !== '*') {
-      try {
-        targetWindow.postMessage(enrichedMessage, targetOrigin);
-        console.log(`[DEV] Sent with specific origin: ${targetOrigin}`);
-      } catch (specificError) {
-        console.warn(`[DEV] Failed with specific origin, trying wildcard:`, specificError);
-      }
-    }
-    
-    // В режиме разработки всегда дублируем с wildcard для совместимости
-    targetWindow.postMessage(enrichedMessage, '*');
-    console.log('[DEV] Sent with wildcard origin for debugging');
-    
-    // Также пробуем ключевые домены из списка разрешенных
-    for (const origin of ALLOWED_ORIGINS) {
-      if (origin !== '*' && origin !== targetOrigin) {
+    // Для локальной разработки - используем '*' для простоты тестирования
+    if (isDevelopment) {
+      console.log('[DEV] Sending message with wildcard origin for development');
+      targetWindow.postMessage(enrichedMessage, '*');
+      
+      // Также пробуем с точным origin, если он указан
+      if (targetOrigin && targetOrigin !== '*') {
         try {
-          targetWindow.postMessage({
-            ...enrichedMessage,
-            _targetOrigin: origin,
-          }, origin);
-          console.log(`[DEV] Tried sending to ${origin}`);
-        } catch (multiError) {
-          // Игнорируем ошибки при мультидоменной отправке в режиме отладки
-        }
-      }
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('[DEV] Error posting message:', error);
-    return false;
-  }
-}
-
-/**
- * Отправка fallback-сообщения при неразрешенном домене
- * @param window Объект окна
- * @param targetWindow Целевое окно
- * @param message Сообщение для отправки
- * @param targetOrigin Целевой домен
- * @returns boolean
- */
-function sendFallbackMessage(
-  window: Window,
-  targetWindow: Window,
-  message: any,
-  targetOrigin: string
-): boolean {
-  try {
-    const debugMessage = {
-      ...message,
-      _source: window.location.origin,
-      _timestamp: new Date().toISOString(),
-      _debug: true,
-      _warning: `Using wildcard origin because ${targetOrigin} is not allowed`,
-      _via: 'safePostMessage-fallback',
-      _allowedOrigins: ALLOWED_ORIGINS
-    };
-    
-    targetWindow.postMessage(debugMessage, '*');
-    console.warn(`[DEV] Sent with wildcard origin as fallback for ${targetOrigin}`);
-    
-    // Пробуем отправить на все разрешенные домены
-    for (const origin of ALLOWED_ORIGINS) {
-      if (origin !== '*') {
-        try {
-          targetWindow.postMessage({
-            ...debugMessage,
-            _targetOrigin: origin,
-          }, origin);
-          console.log(`[DEV] Tried fallback to ${origin}`);
+          targetWindow.postMessage(enrichedMessage, targetOrigin);
+          console.log(`[DEV] Also sent with specific origin: ${targetOrigin}`);
         } catch (e) {
-          // Игнорируем ошибки
+          console.warn(`[DEV] Failed with specific origin: ${e}`);
         }
-      }
-    }
-    
-    return true;
-  } catch (fallbackError) {
-    console.error('[DEV] Even fallback sending failed:', fallbackError);
-    return false;
-  }
-}
-
-/**
- * Отправка сообщения в продакшен-режиме
- * @param window Объект окна
- * @param targetWindow Целевое окно
- * @param message Сообщение для отправки
- * @param targetOrigin Целевой домен
- * @returns boolean
- */
-function sendProductionMessage(
-  window: Window,
-  targetWindow: Window,
-  message: any,
-  targetOrigin: string
-): boolean {
-  try {
-    // Добавляем информацию об источнике сообщения
-    const enrichedMessage = {
-      ...message,
-      _source: window.location.origin,
-      _timestamp: new Date().toISOString(),
-      _via: 'safePostMessage-prod',
-      _allowedOrigins: ALLOWED_ORIGINS
-    };
-
-    // Отправляем сообщение с точным указанием targetOrigin
-    console.log(`Sending message to ${targetOrigin}:`, enrichedMessage);
-    
-    // First try with exact target origin
-    try {
-      targetWindow.postMessage(enrichedMessage, targetOrigin);
-      console.log(`Successfully sent to ${targetOrigin}`);
-    } catch (e) {
-      console.warn(`Failed to send to ${targetOrigin}, falling back to alternatives:`, e);
-    }
-    
-    // В режиме разработки или при включенном байпасе дублируем с wildcard для отладки
-    if (isDevelopmentMode(window) || BYPASS_ORIGIN_CHECK) {
-      try {
-        targetWindow.postMessage(enrichedMessage, '*');
-        console.log('[DEV] Also sent with wildcard origin for debugging');
-      } catch (e) {
-        console.warn('[DEV] Failed to send with wildcard:', e);
       }
       
-      // Пробуем отправить на все разрешенные домены
-      for (const origin of ALLOWED_ORIGINS) {
-        if (origin !== '*' && origin !== targetOrigin) {
-          try {
-            targetWindow.postMessage({
-              ...enrichedMessage,
-              _targetOrigin: origin,
-            }, origin);
-            console.log(`[DEV] Tried sending to ${origin}`);
-          } catch (e) {
-            // Игнорируем ошибки
-          }
-        }
-      }
+      return true;
     }
+    
+    // Проверяем, разрешен ли домен в обычном режиме
+    const allowed = BYPASS_ORIGIN_CHECK || isSafeTargetOrigin(window, targetOrigin);
+    console.log(`[safePostMessage] Target origin ${targetOrigin} allowed: ${allowed}`);
+    
+    if (!allowed) {
+      console.error(`Target origin ${targetOrigin} is not in the allowed list`, ALLOWED_ORIGINS);
+      
+      // В режиме байпаса или разработки отправляем сообщение для отладки
+      if (BYPASS_ORIGIN_CHECK || isDevelopment) {
+        console.warn('[BYPASS/DEV] Sending despite origin check failure');
+        targetWindow.postMessage(enrichedMessage, '*');
+        return true;
+      }
+      
+      return false;
+    }
+    
+    // В продакшене отправляем сообщение только на проверенный origin
+    console.log(`Sending message to ${targetOrigin}:`, enrichedMessage);
+    targetWindow.postMessage(enrichedMessage, targetOrigin);
     
     return true;
   } catch (error) {
     console.error('Error posting message:', error);
     
-    // Пробуем отправить через '*' только в режиме разработки или при включенном байпасе
-    if (isDevelopmentMode(window) || BYPASS_ORIGIN_CHECK) {
+    // Попытка отправить через wildcard в режиме разработки
+    if (isDevelopment || BYPASS_ORIGIN_CHECK) {
       try {
-        console.warn('Attempting to send with wildcard origin as fallback');
-        const enrichedMessage = {
-          ...message,
-          _source: window.location.origin,
-          _timestamp: new Date().toISOString(),
-          _fallback: true,
-          _via: 'safePostMessage-emergency',
-          _allowedOrigins: ALLOWED_ORIGINS
-        };
+        console.warn('Attempting fallback with wildcard origin');
         targetWindow.postMessage(enrichedMessage, '*');
-        console.log('Sent emergency message with wildcard origin');
-        
-        // Пробуем отправить на все разрешенные домены
-        for (const origin of ALLOWED_ORIGINS) {
-          if (origin !== '*' && origin !== targetOrigin) {
-            try {
-              targetWindow.postMessage({
-                ...enrichedMessage,
-                _targetOrigin: origin,
-              }, origin);
-              console.log(`Tried emergency sending to ${origin}`);
-            } catch (e) {
-              // Игнорируем ошибки
-            }
-          }
-        }
-        
         return true;
       } catch (fallbackError) {
         console.error('Even fallback sending failed:', fallbackError);
@@ -273,4 +102,3 @@ function sendProductionMessage(
     return false;
   }
 }
-

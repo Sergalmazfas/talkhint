@@ -1,3 +1,4 @@
+
 import { isDevelopmentMode, BYPASS_ORIGIN_CHECK } from './constants';
 import { isOriginAllowed } from './validators';
 import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
@@ -44,7 +45,13 @@ export function handleSafePostMessage(
   }
 
   // Проверяем, разрешен ли источник сообщения
-  const allowed = BYPASS_ORIGIN_CHECK || (event.origin && isOriginAllowed(event.origin));
+  const allowed = BYPASS_ORIGIN_CHECK || 
+                 (event.origin && isOriginAllowed(event.origin)) || 
+                 (event.origin && (
+                   event.origin.includes('lovable.') || 
+                   event.origin.includes('gptengineer.')
+                 ));
+                 
   if (!allowed) {
     console.warn(`Message from disallowed origin rejected: ${event.origin || 'unknown'}`);
     
@@ -86,13 +93,33 @@ export function handleSafePostMessage(
 export function setupMessageListener(
   callback: (data: any, origin: string) => void
 ): () => void {
+  // Храним ссылки на обработчики для корректного удаления
+  let messageHandler: ((event: MessageEvent) => void) | null = null;
+  let debugHandler: ((event: MessageEvent) => void) | null = null;
+  
+  // Только один активный обработчик на странице
+  const removed = () => {
+    if (messageHandler) {
+      window.removeEventListener('message', messageHandler);
+      messageHandler = null;
+    }
+    if (debugHandler) {
+      window.removeEventListener('message', debugHandler, true);
+      debugHandler = null;
+    }
+    console.log('PostMessage listeners removed');
+  };
+  
+  // Удаляем любые существующие обработчики перед добавлением нового
+  removed();
+
   // Debug listener to see ALL messages regardless of origin
-  const debugHandler = (event: MessageEvent) => {
+  debugHandler = (event: MessageEvent) => {
     console.log(`[DEBUG] Raw message received from ${event.origin || 'unknown'}:`, event.data);
   };
   window.addEventListener('message', debugHandler, true); // Use capture phase
 
-  const messageHandler = (event: MessageEvent) => {
+  messageHandler = (event: MessageEvent) => {
     const originDisplay = event.origin || 'unknown';
     const isDevelopment = isDevelopmentMode(window);
     
@@ -102,9 +129,12 @@ export function setupMessageListener(
       return;
     }
     
-    // Special case for lovable.app subdomains
-    if (event.origin && event.origin.includes('lovable.app')) {
-      console.log(`[setupMessageListener] Allowing lovable.app subdomain: ${event.origin}`);
+    // Special case for lovable.app and gptengineer.app subdomains
+    if (event.origin && (
+      event.origin.includes('lovable.') || 
+      event.origin.includes('gptengineer.')
+    )) {
+      console.log(`[setupMessageListener] Allowing subdomain: ${event.origin}`);
       callback(event.data, event.origin);
       return;
     }
@@ -147,9 +177,5 @@ export function setupMessageListener(
   console.log('PostMessage listener set up with allowed origins:', ALLOWED_ORIGINS);
   
   // Возвращаем функцию очистки
-  return () => {
-    window.removeEventListener('message', messageHandler);
-    window.removeEventListener('message', debugHandler, true);
-    console.log('PostMessage listeners removed');
-  };
+  return removed;
 }

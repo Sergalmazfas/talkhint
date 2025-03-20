@@ -1,4 +1,3 @@
-
 import React, { forwardRef, useEffect, useState, useCallback, useRef } from 'react';
 import { RefreshCw, AlertTriangle, CheckCircle, Lock, Globe, Info } from 'lucide-react';
 import { Button } from './ui/button';
@@ -21,6 +20,11 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
     const [errors, setErrors] = useState<string[]>([]);
     const [reactErrors, setReactErrors] = useState<string[]>([]);
     const iframeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
+    const debugHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
+    
+    // Предотвращаем множественное добавление обработчиков сообщений
+    const setupListenersOnce = useRef<boolean>(false);
     
     // Добавляем функцию для отображения ошибки
     const addError = useCallback((error: string) => {
@@ -80,8 +84,14 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
       return testUrl;
     }, [serverUrl, addError]);
 
-    // Setup postMessage event listener
+    // Setup postMessage event listener ONCE
     useEffect(() => {
+      // Проверяем, не установлены ли уже обработчики
+      if (setupListenersOnce.current) return;
+      
+      // Помечаем, что обработчики уже установлены
+      setupListenersOnce.current = true;
+      
       const handleMessage = (event: MessageEvent) => {
         try {
           console.log(`[TestIframe] Received message from ${event.origin}:`, event.data);
@@ -123,12 +133,33 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         }
       };
       
-      // Add listener
+      // Debug listener to see ALL messages regardless of origin
+      const debugHandler = (event: MessageEvent) => {
+        console.log(`[DEBUG] Raw message received from ${event.origin || 'unknown'}:`, event.data);
+      };
+      
+      // Сохраняем ссылки на обработчики, чтобы правильно удалить их при размонтировании
+      messageHandlerRef.current = handleMessage;
+      debugHandlerRef.current = debugHandler;
+      
+      // Add listeners
       window.addEventListener('message', handleMessage);
+      window.addEventListener('message', debugHandler, true); // Use capture phase
       
       // Cleanup
       return () => {
-        window.removeEventListener('message', handleMessage);
+        if (messageHandlerRef.current) {
+          window.removeEventListener('message', messageHandlerRef.current);
+          messageHandlerRef.current = null;
+        }
+        
+        if (debugHandlerRef.current) {
+          window.removeEventListener('message', debugHandlerRef.current, true);
+          debugHandlerRef.current = null;
+        }
+        
+        // Сбрасываем флаг, чтобы обработчики можно было установить снова
+        setupListenersOnce.current = false;
       };
     }, [getIframeUrl, addError, addReactError]);
 
@@ -143,7 +174,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         iframeTimeoutRef.current = null;
       }
       
-      // Send init message to iframe
+      // Send init message to iframe only ONCE after loading
       const iframe = ref as React.RefObject<HTMLIFrameElement>;
       if (iframe && iframe.current && iframe.current.contentWindow) {
         try {
@@ -182,7 +213,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
       addError('Failed to load iframe');
     };
     
-    // Check connection status on mount and URL change
+    // Check connection status ONCE on mount and URL change
     useEffect(() => {
       setConnectionStatus('loading');
       console.log(`[TestIframe] Testing connection to ${serverUrl}`);
@@ -211,40 +242,6 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         setHttpsWarning(false);
       }
       
-      // Test server connection with fetch (no-cors) to check if server is reachable
-      const testEndpoints = async () => {
-        try {
-          // Create AbortController for timeout
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          
-          // Try health endpoint first
-          console.log(`[TestIframe] Testing health endpoint: ${serverUrl}/health`);
-          const healthResponse = await fetch(`${serverUrl}/health`, { 
-            mode: 'no-cors',
-            cache: 'no-cache',
-            signal: controller.signal,
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Origin': window.location.origin
-            }
-          });
-          
-          // Clear timeout
-          clearTimeout(timeoutId);
-          
-          console.log(`[TestIframe] Health endpoint response:`, healthResponse);
-          setConnectionStatus('success');
-        } catch (error) {
-          console.error('[TestIframe] Server connection test failed:', error);
-          setConnectionStatus('error');
-          addError(`Connection test failed: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      };
-      
-      testEndpoints();
-      
       // Cleanup
       return () => {
         if (iframeTimeoutRef.current) {
@@ -252,7 +249,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           iframeTimeoutRef.current = null;
         }
       };
-    }, [serverUrl, addError, connectionStatus]);
+    }, [serverUrl, addError]); // Убрали connectionStatus из зависимостей - это вызывало лишние ререндеры
 
     // Define additional attributes for iframe with maximum permissions
     const getSandboxAttributes = () => {
@@ -307,7 +304,6 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
 
     // Determine URL for iframe
     const iframeUrl = getIframeUrl();
-    console.log(`[TestIframe] Using iframe URL: ${iframeUrl}`);
     
     // Функция очистки ошибок для пользователя
     const clearErrors = () => {

@@ -16,4 +16,3 @@ export function isDevelopmentMode(window: Window): boolean {
  * Установите в false для продакшена
  */
 export const BYPASS_ORIGIN_CHECK = true;
-
