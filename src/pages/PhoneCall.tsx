@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
-import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft, Speaker, Settings } from 'lucide-react';
+import { Mic, MicOff, PhoneCall as PhoneIcon, MessageCircle, ArrowLeft, Speaker, Settings, Share2 } from 'lucide-react';
 import ListeningIndicator from '@/components/ListeningIndicator';
 import BilingualResponsePanel from '@/components/BilingualResponsePanel';
 import SpeechService from '@/services/SpeechService';
@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InfoIcon } from 'lucide-react';
+import ApiSettingsQRCode from '@/components/ApiSettingsQRCode';
 
 const PhoneCall = () => {
   const [isListening, setIsListening] = useState(false);
@@ -31,7 +32,8 @@ const PhoneCall = () => {
   const [useServerProxy, setUseServerProxy] = useState(() => GPTService.getUseServerProxy());
   const [selectedProxy, setSelectedProxy] = useState('');
   const [proxyTesting, setProxyTesting] = useState(false);
-
+  const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
+  
   const toggleCall = () => {
     if (isCallActive) {
       if (isListening) {
@@ -321,13 +323,23 @@ const PhoneCall = () => {
             </Link>
             <h1 className="text-2xl font-semibold ml-4">Телефонный разговор</h1>
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => setShowSettings(true)}
-          >
-            <Settings size={24} className="text-primary" />
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setShowQRCodeDialog(true)}
+              title="Импорт настроек"
+            >
+              <Share2 size={20} className="text-primary" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => setShowSettings(true)}
+            >
+              <Settings size={20} className="text-primary" />
+            </Button>
+          </div>
         </div>
 
         <motion.div
@@ -527,6 +539,15 @@ const PhoneCall = () => {
               Сохранить
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={showQRCodeDialog} onOpenChange={setShowQRCodeDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Импорт/Экспорт настроек</DialogTitle>
+          </DialogHeader>
+          <ApiSettingsQRCode onClose={() => setShowQRCodeDialog(false)} />
         </DialogContent>
       </Dialog>
       

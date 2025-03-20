@@ -8,8 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogTitle, DialogHeader } from '@/components/ui/dialog';
+import { QrCode, Share2 } from 'lucide-react';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
+import ApiSettingsQRCode from './ApiSettingsQRCode';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -33,6 +36,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [serverUrl, setServerUrl] = useState('http://localhost:3000/chat');
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
+  const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
   
   // Load settings when opening
   useEffect(() => {
@@ -113,12 +117,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold">Настройки</h2>
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </Button>
+            <div className="flex">
+              <Button variant="ghost" size="icon" onClick={() => setShowQRCodeDialog(true)} title="Поделиться настройками">
+                <Share2 size={18} />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={onClose}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-6">
@@ -236,6 +245,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </Button>
         </div>
       </motion.div>
+
+      <Dialog open={showQRCodeDialog} onOpenChange={setShowQRCodeDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Поделиться настройками</DialogTitle>
+          </DialogHeader>
+          <ApiSettingsQRCode onClose={() => setShowQRCodeDialog(false)} />
+        </DialogContent>
+      </Dialog>
     </motion.div>
   );
 };
