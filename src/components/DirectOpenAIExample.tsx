@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
@@ -7,6 +7,8 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/gpt';
+import { setupMessageListener } from '@/utils/safePostMessage';
+import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
 
 const DirectOpenAIExample = () => {
   const [prompt, setPrompt] = useState<string>('Write a one-sentence bedtime story about a unicorn.');
@@ -14,6 +16,8 @@ const DirectOpenAIExample = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<'client' | 'proxy' | 'chat'>('client');
+  const [messages, setMessages] = useState<any[]>([]);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Определяем URL сервера в зависимости от окружения
   const getServerUrl = () => {
@@ -23,6 +27,34 @@ const DirectOpenAIExample = () => {
     }
     // Для разработки используем локальный сервер
     return 'http://localhost:3000';
+  };
+
+  // Настройка обработчика postMessage
+  useEffect(() => {
+    const cleanupListener = setupMessageListener((data, origin) => {
+      console.log(`Received message from ${origin}:`, data);
+      setMessages(prev => [...prev, { origin, data, timestamp: new Date().toISOString() }]);
+    });
+
+    return cleanupListener;
+  }, []);
+
+  // Безопасная отправка postMessage в iframe
+  const sendMessageToIframe = (message: any) => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      const targetOrigin = new URL(iframeRef.current.src).origin;
+      
+      if (ALLOWED_ORIGINS.some(origin => targetOrigin.startsWith(origin))) {
+        iframeRef.current.contentWindow.postMessage(message, targetOrigin);
+        console.log(`Sent message to iframe at ${targetOrigin}:`, message);
+        return true;
+      } else {
+        console.error(`Target origin ${targetOrigin} is not allowed for postMessage`);
+        setError(`Невозможно отправить сообщение к ${targetOrigin}: домен не разрешен`);
+        return false;
+      }
+    }
+    return false;
   };
 
   const handleSubmit = async () => {
@@ -65,6 +97,7 @@ const DirectOpenAIExample = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Origin': window.location.origin,
           },
           body: JSON.stringify({
             message: prompt
@@ -86,6 +119,26 @@ const DirectOpenAIExample = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const testPostMessage = () => {
+    // Отправка сообщения в родительское окно (если это iframe)
+    window.parent.postMessage(
+      { type: 'TEST_MESSAGE', content: prompt, from: window.location.origin },
+      // Используем * только для тестирования, в продакшен коде всегда указывайте конкретный origin
+      '*'
+    );
+    
+    // Отправка сообщения в iframe (если он есть)
+    if (iframeRef.current) {
+      sendMessageToIframe({ 
+        type: 'TEST_MESSAGE', 
+        content: prompt, 
+        from: window.location.origin 
+      });
+    }
+    
+    setResponse(`Отправлено тестовое сообщение:\n${JSON.stringify({ type: 'TEST_MESSAGE', content: prompt }, null, 2)}`);
   };
 
   return (
@@ -141,6 +194,31 @@ const DirectOpenAIExample = () => {
           />
         </div>
 
+        <div className="flex space-x-2">
+          <Button 
+            onClick={handleSubmit} 
+            disabled={loading || !prompt.trim()}
+            className="flex-1"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Отправка...
+              </>
+            ) : (
+              'Отправить API запрос'
+            )}
+          </Button>
+          
+          <Button 
+            onClick={testPostMessage}
+            variant="outline"
+            disabled={loading || !prompt.trim()}
+          >
+            Тест postMessage
+          </Button>
+        </div>
+
         {response && (
           <div className="space-y-2 mt-4">
             <h3 className="text-sm font-medium">Ответ:</h3>
@@ -149,22 +227,40 @@ const DirectOpenAIExample = () => {
             </div>
           </div>
         )}
+
+        {messages.length > 0 && (
+          <div className="space-y-2 mt-4">
+            <h3 className="text-sm font-medium">Полученные сообщения:</h3>
+            <div className="bg-muted p-4 rounded-md overflow-auto max-h-64">
+              {messages.map((msg, idx) => (
+                <div key={idx} className="mb-2 pb-2 border-b border-gray-200">
+                  <p><strong>От:</strong> {msg.origin}</p>
+                  <p><strong>Время:</strong> {msg.timestamp}</p>
+                  <pre className="text-xs mt-1 whitespace-pre-wrap">
+                    {JSON.stringify(msg.data, null, 2)}
+                  </pre>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        {/* Тестовый iframe для проверки postMessage */}
+        <div className="mt-4 p-4 border rounded-md">
+          <h3 className="text-sm font-medium mb-2">Тестовый iframe:</h3>
+          <iframe
+            ref={iframeRef}
+            src={`${getServerUrl()}/health`}
+            className="w-full h-40 border rounded"
+            title="Тестовый iframe"
+            sandbox="allow-scripts allow-same-origin allow-forms"
+          />
+        </div>
       </CardContent>
       <CardFooter>
-        <Button 
-          onClick={handleSubmit} 
-          disabled={loading || !prompt.trim()}
-          className="w-full"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Отправка...
-            </>
-          ) : (
-            'Отправить сообщение'
-          )}
-        </Button>
+        <p className="text-xs text-muted-foreground w-full text-center">
+          Разрешенные домены для postMessage: {ALLOWED_ORIGINS.join(', ')}
+        </p>
       </CardFooter>
     </Card>
   );

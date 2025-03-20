@@ -1,4 +1,3 @@
-
 /**
  * Configuration for OpenAI API services
  */
@@ -29,12 +28,32 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
  */
 export const PROXY_SERVERS = {
   VERCEL: 'https://lovable-server.vercel.app',
+  GPTENGINEER: 'https://gptengineer.app',
   ALLORIGINS: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1',
   CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
   THINGPROXY: 'https://thingproxy.freeboard.io/fetch/https://api.openai.com/v1',
   LOCAL: 'http://localhost:3000',
   DIRECT: 'https://api.openai.com/v1',
 };
+
+/**
+ * Разрешенные домены для postMessage взаимодействия
+ */
+export const ALLOWED_ORIGINS = [
+  'https://lovable.dev',
+  'https://gptengineer.app',
+  'https://gptengineer.io',
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'http://localhost:5173'
+];
+
+/**
+ * Проверяет, разрешен ли домен для postMessage взаимодействия
+ */
+export function isAllowedOrigin(origin: string): boolean {
+  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
+}
 
 /**
  * Load the OpenAI API key from localStorage
