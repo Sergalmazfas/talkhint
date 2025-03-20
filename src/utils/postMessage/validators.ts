@@ -65,6 +65,15 @@ export function isSafeMessageOrigin(window: Window, messageOrigin: string): bool
     }
     
     const isAllowed = ALLOWED_ORIGINS.some(allowedOrigin => {
+      // Проверка на wildcard поддомены (*.domain.com)
+      if (allowedOrigin.startsWith('*.')) {
+        const domain = allowedOrigin.substring(2);
+        if (messageOrigin.endsWith(domain)) {
+          console.log(`[isSafeMessageOrigin] Matched wildcard domain: ${allowedOrigin}`);
+          return true;
+        }
+      }
+      
       return messageOrigin === allowedOrigin || messageOrigin.includes(allowedOrigin);
     });
     

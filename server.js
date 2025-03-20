@@ -30,7 +30,9 @@ const ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'https://localhost:3000',
     'http://localhost',
-    'https://localhost'
+    'https://localhost',
+    'https://lovable-server.vercel.app',
+    'http://lovable-server.vercel.app'
 ];
 
 // Middleware to check origin and configure CORS
@@ -39,7 +41,6 @@ app.use((req, res, next) => {
     
     // Log all requests with their origin
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${origin || 'unknown'}`);
-    console.log('Headers:', JSON.stringify(req.headers));
     
     // Allow localhost in development mode
     const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -62,7 +63,9 @@ app.use((req, res, next) => {
     const normalizedRequestOrigin = normalizeOrigin(origin);
     const isAllowed = ALLOWED_ORIGINS.some(allowed => 
         normalizeOrigin(allowed) === normalizedRequestOrigin || 
-        normalizedRequestOrigin.includes('lovable.app')
+        normalizedRequestOrigin.includes('lovable.app') ||
+        normalizedRequestOrigin.includes('gptengineer.app') ||
+        normalizedRequestOrigin.includes('lovable-server.vercel.app')
     );
     
     // Set CORS headers if origin is allowed
@@ -71,6 +74,7 @@ app.use((req, res, next) => {
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
         res.setHeader('Access-Control-Allow-Credentials', 'true');
+        console.log(`CORS headers set for origin: ${origin}`);
     } else if (origin) {
         console.warn(`Request from non-allowed origin: ${origin}`);
     }
@@ -105,7 +109,9 @@ app.use(cors({
         const normalizedRequestOrigin = normalizeOrigin(origin);
         const isAllowed = ALLOWED_ORIGINS.some(allowed => 
             normalizeOrigin(allowed) === normalizedRequestOrigin || 
-            normalizedRequestOrigin.includes('lovable.app')
+            normalizedRequestOrigin.includes('lovable.app') ||
+            normalizedRequestOrigin.includes('gptengineer.app') ||
+            normalizedRequestOrigin.includes('lovable-server.vercel.app')
         );
         
         if (isAllowed) {
@@ -128,6 +134,19 @@ app.use((req, res, next) => {
     if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
         console.log(`Request body for ${req.url}:`, JSON.stringify(req.body, null, 2));
     }
+    
+    // Log response headers for CORS debugging
+    const originalSend = res.send;
+    res.send = function(...args) {
+        console.log('Response headers:', JSON.stringify({
+            'access-control-allow-origin': res.getHeader('Access-Control-Allow-Origin'),
+            'access-control-allow-methods': res.getHeader('Access-Control-Allow-Methods'),
+            'access-control-allow-headers': res.getHeader('Access-Control-Allow-Headers'),
+            'content-type': res.getHeader('Content-Type')
+        }, null, 2));
+        return originalSend.apply(res, args);
+    };
+    
     next();
 });
 
@@ -173,14 +192,21 @@ app.post("/api/openai/chat/completions", async (req, res) => {
         
         // Prepare OpenAI API request
         try {
+            // Log complete headers we're sending to OpenAI
+            const headers = {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`
+            };
+            console.log("Headers being sent to OpenAI:", JSON.stringify(headers, (key, value) => {
+                if (key === 'Authorization') return 'Bearer sk-***';
+                return value;
+            }, 2));
+            
             const response = await axios.post(
                 "https://api.openai.com/v1/chat/completions",
                 req.body,
                 {
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${apiKey}`
-                    },
+                    headers,
                     timeout: 60000 // 60 second timeout
                 }
             );

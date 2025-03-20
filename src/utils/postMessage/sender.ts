@@ -1,6 +1,6 @@
 
 import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
-import { isDevelopmentMode, BYPASS_ORIGIN_CHECK } from './constants';
+import { isDevelopmentMode, BYPASS_ORIGIN_CHECK, safeStringify } from './constants';
 import { isSafeTargetOrigin } from './validators';
 
 // Counter to prevent infinite loops
@@ -38,7 +38,7 @@ export function safePostMessage(
   }
 
   // Защита от отправки одинаковых сообщений несколько раз подряд
-  const messageKey = `${targetOrigin}:${JSON.stringify(message)}`;
+  const messageKey = `${targetOrigin}:${safeStringify(message)}`;
   if (recentlySentMessages.has(messageKey)) {
     console.warn('[safePostMessage] Duplicate message detected, skipping to prevent loops');
     return false;

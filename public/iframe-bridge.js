@@ -23,7 +23,8 @@
     'http://localhost:5173',
     'https://localhost:5173',
     'http://localhost',
-    'https://localhost'
+    'https://localhost',
+    'https://lovable-server.vercel.app'
   ];
 
   // Всегда принимать сообщения в режиме отладки
@@ -61,27 +62,32 @@
   // Защита от зацикливания постоянной отправки сообщений
   function isMessageProcessed(event) {
     // Создаем уникальный хеш-ключ для сообщения на основе его содержимого и источника
-    const messageData = JSON.stringify(event.data);
-    const messageKey = `${event.origin}:${messageData}`;
-    
-    // Проверяем, не обрабатывали ли мы уже это сообщение
-    if (processedMessages.has(messageKey)) {
-      return true;
-    }
-    
-    // Добавляем сообщение в список обработанных
-    processedMessages.add(messageKey);
-    
-    // Ограничиваем размер кэша обработанных сообщений
-    if (processedMessages.size > 200) {
-      // Удаляем самые старые сообщения
-      const iterator = processedMessages.values();
-      for (let i = 0; i < 50; i++) {
-        processedMessages.delete(iterator.next().value);
+    try {
+      const messageData = JSON.stringify(event.data);
+      const messageKey = `${event.origin}:${messageData}`;
+      
+      // Проверяем, не обрабатывали ли мы уже это сообщение
+      if (processedMessages.has(messageKey)) {
+        return true;
       }
+      
+      // Добавляем сообщение в список обработанных
+      processedMessages.add(messageKey);
+      
+      // Ограничиваем размер кэша обработанных сообщений
+      if (processedMessages.size > 200) {
+        // Удаляем самые старые сообщения
+        const iterator = processedMessages.values();
+        for (let i = 0; i < 50; i++) {
+          processedMessages.delete(iterator.next().value);
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      console.error("Error checking message processed status:", e);
+      return false;
     }
-    
-    return false;
   }
 
   // Отладка всех сообщений независимо от origin

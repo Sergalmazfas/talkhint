@@ -6,9 +6,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import GPTService from '@/services/gpt';
-import { setupMessageListener, testPostMessageAllOrigins, testIframePostMessage } from '@/utils/postMessage';
+import { setupMessageListener } from '@/utils/postMessage/receiver';
+import { safePostMessage } from '@/utils/postMessage/sender';
 import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
+import { safeStringify } from '@/utils/postMessage/constants';
 import TestIframe from './TestIframe';
+import { toast } from 'sonner';
 
 const DirectOpenAIExample = () => {
   const [prompt, setPrompt] = useState<string>('Write a one-sentence bedtime story about a unicorn.');
@@ -27,34 +30,37 @@ const DirectOpenAIExample = () => {
   };
 
   useEffect(() => {
+    // Use the improved setupMessageListener from receiver.ts
     const cleanupListener = setupMessageListener((event) => {
-      // Extract data and origin from the event
-      const { data, origin } = event;
-      console.log(`Received message from ${origin}:`, data);
-      
-      // Проверяем, не пустое ли сообщение
-      if (!data) {
-        console.warn(`Empty message received from ${origin}`);
-        return;
+      try {
+        // Log the event for debugging
+        console.log(`[DirectOpenAIExample] Received message from ${event.origin}:`, event.data);
+        
+        // Проверяем, не пустое ли сообщение
+        if (!event.data) {
+          console.warn(`[DirectOpenAIExample] Empty message received from ${event.origin}`);
+          return;
+        }
+        
+        // Добавляем сообщение в список, ограничивая 50 последними сообщениями
+        setMessages(prev => {
+          const newMessages = [...prev, { 
+            origin: event.origin, 
+            data: event.data, 
+            timestamp: new Date().toISOString() 
+          }];
+          return newMessages.slice(-50); // Держим только 50 последних сообщений
+        });
+      } catch (error) {
+        console.error('[DirectOpenAIExample] Error handling message:', error);
       }
-      
-      // Добавляем сообщение в список, ограничивая 50 последними сообщениями
-      setMessages(prev => {
-        const newMessages = [...prev, { origin, data, timestamp: new Date().toISOString() }];
-        return newMessages.slice(-50); // Держим только 50 последних сообщений
-      });
     });
 
+    // Send initial message to iframe after a short delay
     if (iframeRef.current && iframeRef.current.contentWindow) {
       setTimeout(() => {
         try {
-          let targetOrigin = '*';
-          
-          try {
-            targetOrigin = new URL(iframeRef.current!.src).origin;
-          } catch (e) {
-            console.warn('Could not parse iframe URL, using wildcard origin:', e);
-          }
+          console.log('[DirectOpenAIExample] Attempting to send initial message to iframe');
           
           const initMessage = { 
             type: 'INIT', 
@@ -62,17 +68,32 @@ const DirectOpenAIExample = () => {
             timestamp: new Date().toISOString()
           };
           
-          if (targetOrigin !== '*') {
-            iframeRef.current!.contentWindow!.postMessage(initMessage, targetOrigin);
-            console.log(`Initial postMessage sent to iframe at ${targetOrigin}`);
+          // Try to determine the iframe's origin for sending
+          let targetOrigin = '*';
+          try {
+            if (iframeRef.current?.src) {
+              targetOrigin = new URL(iframeRef.current.src).origin;
+              console.log(`[DirectOpenAIExample] Determined iframe origin: ${targetOrigin}`);
+            }
+          } catch (e) {
+            console.warn('[DirectOpenAIExample] Could not parse iframe URL, using wildcard origin:', e);
           }
           
-          if (process.env.NODE_ENV === 'development') {
-            iframeRef.current!.contentWindow!.postMessage(initMessage, '*');
-            console.log(`Also sent initial message with wildcard origin (debug mode)`);
+          // Use our safe postMessage function instead of direct call
+          const success = safePostMessage(
+            window, 
+            iframeRef.current.contentWindow, 
+            initMessage,
+            targetOrigin
+          );
+          
+          if (success) {
+            console.log('[DirectOpenAIExample] Successfully sent initial message to iframe');
+          } else {
+            console.warn('[DirectOpenAIExample] Failed to send initial message to iframe');
           }
         } catch (e) {
-          console.error('Failed to send initial postMessage to iframe:', e);
+          console.error('[DirectOpenAIExample] Error sending initial message to iframe:', e);
         }
       }, 1500);
     }
@@ -87,10 +108,13 @@ const DirectOpenAIExample = () => {
 
     try {
       const result = await GPTService.sendChatMessage(prompt);
-      setResponse(JSON.stringify(result, null, 2));
+      setResponse(safeStringify(result));
+      toast.success('Message sent successfully');
     } catch (err) {
       console.error('Error calling API:', err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+      toast.error(`Error: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -101,56 +125,72 @@ const DirectOpenAIExample = () => {
       setError(null);
       setTestResults(null);
       
-      try {
-        window.parent.postMessage(
-          { type: 'TEST_MESSAGE', content: prompt, from: window.location.origin },
-          window.location.origin
-        );
-        console.log(`Sent test message to parent (same origin: ${window.location.origin})`);
-      } catch (e) {
-        console.error('Error sending to parent window:', e);
-      }
-      
-      if (iframeRef.current) {
-        const success = testIframePostMessage(iframeRef.current, { 
-          type: 'TEST_MESSAGE', 
-          content: prompt, 
-          from: window.location.origin 
-        });
-        
-        if (success) {
-          console.log('Successfully sent message to iframe');
-        } else {
-          console.warn('Failed to send message to iframe');
-        }
-      }
-      
-      const results = testPostMessageAllOrigins({
-        type: 'DOMAIN_TEST',
-        content: prompt,
-        from: window.location.origin
-      });
-      
-      setTestResults(results);
-      
-      setResponse(`Sent test message:\n${JSON.stringify({ 
+      // Test message to send
+      const testMessage = { 
         type: 'TEST_MESSAGE', 
-        content: prompt 
-      }, null, 2)}\n\nDomain testing results:\n${
-        Object.entries(results)
-          .map(([domain, success]) => `${domain}: ${success ? '✅' : '❌'}`)
-          .join('\n')
-      }`);
+        content: prompt, 
+        from: window.location.origin,
+        timestamp: new Date().toISOString()
+      };
       
+      // Try sending to parent window
+      try {
+        if (window.parent !== window) {
+          const success = safePostMessage(window, window.parent, testMessage, window.location.origin);
+          console.log(`[testPostMessage] Sent to parent window: ${success ? 'success' : 'failed'}`);
+        }
+      } catch (e) {
+        console.error('[testPostMessage] Error sending to parent window:', e);
+      }
+      
+      // Try sending to iframe if it exists
+      if (iframeRef.current && iframeRef.current.contentWindow) {
+        try {
+          let targetOrigin = '*';
+          
+          try {
+            if (iframeRef.current.src) {
+              targetOrigin = new URL(iframeRef.current.src).origin;
+            }
+          } catch (e) {
+            console.warn('[testPostMessage] Could not parse iframe URL, using wildcard origin');
+          }
+          
+          const success = safePostMessage(
+            window, 
+            iframeRef.current.contentWindow, 
+            testMessage,
+            targetOrigin
+          );
+          
+          if (success) {
+            console.log('[testPostMessage] Successfully sent test message to iframe');
+            setResponse(`Sent test message to iframe at ${targetOrigin}:\n${safeStringify(testMessage)}`);
+            toast.success('Test message sent to iframe');
+          } else {
+            console.warn('[testPostMessage] Failed to send test message to iframe');
+            setError('Failed to send test message to iframe');
+            toast.error('Failed to send test message to iframe');
+          }
+        } catch (e) {
+          console.error('[testPostMessage] Error sending to iframe:', e);
+          setError(`Error: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      } else {
+        console.warn('[testPostMessage] Iframe reference not available');
+        setError('Iframe reference not available');
+      }
     } catch (error) {
-      console.error('Error while testing postMessage:', error);
+      console.error('[testPostMessage] Error while testing postMessage:', error);
       setError(`Testing error: ${error instanceof Error ? error.message : String(error)}`);
+      toast.error('Error testing postMessage');
     }
   };
 
   const reloadIframe = () => {
     if (iframeRef.current) {
       iframeRef.current.src = iframeRef.current.src;
+      toast.info('Iframe reloaded');
     }
   };
 
@@ -249,12 +289,15 @@ const DirectOpenAIExample = () => {
                   <p><strong>From:</strong> {msg.origin}</p>
                   <p><strong>Time:</strong> {msg.timestamp}</p>
                   <pre className="text-xs mt-1 whitespace-pre-wrap overflow-auto max-h-20">
-                    {JSON.stringify(msg.data, null, 2)}
+                    {safeStringify(msg.data)}
                   </pre>
                 </div>
               ))}
             </div>
-            <Button variant="outline" size="sm" onClick={() => setMessages([])}>
+            <Button variant="outline" size="sm" onClick={() => {
+              setMessages([]);
+              toast.success('Messages cleared');
+            }}>
               Clear messages
             </Button>
           </div>
@@ -271,7 +314,7 @@ const DirectOpenAIExample = () => {
           Your current origin: <code>{window.location.origin}</code>
         </p>
         <p className="text-xs text-muted-foreground w-full text-center">
-          Allowed domains for postMessage: {ALLOWED_ORIGINS.join(', ')}
+          Allowed domains for postMessage: {ALLOWED_ORIGINS.length} domains configured
         </p>
       </CardFooter>
     </Card>

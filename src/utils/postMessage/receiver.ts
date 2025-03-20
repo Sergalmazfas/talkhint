@@ -1,5 +1,5 @@
 
-import { isDevelopmentMode, BYPASS_ORIGIN_CHECK } from './constants';
+import { isDevelopmentMode, BYPASS_ORIGIN_CHECK, safeStringify } from './constants';
 import { isSafeMessageOrigin } from './validators';
 
 // Сет для отслеживания уже обработанных сообщений (защита от зацикливания)
@@ -100,7 +100,7 @@ export class SafeMessageReceiver {
     
     try {
       // Создаем уникальный ключ для сообщения
-      const messageKey = `${event.origin}:${JSON.stringify(event.data)}:${this.messageCount++}`;
+      const messageKey = `${event.origin}:${safeStringify(event.data)}:${this.messageCount++}`;
       
       // Проверяем, обрабатывали ли мы уже это сообщение
       if (processedMessages.has(messageKey)) {

@@ -79,6 +79,10 @@ export const ALLOWED_ORIGINS = [
   'http://localhost',
   'https://localhost',
   
+  // Lovable server domains
+  'https://lovable-server.vercel.app',
+  'http://lovable-server.vercel.app',
+  
   // Дополнительно добавим все возможные поддомены lovable.app и gptengineer.app
   '*.lovable.app',
   '*.gptengineer.app',
@@ -157,6 +161,12 @@ export function isAllowedOrigin(origin: string): boolean {
   // Special case for gptengineer.app subdomains
   if (normalizedInput.includes('gptengineer.app')) {
     console.log(`[isAllowedOrigin] Allowing gptengineer.app subdomain: ${normalizedInput}`);
+    return true;
+  }
+  
+  // Special case for server domain
+  if (normalizedInput.includes('lovable-server.vercel.app')) {
+    console.log(`[isAllowedOrigin] Allowing lovable-server.vercel.app domain: ${normalizedInput}`);
     return true;
   }
   
