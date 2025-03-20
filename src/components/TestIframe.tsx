@@ -1,3 +1,4 @@
+
 import React, { forwardRef, useEffect, useState, useCallback, useRef } from 'react';
 import { RefreshCw, AlertTriangle, CheckCircle, Lock, Globe, Info } from 'lucide-react';
 import { Button } from './ui/button';
@@ -315,6 +316,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
               size="sm" 
               onClick={onReload}
               className="h-6 w-6 p-0"
+              aria-label="Reload iframe"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
@@ -422,4 +424,3 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
 TestIframe.displayName = 'TestIframe';
 
 export default TestIframe;
-

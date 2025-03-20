@@ -6,7 +6,6 @@ const ALLOWED_ORIGINS = [
   'http://lovable.dev',
   'http://www.lovable.dev',
   'https://id-preview--be5c3e65-2457-46cb-a8e0-02444f6fdcc1.lovable.app',
-  'https://id-preview--be5c3e65-2457-46cb-a8e0-02444f6fdcc1.lovable.app:3000',
   'https://gptengineer.app',
   'https://www.gptengineer.app',
   'http://gptengineer.app',
@@ -25,7 +24,7 @@ const ALLOWED_ORIGINS = [
   'https://localhost',
   'https://lovable-server.vercel.app',
   'http://lovable-server.vercel.app',
-  '*' // Allow all origins during development, will be filtered in production
+  '*' // Allow all origins during development
 ];
 
 // Middleware to check origin and configure CORS
@@ -35,7 +34,7 @@ const corsMiddleware = (req, res, next) => {
   // Log all requests with their origin
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${origin || 'unknown'}`);
   
-  // Always set CORS headers - This is important for browsers to accept responses
+  // Always set CORS headers for browser requests
   res.setHeader('Access-Control-Allow-Origin', origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
@@ -64,16 +63,11 @@ const corsOptions = {
       return callback(null, true);
     }
     
-    // Normalize origin for comparison
-    const normalizeOrigin = (url) => {
-      if (!url) return '';
-      return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\d+$/, '');
-    };
-    
     // Check if origin is allowed, including www/non-www variants
-    const normalizedRequestOrigin = normalizeOrigin(origin);
+    const normalizedRequestOrigin = origin.replace(/^https?:\/\//, '').replace(/^www\./, '');
     const isAllowed = ALLOWED_ORIGINS.some(allowed => 
-      normalizeOrigin(allowed) === normalizedRequestOrigin || 
+      allowed === origin || 
+      allowed === '*' || 
       normalizedRequestOrigin.includes('lovable.app') ||
       normalizedRequestOrigin.includes('gptengineer.app') ||
       normalizedRequestOrigin.includes('lovable-server.vercel.app')

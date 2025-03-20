@@ -7,7 +7,6 @@
     'http://lovable.dev',
     'http://www.lovable.dev',
     'https://id-preview--be5c3e65-2457-46cb-a8e0-02444f6fdcc1.lovable.app',
-    'https://id-preview--be5c3e65-2457-46cb-a8e0-02444f6fdcc1.lovable.app:3000',
     'https://gptengineer.app',
     'https://www.gptengineer.app',
     'http://gptengineer.app',
