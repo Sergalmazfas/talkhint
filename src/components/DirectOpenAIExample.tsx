@@ -7,8 +7,9 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/gpt';
-import { setupMessageListener, testPostMessageAllOrigins } from '@/utils/safePostMessage';
+import { setupMessageListener, testPostMessageAllOrigins, testIframePostMessage } from '@/utils/safePostMessage';
 import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
+import TestIframe from './TestIframe';
 
 const DirectOpenAIExample = () => {
   const [prompt, setPrompt] = useState<string>('Write a one-sentence bedtime story about a unicorn.');
@@ -27,7 +28,7 @@ const DirectOpenAIExample = () => {
       return 'https://lovable-server.vercel.app';
     }
     // Для разработки используем локальный сервер
-    return 'http://localhost:3000';
+    return window.location.protocol + '//' + window.location.hostname + ':3000';
   };
 
   // Настройка обработчика postMessage
@@ -41,12 +42,33 @@ const DirectOpenAIExample = () => {
     if (iframeRef.current && iframeRef.current.contentWindow) {
       setTimeout(() => {
         try {
-          const targetOrigin = new URL(iframeRef.current!.src).origin;
-          iframeRef.current!.contentWindow!.postMessage(
-            { type: 'INIT', from: window.location.origin },
-            targetOrigin
-          );
-          console.log(`Initial postMessage sent to iframe at ${targetOrigin}`);
+          // Получаем origin iframe
+          let targetOrigin = '*'; // Fallback для отладки
+          
+          try {
+            targetOrigin = new URL(iframeRef.current!.src).origin;
+          } catch (e) {
+            console.warn('Could not parse iframe URL, using wildcard origin:', e);
+          }
+          
+          // Отправляем сообщение
+          const initMessage = { 
+            type: 'INIT', 
+            from: window.location.origin,
+            timestamp: new Date().toISOString()
+          };
+          
+          // Пробуем отправить на конкретный origin
+          if (targetOrigin !== '*') {
+            iframeRef.current!.contentWindow!.postMessage(initMessage, targetOrigin);
+            console.log(`Initial postMessage sent to iframe at ${targetOrigin}`);
+          }
+          
+          // Также пробуем отправить с wildcard для отладки
+          if (process.env.NODE_ENV === 'development') {
+            iframeRef.current!.contentWindow!.postMessage(initMessage, '*');
+            console.log(`Also sent initial message with wildcard origin (debug mode)`);
+          }
         } catch (e) {
           console.error('Failed to send initial postMessage to iframe:', e);
         }
@@ -55,41 +77,6 @@ const DirectOpenAIExample = () => {
 
     return cleanupListener;
   }, []);
-
-  // Безопасная отправка postMessage в iframe
-  const sendMessageToIframe = (message: any) => {
-    if (!iframeRef.current || !iframeRef.current.contentWindow) {
-      setError("Iframe не загружен или недоступен");
-      return false;
-    }
-    
-    try {
-      const targetOrigin = new URL(iframeRef.current.src).origin;
-      
-      // Разрешаем любой origin для localhost в режиме разработки
-      if (process.env.NODE_ENV === 'development' && 
-          (window.location.hostname === 'localhost' || targetOrigin.includes('localhost'))) {
-        iframeRef.current.contentWindow.postMessage(message, '*');
-        console.log(`Sent message to iframe at ${targetOrigin} (dev mode, using *)`, message);
-        return true;
-      }
-      
-      // Проверяем, является ли targetOrigin разрешенным
-      if (ALLOWED_ORIGINS.includes(targetOrigin)) {
-        iframeRef.current.contentWindow.postMessage(message, targetOrigin);
-        console.log(`Sent message to iframe at ${targetOrigin}:`, message);
-        return true;
-      } else {
-        console.error(`Target origin ${targetOrigin} is not allowed for postMessage`);
-        setError(`Невозможно отправить сообщение к ${targetOrigin}: домен не разрешен`);
-        return false;
-      }
-    } catch (error) {
-      console.error("Error sending message to iframe:", error);
-      setError(`Ошибка отправки сообщения: ${error instanceof Error ? error.message : String(error)}`);
-      return false;
-    }
-  };
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -174,7 +161,7 @@ const DirectOpenAIExample = () => {
       
       // 2. Отправка сообщения в iframe
       if (iframeRef.current) {
-        const success = sendMessageToIframe({ 
+        const success = testIframePostMessage(iframeRef.current, { 
           type: 'TEST_MESSAGE', 
           content: prompt, 
           from: window.location.origin 
@@ -343,27 +330,12 @@ const DirectOpenAIExample = () => {
           </div>
         )}
         
-        {/* Тестовый iframe для проверки postMessage */}
-        <div className="mt-4 p-4 border rounded-md">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-medium">Тестовый iframe:</h3>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={reloadIframe}
-              className="h-6 w-6 p-0"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-          <iframe
-            ref={iframeRef}
-            src={`${getServerUrl()}/health`}
-            className="w-full h-40 border rounded"
-            title="Тестовый iframe"
-            sandbox="allow-scripts allow-same-origin allow-forms"
-          />
-        </div>
+        {/* Тестовый iframe */}
+        <TestIframe 
+          ref={iframeRef}
+          serverUrl={getServerUrl()}
+          onReload={reloadIframe}
+        />
       </CardContent>
       <CardFooter className="flex-col">
         <p className="text-xs text-muted-foreground w-full text-center mb-2">

@@ -1,3 +1,4 @@
+
 /**
  * Configuration for OpenAI API services
  */
@@ -33,6 +34,7 @@ export const PROXY_SERVERS = {
   CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
   THINGPROXY: 'https://thingproxy.freeboard.io/fetch/https://api.openai.com/v1',
   LOCAL: 'http://localhost:3000',
+  LOCAL_HTTPS: 'https://localhost:3000',
   DIRECT: 'https://api.openai.com/v1',
 };
 
@@ -45,22 +47,26 @@ export const ALLOWED_ORIGINS = [
   'https://gptengineer.app',
   'https://gptengineer.io',
   'http://localhost:3000',
+  'https://localhost:3000', // Добавляем HTTPS версию
   'http://localhost:8080',
-  'http://localhost:5173'
+  'http://localhost:5173',
+  'https://localhost:5173', // Добавляем HTTPS версии
+  'https://localhost:8080'
 ];
 
 /**
  * Проверяет, разрешен ли домен для postMessage взаимодействия
- * Сравнивает точно, так как для postMessage нужно точное совпадение
+ * Более гибкая проверка для различных окружений
  */
 export function isAllowedOrigin(origin: string): boolean {
-  // Для localhost и разработки разрешаем все (не для продакшена)
-  if (process.env.NODE_ENV === 'development' && (
-    window.location.hostname === 'localhost' ||
-    origin === '*' ||
-    origin.includes('localhost')
-  )) {
-    return true;
+  // Для отладки и локальной разработки
+  if (process.env.NODE_ENV === 'development') {
+    // В режиме разработки разрешаем любые localhost
+    if (origin === '*' || 
+        origin.includes('localhost') || 
+        window.location.hostname === 'localhost') {
+      return true;
+    }
   }
   
   // Для других доменов делаем точную проверку
