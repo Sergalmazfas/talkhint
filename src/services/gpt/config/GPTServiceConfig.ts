@@ -17,7 +17,7 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  serverProxyUrl: 'http://localhost:3000/chat',
+  serverProxyUrl: 'https://api.lovable.dev/openai-proxy', // Using Lovable's proxy
   useServerProxy: true, // Using server proxy by default
   maxRetries: 3,
   timeoutMs: 60000,

@@ -21,7 +21,6 @@ const PhoneCall = () => {
   const [showBilingualResponses, setShowBilingualResponses] = useState(false);
   const [isApiConnected, setIsApiConnected] = useState<boolean | null>(null);
   
-  // Settings state
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [useServerProxy, setUseServerProxy] = useState(() => GPTService.getUseServerProxy());
@@ -29,7 +28,7 @@ const PhoneCall = () => {
   const toggleCall = () => {
     if (isCallActive) {
       if (isListening) {
-        stopListening(); // Ensure microphone is stopped when call ends
+        stopListening();
       }
       setIsCallActive(false);
       toast.info('Звонок завершен');
@@ -43,7 +42,6 @@ const PhoneCall = () => {
   };
 
   const startListening = () => {
-    // Only allow microphone to be enabled during active call
     if (!isCallActive) {
       toast.error('Невозможно включить микрофон: звонок не активен');
       return;
@@ -149,13 +147,11 @@ const PhoneCall = () => {
   };
 
   const saveSettings = () => {
-    // Only set API key if it's provided and not empty
     if (apiKey.trim()) {
       GPTService.setApiKey(apiKey);
       toast.success('API ключ сохранен');
     }
     
-    // Update proxy setting
     GPTService.setUseServerProxy(useServerProxy);
     toast.success(useServerProxy 
       ? 'Использование прокси-сервера включено' 
@@ -163,7 +159,6 @@ const PhoneCall = () => {
     
     setShowSettings(false);
     
-    // Check connection with new settings
     checkApiConnection().then(connected => {
       if (connected) {
         toast.success('Подключение к OpenAI API успешно');
@@ -184,7 +179,6 @@ const PhoneCall = () => {
           setIsCallActive(true);
           toast.success('Звонок начат');
           
-          // Get current proxy setting
           setUseServerProxy(GPTService.getUseServerProxy());
           
           checkApiConnection()
@@ -210,7 +204,6 @@ const PhoneCall = () => {
       toast.error('Ваш браузер не поддерживает доступ к микрофону');
     }
     
-    // Clean up on component unmount
     return () => {
       if (SpeechService.isCurrentlyListening()) {
         SpeechService.stopListening();
@@ -218,10 +211,8 @@ const PhoneCall = () => {
     };
   }, []);
 
-  // Watch for changes in call status and ensure microphone is properly managed
   useEffect(() => {
     if (!isCallActive && isListening) {
-      // If call is not active but microphone is on, turn it off
       stopListening();
     }
   }, [isCallActive, isListening]);
@@ -341,7 +332,6 @@ const PhoneCall = () => {
         </motion.div>
       </div>
 
-      {/* Settings Dialog */}
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
         <DialogContent>
           <DialogHeader>
@@ -372,7 +362,7 @@ const PhoneCall = () => {
             </div>
             <p className="text-xs text-muted-foreground">
               {useServerProxy
-                ? "API запросы будут отправляться через прокси-сервер"
+                ? "API запросы будут отправляться через сервер Lovable для обхода CORS"
                 : "API запросы будут отправляться напрямую с использованием API ключа"}
             </p>
           </div>

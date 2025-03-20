@@ -96,7 +96,11 @@ class GPTBaseService {
     if (this.config.useServerProxy) {
       try {
         // Send a simple ping to the proxy server
-        const response = await fetch(this.config.serverProxyUrl.replace('/chat', '/ping'), {
+        const pingUrl = this.config.serverProxyUrl.includes('/openai-proxy') 
+          ? this.config.serverProxyUrl.replace('/openai-proxy', '/ping') 
+          : this.config.serverProxyUrl.replace('/chat', '/ping');
+          
+        const response = await fetch(pingUrl, {
           method: 'GET',
           mode: 'cors',
         }).catch(() => null);
