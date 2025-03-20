@@ -22,6 +22,8 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
       // Если страница на HTTPS, а сервер на HTTP, генерируем предупреждение
       if (isPageHttps && serverUrl.startsWith('http:')) {
         setHttpsWarning(true);
+        console.log(`[TestIframe] Mixed content warning: page is HTTPS but server is HTTP (${serverUrl})`);
+        
         // Подменяем http: на https: для предотвращения проблем со смешанным контентом
         return serverUrl.replace('http:', 'https:') + '/postmessage-test';
       }
@@ -32,39 +34,51 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
 
     // Обработчик загрузки iframe
     const handleIframeLoad = () => {
+      console.log('[TestIframe] Iframe loaded successfully');
       setConnectionStatus('success');
     };
 
     // Обработчик ошибки загрузки iframe
     const handleIframeError = () => {
+      console.error('[TestIframe] Error loading iframe');
       setConnectionStatus('error');
     };
     
     // Проверяем статус соединения при монтировании и изменении URL
     useEffect(() => {
       setConnectionStatus('loading');
+      console.log(`[TestIframe] Testing connection to ${serverUrl}`);
       
       // Проверяем наличие протокола в URL
       if (!serverUrl.startsWith('http:') && !serverUrl.startsWith('https:')) {
-        console.warn('Server URL does not include protocol, this may cause issues');
+        console.warn('[TestIframe] Server URL does not include protocol, this may cause issues');
       }
       
       // Проверяем смешанный контент
       const isPageHttps = window.location.protocol === 'https:';
       if (isPageHttps && serverUrl.startsWith('http:')) {
         setHttpsWarning(true);
-        console.warn('Mixed content: page is HTTPS but server is HTTP, this will be blocked by browsers');
+        console.warn('[TestIframe] Mixed content: page is HTTPS but server is HTTP, this will be blocked by browsers');
       } else {
         setHttpsWarning(false);
       }
       
       // Тестируем соединение с сервером
-      fetch(`${serverUrl}/health`, { mode: 'no-cors' })
+      fetch(`${serverUrl}/health`, { 
+        mode: 'no-cors',
+        cache: 'no-cache',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Origin': window.location.origin
+        }
+      })
         .then(() => {
+          console.log(`[TestIframe] Server connection test successful: ${serverUrl}`);
           setConnectionStatus('success');
         })
         .catch((error) => {
-          console.error('Server connection test failed:', error);
+          console.error('[TestIframe] Server connection test failed:', error);
           setConnectionStatus('error');
         });
     }, [serverUrl]);
@@ -82,6 +96,7 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
 
     // Определяем URL для iframe
     const iframeUrl = getIframeUrl();
+    console.log(`[TestIframe] Using iframe URL: ${iframeUrl}`);
 
     return (
       <div className="mt-4 p-4 border rounded-md">

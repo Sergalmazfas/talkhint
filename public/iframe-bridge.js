@@ -17,28 +17,46 @@
     '*' // Временно разрешаем любой домен для отладки
   ];
 
-  // Проверка разрешенного домена - более гибкая
+  // Улучшенная проверка разрешенного домена с подробным логированием
   function isAllowedOrigin(origin) {
+    console.log(`[iframe-bridge] Checking if origin is allowed: ${origin}`);
+    
     // Если origin пустой или отсутствует, разрешаем для отладки
-    if (!origin) return true;
+    if (!origin) {
+      console.log('[iframe-bridge] Empty origin, allowing for debugging');
+      return true;
+    }
     
     // В режиме разработки разрешаем localhost
-    if (origin.includes('localhost') || origin === '*') {
+    if (origin.includes('localhost')) {
+      console.log('[iframe-bridge] Localhost origin detected, allowing');
+      return true;
+    }
+    
+    if (origin === '*') {
+      console.log('[iframe-bridge] Wildcard origin, allowing');
       return true;
     }
     
     // Проверка www/без www вариантов (например, lovable.dev и www.lovable.dev)
     const normalizedOrigin = origin.replace('www.', '');
+    console.log(`[iframe-bridge] Normalized origin: ${normalizedOrigin}`);
     
     // Для остальных доменов проверяем по списку с нормализацией
-    return ALLOWED_ORIGINS.some(allowed => {
+    const isAllowed = ALLOWED_ORIGINS.some(allowed => {
       if (allowed === '*') return true;
       return allowed.replace('www.', '') === normalizedOrigin;
     });
+    
+    console.log(`[iframe-bridge] Origin ${origin} allowed: ${isAllowed}`);
+    return isAllowed;
   }
 
-  // Обработчик сообщений - улучшенная версия
+  // Обработчик сообщений - улучшенная версия с детальным логированием
   window.addEventListener('message', function(event) {
+    // Подробное логирование origin
+    console.log(`[iframe-bridge] Received message from ${event.origin || 'unknown origin'}`);
+    
     // Проверяем, разрешен ли источник сообщения
     const isAllowed = isAllowedOrigin(event.origin);
     console.log(`[iframe-bridge] Message from ${event.origin}, allowed: ${isAllowed}`);
@@ -76,6 +94,8 @@
       
       // Отправляем ответ обратно отправителю
       if (event.source) {
+        console.log(`[iframe-bridge] Attempting to respond to ${event.origin}`);
+        
         try {
           // Сначала пробуем отправить на конкретный origin
           event.source.postMessage(response, event.origin);
@@ -100,6 +120,7 @@
                   _targetOrigin: origin,
                   _note: 'Multi-origin fallback'
                 }, origin);
+                console.log(`[iframe-bridge] Tried fallback response to ${origin}`);
               } catch (e3) {
                 // Игнорируем ошибки при мультидоменной отправке
               }
@@ -193,6 +214,7 @@
           <div>Parent: ${parentOrigin || 'unknown'}</div>
           <div>Protocol: ${window.location.protocol}</div>
           <div>Ready notifications sent</div>
+          <div>Allowed origins: ${ALLOWED_ORIGINS.join(', ')}</div>
         `;
         document.body.appendChild(debugInfo);
       }
@@ -220,5 +242,5 @@
     setTimeout(notifyReady, 100);
   });
   
-  console.log('[iframe-bridge] Initialized successfully');
+  console.log('[iframe-bridge] Initialized successfully with origins:', ALLOWED_ORIGINS);
 })();

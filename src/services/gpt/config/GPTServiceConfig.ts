@@ -1,3 +1,4 @@
+
 /**
  * Configuration for OpenAI API services
  */
@@ -38,29 +39,48 @@ export const PROXY_SERVERS = {
 };
 
 /**
- * Разрешенные домены для postMessage взаимодействия
- * Добавили дополнительные версии доменов
+ * Расширенные разрешенные домены для postMessage взаимодействия
+ * Добавлены все возможные варианты доменов и протоколов
  */
 export const ALLOWED_ORIGINS = [
+  // Lovable domains
   'https://lovable.dev',
   'https://www.lovable.dev',
+  'http://lovable.dev',
+  'http://www.lovable.dev',
+  
+  // GPT Engineer domains
   'https://gptengineer.app',
   'https://www.gptengineer.app',
+  'http://gptengineer.app',
+  'http://www.gptengineer.app',
   'https://gptengineer.io',
   'https://www.gptengineer.io',
+  'http://gptengineer.io',
+  'http://www.gptengineer.io',
+  
+  // Localhost with various ports
   'http://localhost:3000',
   'https://localhost:3000',
   'http://localhost:8080',
   'https://localhost:8080',
   'http://localhost:5173',
-  'https://localhost:5173'
+  'https://localhost:5173',
+  'http://localhost',
+  'https://localhost',
+  
+  // Wildcard for development only - will be filtered in production
+  '*'
 ];
 
 /**
- * Проверяет, разрешен ли домен для postMessage взаимодействия
- * Более гибкая проверка для различных окружений
+ * Улучшенная проверка разрешенного домена с подробным логированием
+ * @param origin Домен для проверки
+ * @returns true если домен разрешен, false если не разрешен
  */
 export function isAllowedOrigin(origin: string): boolean {
+  console.log(`[isAllowedOrigin] Checking if origin is allowed: ${origin}`);
+  
   // Для отладки и локальной разработки
   if (process.env.NODE_ENV === 'development') {
     // В режиме разработки разрешаем любые localhost или пустой origin
@@ -68,28 +88,65 @@ export function isAllowedOrigin(origin: string): boolean {
         !origin || 
         origin.includes('localhost') || 
         window.location.hostname === 'localhost') {
+      console.log(`[isAllowedOrigin] Development mode: allowing ${origin || 'empty origin'}`);
       return true;
     }
   }
   
-  // Для других доменов делаем более гибкую проверку
-  // Это позволит обрабатывать поддомены и варианты с www/без www
-  return ALLOWED_ORIGINS.some(allowed => {
+  // Если origin пустой, разрешаем только в режиме разработки
+  if (!origin) {
+    const isDev = process.env.NODE_ENV === 'development';
+    console.log(`[isAllowedOrigin] Empty origin, allowed: ${isDev}`);
+    return isDev;
+  }
+  
+  // Для wildcard origin - разрешаем только в режиме разработки
+  if (origin === '*') {
+    const isDev = process.env.NODE_ENV === 'development';
+    console.log(`[isAllowedOrigin] Wildcard origin, allowed: ${isDev}`);
+    return isDev;
+  }
+  
+  // Проверка базовых доменов независимо от протокола и www
+  function normalizeOrigin(url: string): string {
+    return url.replace(/^https?:\/\//, '')  // Удаляем протокол
+              .replace(/^www\./, '')        // Удаляем www.
+              .replace(/:\d+$/, '');        // Удаляем порт
+  }
+  
+  const normalizedInput = normalizeOrigin(origin);
+  console.log(`[isAllowedOrigin] Normalized input: ${normalizedInput}`);
+  
+  // Проверяем по всем разрешенным доменам
+  for (const allowed of ALLOWED_ORIGINS) {
+    // Пропускаем wildcard для продакшена
+    if (allowed === '*' && process.env.NODE_ENV !== 'development') {
+      continue;
+    }
+    
     // Точное совпадение
-    if (origin === allowed) return true;
-    
-    // Проверка www/без www вариантов (например, lovable.dev и www.lovable.dev)
-    if (allowed.replace('www.', '') === origin.replace('www.', '')) return true;
-    
-    // В режиме разработки более гибкая проверка для localhost с разными портами
-    if (process.env.NODE_ENV === 'development' && 
-        allowed.includes('localhost') && 
-        origin.includes('localhost')) {
+    if (origin === allowed) {
+      console.log(`[isAllowedOrigin] Exact match with ${allowed}`);
       return true;
     }
     
-    return false;
-  });
+    // Сравнение нормализованных доменов
+    const normalizedAllowed = normalizeOrigin(allowed);
+    if (normalizedInput === normalizedAllowed) {
+      console.log(`[isAllowedOrigin] Normalized match: ${normalizedInput} === ${normalizedAllowed}`);
+      return true;
+    }
+    
+    // Проверка локальных адресов
+    if (process.env.NODE_ENV === 'development' && 
+        (normalizedInput.includes('localhost') || normalizedAllowed.includes('localhost'))) {
+      console.log(`[isAllowedOrigin] Development localhost match`);
+      return true;
+    }
+  }
+  
+  console.log(`[isAllowedOrigin] Origin ${origin} is NOT allowed`);
+  return false;
 }
 
 /**

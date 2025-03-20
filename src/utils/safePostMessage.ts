@@ -20,6 +20,10 @@ export function safePostMessage(
     return false;
   }
 
+  // Подробное логирование для отладки
+  console.log(`[safePostMessage] Attempting to send message to ${targetOrigin || 'unknown'}`);
+  console.log(`[safePostMessage] Current origin: ${window.location.origin}`);
+  
   // Текущий режим - разработка или продакшн
   const isDevelopment = process.env.NODE_ENV === 'development' || 
                         window.location.hostname === 'localhost';
@@ -47,6 +51,7 @@ export function safePostMessage(
       if (targetOrigin && targetOrigin !== '*') {
         try {
           targetWindow.postMessage(enrichedMessage, targetOrigin);
+          console.log(`[DEV] Sent with specific origin: ${targetOrigin}`);
         } catch (specificError) {
           console.warn(`[DEV] Failed with specific origin, trying wildcard:`, specificError);
         }
@@ -64,6 +69,7 @@ export function safePostMessage(
               ...enrichedMessage,
               _targetOrigin: origin,
             }, origin);
+            console.log(`[DEV] Tried sending to ${origin}`);
           } catch (multiError) {
             // Игнорируем ошибки при мультидоменной отправке в режиме отладки
           }
@@ -78,7 +84,10 @@ export function safePostMessage(
   }
 
   // Проверяем, разрешен ли домен в обычном режиме
-  if (!isAllowedOrigin(targetOrigin)) {
+  const allowed = isAllowedOrigin(targetOrigin);
+  console.log(`[safePostMessage] Target origin ${targetOrigin} allowed: ${allowed}`);
+  
+  if (!allowed) {
     console.error(`Target origin ${targetOrigin} is not in the allowed list`, ALLOWED_ORIGINS);
     
     // В режиме разработки всё равно пробуем отправить для отладки
@@ -95,6 +104,22 @@ export function safePostMessage(
         
         targetWindow.postMessage(debugMessage, '*');
         console.warn(`[DEV] Sent with wildcard origin as fallback for ${targetOrigin}`);
+        
+        // Пробуем отправить на все разрешенные домены
+        for (const origin of ALLOWED_ORIGINS) {
+          if (origin !== '*') {
+            try {
+              targetWindow.postMessage({
+                ...debugMessage,
+                _targetOrigin: origin,
+              }, origin);
+              console.log(`[DEV] Tried fallback to ${origin}`);
+            } catch (e) {
+              // Игнорируем ошибки
+            }
+          }
+        }
+        
         return true;
       } catch (fallbackError) {
         console.error('[DEV] Even fallback sending failed:', fallbackError);
@@ -122,6 +147,20 @@ export function safePostMessage(
     if (isDevelopment) {
       targetWindow.postMessage(enrichedMessage, '*');
       console.log('[DEV] Also sent with wildcard origin for debugging');
+      
+      // Пробуем отправить на все разрешенные домены
+      for (const origin of ALLOWED_ORIGINS) {
+        if (origin !== '*' && origin !== targetOrigin) {
+          try {
+            targetWindow.postMessage({
+              ...enrichedMessage,
+              _targetOrigin: origin,
+            }, origin);
+          } catch (e) {
+            // Игнорируем ошибки
+          }
+        }
+      }
     }
     
     return true;
@@ -140,6 +179,21 @@ export function safePostMessage(
           _via: 'safePostMessage-emergency'
         };
         targetWindow.postMessage(enrichedMessage, '*');
+        
+        // Пробуем отправить на все разрешенные домены
+        for (const origin of ALLOWED_ORIGINS) {
+          if (origin !== '*' && origin !== targetOrigin) {
+            try {
+              targetWindow.postMessage({
+                ...enrichedMessage,
+                _targetOrigin: origin,
+              }, origin);
+            } catch (e) {
+              // Игнорируем ошибки
+            }
+          }
+        }
+        
         return true;
       } catch (fallbackError) {
         console.error('Even fallback sending failed:', fallbackError);
@@ -291,8 +345,11 @@ export function testPostMessageAllOrigins(message: any): Record<string, boolean>
     _host: window.location.host
   };
   
+  // Расширенное логирование для отладки
+  console.log('[testPostMessageAllOrigins] Testing to all origins:', ALLOWED_ORIGINS);
+  console.log('[testPostMessageAllOrigins] Current origin:', window.location.origin);
+  
   // Пробуем отправить сообщение во все разрешенные домены
-  console.log('Testing postMessage to all allowed origins:', ALLOWED_ORIGINS);
   ALLOWED_ORIGINS.forEach(origin => {
     // Пропускаем wildcard в продакшене
     if (origin === '*' && !isDevelopment) {
@@ -300,16 +357,17 @@ export function testPostMessageAllOrigins(message: any): Record<string, boolean>
     }
     
     try {
-      console.log(`Attempting to send test message to ${origin}`);
+      console.log(`[testPostMessageAllOrigins] Attempting to send to ${origin}`);
       const enrichedMessage = {
         ...baseMessage,
         _targetOrigin: origin
       };
       
       window.parent.postMessage(enrichedMessage, origin);
+      console.log(`[testPostMessageAllOrigins] Sent to ${origin}`);
       results[origin] = true;
     } catch (error) {
-      console.error(`Failed to send test message to ${origin}:`, error);
+      console.error(`[testPostMessageAllOrigins] Failed to send to ${origin}:`, error);
       results[origin] = false;
     }
   });
@@ -317,16 +375,17 @@ export function testPostMessageAllOrigins(message: any): Record<string, boolean>
   // В режиме разработки также тестируем с wildcard
   if (isDevelopment) {
     try {
-      console.log(`[DEV] Attempting to send test message with wildcard`);
+      console.log(`[testPostMessageAllOrigins] Attempting with wildcard`);
       const enrichedMessage = {
         ...baseMessage,
         _wildcard: true
       };
       
       window.parent.postMessage(enrichedMessage, '*');
+      console.log(`[testPostMessageAllOrigins] Sent with wildcard`);
       results['* (wildcard)'] = true;
     } catch (error) {
-      console.error(`[DEV] Failed to send test message with wildcard:`, error);
+      console.error(`[testPostMessageAllOrigins] Failed with wildcard:`, error);
       results['* (wildcard)'] = false;
     }
   }
@@ -335,7 +394,7 @@ export function testPostMessageAllOrigins(message: any): Record<string, boolean>
 }
 
 /**
- * Тестирует работу iframe postMessage
+ * Тестирует работу iframe postMessage с расширенным логированием
  * @param iframeElement Элемент iframe
  * @param message Сообщение для отправки
  * @returns true если сообщение отправлено успешно
@@ -345,12 +404,15 @@ export function testIframePostMessage(
   message: any
 ): boolean {
   if (!iframeElement || !iframeElement.contentWindow) {
-    console.error('Iframe is not available for testing');
+    console.error('[testIframePostMessage] Iframe is not available for testing');
     return false;
   }
   
   const isDevelopment = process.env.NODE_ENV === 'development' || 
                         window.location.hostname === 'localhost';
+  
+  console.log('[testIframePostMessage] Testing iframe communication');
+  console.log('[testIframePostMessage] Iframe src:', iframeElement.src);
   
   try {
     // Получаем origin iframe
@@ -359,9 +421,9 @@ export function testIframePostMessage(
     try {
       const iframeSrc = iframeElement.src;
       targetOrigin = new URL(iframeSrc).origin;
-      console.log(`Detected iframe origin: ${targetOrigin} from src: ${iframeSrc}`);
+      console.log(`[testIframePostMessage] Detected iframe origin: ${targetOrigin} from src: ${iframeSrc}`);
     } catch (error) {
-      console.warn('Could not parse iframe URL, using wildcard origin:', error);
+      console.warn('[testIframePostMessage] Could not parse iframe URL, using wildcard:', error);
     }
     
     // Улучшенное тестовое сообщение с метаданными
@@ -376,75 +438,56 @@ export function testIframePostMessage(
       _via: 'testIframePostMessage'
     };
     
-    console.log(`Testing iframe message with target: ${targetOrigin}`, testMessage);
+    console.log(`[testIframePostMessage] With target: ${targetOrigin}`, testMessage);
     
-    // Стратегия отправки в зависимости от режима и распознанного origin
+    // Отправка сообщения с использованием всех возможных origin
+    let successCount = 0;
+    
+    // Сначала пробуем с конкретным origin
     if (targetOrigin !== '*' && targetOrigin) {
       try {
-        // Пробуем отправить по точному origin
         iframeElement.contentWindow.postMessage(testMessage, targetOrigin);
-        console.log(`Sent test message to iframe at ${targetOrigin}`);
-        
-        // В режиме разработки также отправляем с wildcard и на ключевые домены
-        if (isDevelopment) {
-          // Дублируем с wildcard
-          iframeElement.contentWindow.postMessage(testMessage, '*');
-          console.log('[DEV] Also sent with wildcard for compatibility');
-          
-          // Пробуем отправить на все разрешенные домены
-          for (const origin of ALLOWED_ORIGINS) {
-            if (origin !== '*' && origin !== targetOrigin) {
-              try {
-                iframeElement.contentWindow.postMessage({
-                  ...testMessage,
-                  _targetOrigin: origin,
-                }, origin);
-              } catch (e) {
-                // Игнорируем ошибки в режиме отладки
-              }
-            }
-          }
-        }
-        
-        return true;
-      } catch (error) {
-        console.error(`Failed to send message to iframe at ${targetOrigin}:`, error);
-        
-        // В режиме разработки используем wildcard как fallback
-        if (isDevelopment) {
-          iframeElement.contentWindow.postMessage(testMessage, '*');
-          console.log('[DEV] Sent test message to iframe with wildcard origin');
-          return true;
-        }
-        
-        return false;
+        console.log(`[testIframePostMessage] Sent to specific origin: ${targetOrigin}`);
+        successCount++;
+      } catch (e) {
+        console.warn(`[testIframePostMessage] Failed with specific origin:`, e);
       }
-    } else if (isDevelopment || targetOrigin === '*') {
-      // В режиме разработки или если origin не определен, используем wildcard
-      iframeElement.contentWindow.postMessage(testMessage, '*');
-      console.log('[DEV] Sent test message to iframe with wildcard origin');
-      
-      // Также пробуем отправить на все разрешенные домены
-      for (const origin of ALLOWED_ORIGINS) {
-        if (origin !== '*') {
-          try {
-            iframeElement.contentWindow.postMessage({
-              ...testMessage,
-              _targetOrigin: origin,
-            }, origin);
-          } catch (e) {
-            // Игнорируем ошибки при мультидоменной отправке в режиме отладки
-          }
-        }
-      }
-      
-      return true;
-    } else {
-      console.error('Cannot send to iframe: unknown origin and not in development mode');
-      return false;
     }
+    
+    // Всегда пробуем с wildcard в режиме разработки
+    if (isDevelopment) {
+      try {
+        iframeElement.contentWindow.postMessage(testMessage, '*');
+        console.log(`[testIframePostMessage] Sent with wildcard origin`);
+        successCount++;
+      } catch (e) {
+        console.warn(`[testIframePostMessage] Failed with wildcard:`, e);
+      }
+    }
+    
+    // Пробуем отправить на все разрешенные домены
+    for (const origin of ALLOWED_ORIGINS) {
+      if (origin !== '*' && origin !== targetOrigin) {
+        try {
+          iframeElement.contentWindow.postMessage({
+            ...testMessage,
+            _targetOrigin: origin,
+          }, origin);
+          console.log(`[testIframePostMessage] Sent to ${origin}`);
+          successCount++;
+        } catch (e) {
+          // Логируем ошибки только в режиме отладки
+          if (isDevelopment) {
+            console.warn(`[testIframePostMessage] Failed to ${origin}:`, e);
+          }
+        }
+      }
+    }
+    
+    console.log(`[testIframePostMessage] Total successful sends: ${successCount}`);
+    return successCount > 0;
   } catch (error) {
-    console.error('Error in testIframePostMessage:', error);
+    console.error('[testIframePostMessage] Error:', error);
     return false;
   }
 }
