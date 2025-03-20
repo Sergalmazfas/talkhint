@@ -112,53 +112,60 @@ export class GPTRequestService {
    */
   public async makeSimpleChatRequest(message: string): Promise<any> {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
-    try {
-      const serverUrl = this.config.serverProxyUrl;
-      GPTLogger.log(requestId, `Making chat request to ${serverUrl}`);
-      
-      const response = await fetch(`${serverUrl}/api/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin,
-          'Authorization': this.config.apiKey ? `Bearer ${this.config.apiKey}` : undefined
-        },
-        body: JSON.stringify({ message }),
-        mode: 'cors',
-        credentials: 'omit'
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Server error: ${response.status} - ${errorText}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      console.error("Error sending message:", error);
-      // If server unreachable, try an alternative proxy
-      if (currentRetry < this.config.maxRetries) {
-        const proxyOptions = Object.values(PROXY_SERVERS);
-        const currentIndex = proxyOptions.indexOf(this.config.serverProxyUrl);
-        const nextIndex = (currentIndex + 1) % proxyOptions.length;
-        const newProxyUrl = proxyOptions[nextIndex];
+    let retryCount = 0;
+    
+    const tryRequest = async () => {
+      try {
+        const serverUrl = this.config.serverProxyUrl;
+        GPTLogger.log(requestId, `Making chat request to ${serverUrl}`);
         
-        if (newProxyUrl !== this.config.serverProxyUrl) {
-          GPTLogger.log(requestId, `Switching to alternative proxy for chat: ${newProxyUrl}`);
-          this.config.serverProxyUrl = newProxyUrl;
-          return this.makeSimpleChatRequest(message); // Try again with new proxy
+        const response = await fetch(`${serverUrl}/api/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Origin': window.location.origin,
+            'Authorization': this.config.apiKey ? `Bearer ${this.config.apiKey}` : undefined
+          },
+          body: JSON.stringify({ message }),
+          mode: 'cors',
+          credentials: 'omit'
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Server error: ${response.status} - ${errorText}`);
         }
+        
+        return await response.json();
+      } catch (error) {
+        console.error("Error sending message:", error);
+        // If server unreachable, try an alternative proxy
+        if (retryCount < this.config.maxRetries) {
+          const proxyOptions = Object.values(PROXY_SERVERS);
+          const currentIndex = proxyOptions.indexOf(this.config.serverProxyUrl);
+          const nextIndex = (currentIndex + 1) % proxyOptions.length;
+          const newProxyUrl = proxyOptions[nextIndex];
+          
+          if (newProxyUrl !== this.config.serverProxyUrl) {
+            GPTLogger.log(requestId, `Switching to alternative proxy for chat: ${newProxyUrl}`);
+            this.config.serverProxyUrl = newProxyUrl;
+            retryCount++;
+            return tryRequest(); // Try again with new proxy
+          }
+        }
+        
+        // Fallback to mock response if all servers are unreachable
+        return {
+          success: false,
+          received: message,
+          response: `Could not connect to server. Local response: "${message}"`,
+          timestamp: new Date().toISOString(),
+          error: error instanceof Error ? error.message : String(error)
+        };
       }
-      
-      // Fallback to mock response if all servers are unreachable
-      return {
-        success: false,
-        received: message,
-        response: `Could not connect to server. Local response: "${message}"`,
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
+    };
+    
+    return tryRequest();
   }
 
   /**
