@@ -1,6 +1,6 @@
 
 (function() {
-  // Enhanced allowed domains list
+  // Расширенный список разрешенных доменов
   const ALLOWED_ORIGINS = [
     'https://lovable.dev',
     'https://www.lovable.dev',
@@ -26,13 +26,17 @@
     'https://localhost'
   ];
 
-  // For testing, accept any domain
+  // Всегда принимать сообщения в режиме отладки
+  const DEBUG_MODE = true;
+
+  // Проверка разрешенного домена
   function isAllowedOrigin(origin) {
-    if (!origin) return true; // Allow empty origin for testing
-    if (origin.includes('localhost')) return true; // Always allow localhost
-    if (origin.includes('lovable.')) return true; // Always allow lovable domains
+    if (DEBUG_MODE) return true; // В режиме отладки пропускаем все домены
+    if (!origin) return true; // Разрешаем пустой origin для тестирования
+    if (origin.includes('localhost')) return true; // Всегда разрешаем localhost
+    if (origin.includes('lovable.')) return true; // Всегда разрешаем домены lovable
     
-    // Normalize domains for comparison
+    // Нормализация доменов для сравнения
     const normalizeOrigin = (url) => {
       try {
         return url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/:\d+$/, '').toLowerCase();
@@ -46,25 +50,17 @@
     return ALLOWED_ORIGINS.some(allowed => normalizeOrigin(allowed) === normalizedOrigin);
   }
 
-  // Debug all messages regardless of origin
+  // Отладка всех сообщений независимо от origin
   window.addEventListener('message', function(event) {
     console.log(`[DEBUG] Raw message from ${event.origin}:`, event.data);
   }, true);
 
-  // Process messages from allowed origins
+  // Обработка сообщений от разрешенных domains
   window.addEventListener('message', function(event) {
-    // For testing, bypass origin check
-    const bypassOriginCheck = true; // Set to false in production
-    
-    if (!isAllowedOrigin(event.origin) && !bypassOriginCheck) {
-      console.warn(`Message from disallowed origin rejected: ${event.origin}`);
-      return;
-    }
-
-    console.log(`Processing message from ${event.origin}:`, event.data);
-    
     try {
-      // Create response message
+      console.log(`Processing message from ${event.origin}:`, event.data);
+      
+      // Создаем ответное сообщение
       const response = {
         type: 'IFRAME_RESPONSE',
         action: 'response',
@@ -73,9 +69,9 @@
         timestamp: new Date().toISOString()
       };
       
-      // Send response with multiple approaches
+      // Отправка ответа разными способами
       if (event.source) {
-        // Try wildcard (most reliable for testing)
+        // Пробуем wildcard (наиболее надежный для тестирования)
         try {
           event.source.postMessage(response, '*');
           console.log('Sent response using wildcard origin');
@@ -83,33 +79,50 @@
           console.error('Wildcard response failed:', e);
         }
         
-        // Try specific origin
+        // Пробуем конкретный origin
         try {
           event.source.postMessage(response, event.origin);
           console.log(`Sent response to specific origin: ${event.origin}`);
         } catch (e) {
           console.warn(`Failed to respond to specific origin:`, e);
         }
+        
+        // Пробуем все известные домены
+        ALLOWED_ORIGINS.forEach(origin => {
+          if (origin !== '*' && origin !== event.origin) {
+            try {
+              event.source.postMessage({
+                ...response,
+                note: `Cross-domain response attempt to ${origin}`
+              }, origin);
+            } catch (e) {
+              // Молча игнорируем ошибки в кросс-доменных попытках
+            }
+          }
+        });
       }
     } catch (error) {
       console.error('Error processing message:', error);
     }
   });
   
-  // Notify parent window that iframe is ready
+  // Уведомление родительского окна, что iframe готов
   function notifyReady() {
     try {
       const readyMessage = { 
         type: 'IFRAME_READY', 
         from: window.location.origin,
+        url: window.location.href,
         timestamp: new Date().toISOString()
       };
       
-      // Try with wildcard (most reliable)
+      // Отправка со всеми доступными методами
+      
+      // Через wildcard (наиболее надежный)
       window.parent.postMessage(readyMessage, '*');
       console.log('Sent ready notification with wildcard origin');
       
-      // Try specific parent if available
+      // Через конкретный parent, если доступен
       if (document.referrer) {
         try {
           const parentOrigin = new URL(document.referrer).origin;
@@ -119,20 +132,76 @@
           console.warn('Failed to notify specific parent:', e);
         }
       }
+      
+      // Пробуем все известные домены
+      ALLOWED_ORIGINS.forEach(origin => {
+        if (origin !== '*') {
+          try {
+            window.parent.postMessage({
+              ...readyMessage,
+              note: `Cross-domain ready notification to ${origin}`
+            }, origin);
+          } catch (e) {
+            // Молча игнорируем ошибки
+          }
+        }
+      });
     } catch (error) {
       console.error('Error in notifyReady:', error);
     }
   }
   
-  // Send ready notification on load
+  // Отправка уведомления о готовности
   if (document.readyState === 'complete') {
     notifyReady();
   } else {
     window.addEventListener('load', notifyReady);
   }
   
-  // Try also after a delay (for reliability)
+  // Также отправляем после небольшой задержки (для надежности)
   setTimeout(notifyReady, 500);
+  setTimeout(notifyReady, 1500); // Повторная попытка с большей задержкой
   
-  console.log('iframe-bridge.js initialized');
+  // Принудительное переопределение postMessage для совместимости
+  try {
+    const originalPostMessage = window.postMessage;
+    window.postMessage = function(message, targetOrigin, transfer) {
+      // Всегда логируем попытки postMessage для отладки
+      console.log(`[override] window.postMessage called with origin: ${targetOrigin}`, message);
+      
+      // Всегда добавляем метку времени и источник
+      const enhancedMessage = {
+        ...message,
+        _enhanced: true,
+        _timestamp: new Date().toISOString(),
+        _source: window.location.origin
+      };
+      
+      try {
+        // Сначала пробуем с указанным targetOrigin
+        originalPostMessage.call(window, enhancedMessage, targetOrigin, transfer);
+        
+        // В режиме отладки также дублируем с wildcard
+        if (DEBUG_MODE && targetOrigin !== '*') {
+          originalPostMessage.call(window, enhancedMessage, '*', transfer);
+        }
+      } catch (e) {
+        console.error(`[override] Error in postMessage to ${targetOrigin}:`, e);
+        
+        // В случае ошибки пробуем с wildcard
+        if (targetOrigin !== '*') {
+          try {
+            originalPostMessage.call(window, enhancedMessage, '*', transfer);
+            console.log('[override] Fallback to wildcard origin succeeded');
+          } catch (fallbackError) {
+            console.error('[override] Even fallback failed:', fallbackError);
+          }
+        }
+      }
+    };
+  } catch (e) {
+    console.error('Could not override postMessage:', e);
+  }
+  
+  console.log('iframe-bridge.js initialized with DEBUG_MODE:', DEBUG_MODE);
 })();
