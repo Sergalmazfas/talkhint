@@ -2,6 +2,10 @@
 import { isDevelopmentMode, BYPASS_ORIGIN_CHECK } from './constants';
 import { isSafeMessageOrigin } from './validators';
 
+// Сет для отслеживания уже обработанных сообщений (защита от зацикливания)
+const processedMessages = new Set<string>();
+const MAX_PROCESSED_MESSAGES = 200; // Максимальный размер кэша обработанных сообщений
+
 /**
  * Class that safely handles postMessage events
  */
@@ -10,6 +14,9 @@ export class SafeMessageReceiver {
   private handlers: Array<(event: MessageEvent) => void> = [];
   private isListening: boolean = false;
   private boundListener: (event: MessageEvent) => void;
+  private messageCount: number = 0;
+  private readonly MAX_MESSAGES_PER_SECOND = 30;
+  private messageTimestamps: number[] = [];
 
   constructor(window: Window) {
     this.window = window;
@@ -21,6 +28,12 @@ export class SafeMessageReceiver {
    * @param handler Function to call when a safe message is received
    */
   public addHandler(handler: (event: MessageEvent) => void): void {
+    // Проверяем, не добавлен ли уже этот обработчик
+    if (this.handlers.includes(handler)) {
+      console.warn('[SafeMessageReceiver] Handler already added, skipping duplicate');
+      return;
+    }
+    
     this.handlers.push(handler);
     
     // Start listening if not already
@@ -49,6 +62,7 @@ export class SafeMessageReceiver {
     if (!this.isListening) {
       this.window.addEventListener('message', this.boundListener);
       this.isListening = true;
+      console.log('[SafeMessageReceiver] Started listening for messages');
     }
   }
 
@@ -59,6 +73,56 @@ export class SafeMessageReceiver {
     if (this.isListening) {
       this.window.removeEventListener('message', this.boundListener);
       this.isListening = false;
+      console.log('[SafeMessageReceiver] Stopped listening for messages');
+    }
+  }
+
+  /**
+   * Проверяет, не обрабатывалось ли уже это сообщение
+   * @param event Сообщение для проверки
+   * @returns true если сообщение уже обрабатывалось
+   */
+  private isMessageProcessed(event: MessageEvent): boolean {
+    // Проверка частоты сообщений для предотвращения зацикливания
+    const now = Date.now();
+    this.messageTimestamps.push(now);
+    
+    // Удаляем устаревшие метки (старше 1 секунды)
+    while (this.messageTimestamps.length > 0 && this.messageTimestamps[0] < now - 1000) {
+      this.messageTimestamps.shift();
+    }
+    
+    // Проверяем превышение лимита сообщений
+    if (this.messageTimestamps.length > this.MAX_MESSAGES_PER_SECOND) {
+      console.error(`[SafeMessageReceiver] Too many messages (${this.messageTimestamps.length}) in the last second. Potential infinite loop detected.`);
+      return true;
+    }
+    
+    try {
+      // Создаем уникальный ключ для сообщения
+      const messageKey = `${event.origin}:${JSON.stringify(event.data)}:${this.messageCount++}`;
+      
+      // Проверяем, обрабатывали ли мы уже это сообщение
+      if (processedMessages.has(messageKey)) {
+        return true;
+      }
+      
+      // Добавляем сообщение в список обработанных
+      processedMessages.add(messageKey);
+      
+      // Ограничиваем размер кэша обработанных сообщений
+      if (processedMessages.size > MAX_PROCESSED_MESSAGES) {
+        // Удаляем самые старые сообщения
+        const iterator = processedMessages.values();
+        for (let i = 0; i < 50; i++) {
+          processedMessages.delete(iterator.next().value);
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('[SafeMessageReceiver] Error checking processed message:', error);
+      return false;
     }
   }
 
@@ -75,6 +139,12 @@ export class SafeMessageReceiver {
       // Log message in development mode
       if (isDevelopmentMode(this.window)) {
         console.log(`[SafeMessageReceiver] Received message from ${event.origin}:`, event.data);
+      }
+      
+      // Проверяем, не обрабатывали ли мы уже это сообщение (защита от зацикливания)
+      if (this.isMessageProcessed(event)) {
+        console.warn(`[SafeMessageReceiver] Skipping already processed message from ${event.origin}`);
+        return;
       }
       
       // Check if origin is allowed

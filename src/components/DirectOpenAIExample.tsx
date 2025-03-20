@@ -31,7 +31,18 @@ const DirectOpenAIExample = () => {
       // Extract data and origin from the event
       const { data, origin } = event;
       console.log(`Received message from ${origin}:`, data);
-      setMessages(prev => [...prev, { origin, data, timestamp: new Date().toISOString() }]);
+      
+      // Проверяем, не пустое ли сообщение
+      if (!data) {
+        console.warn(`Empty message received from ${origin}`);
+        return;
+      }
+      
+      // Добавляем сообщение в список, ограничивая 50 последними сообщениями
+      setMessages(prev => {
+        const newMessages = [...prev, { origin, data, timestamp: new Date().toISOString() }];
+        return newMessages.slice(-50); // Держим только 50 последних сообщений
+      });
     });
 
     if (iframeRef.current && iframeRef.current.contentWindow) {

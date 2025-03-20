@@ -8,6 +8,10 @@ let messageCounter = 0;
 const MAX_MESSAGES_PER_SECOND = 30;
 const messageTimestamps: number[] = [];
 
+// Кэш для отслеживания недавно отправленных сообщений
+const recentlySentMessages = new Set<string>();
+const MAX_RECENT_MESSAGES = 100;
+
 /**
  * Безопасная отправка сообщений с проверкой разрешенных доменов
  * @param window Объект окна
@@ -23,8 +27,30 @@ export function safePostMessage(
   targetOrigin: string
 ): boolean {
   if (!targetWindow) {
-    console.error('Target window is null or undefined');
+    console.error('[safePostMessage] Target window is null or undefined');
     return false;
+  }
+
+  // Проверка, не отправляем ли мы сообщение самим себе
+  if (targetWindow === window) {
+    console.warn('[safePostMessage] Trying to send message to self, aborting');
+    return false;
+  }
+
+  // Защита от отправки одинаковых сообщений несколько раз подряд
+  const messageKey = `${targetOrigin}:${JSON.stringify(message)}`;
+  if (recentlySentMessages.has(messageKey)) {
+    console.warn('[safePostMessage] Duplicate message detected, skipping to prevent loops');
+    return false;
+  }
+  
+  // Добавляем сообщение в кэш отправленных
+  recentlySentMessages.add(messageKey);
+  
+  // Ограничиваем размер кэша
+  if (recentlySentMessages.size > MAX_RECENT_MESSAGES) {
+    const iterator = recentlySentMessages.values();
+    recentlySentMessages.delete(iterator.next().value);
   }
 
   // Проверка лимита сообщений для предотвращения зацикливания
@@ -94,16 +120,16 @@ export function safePostMessage(
     
     return true;
   } catch (error) {
-    console.error('Error posting message:', error);
+    console.error('[safePostMessage] Error posting message:', error);
     
     // Попытка отправить через wildcard в режиме разработки
     if (isDevelopment || BYPASS_ORIGIN_CHECK) {
       try {
-        console.warn('Attempting fallback with wildcard origin');
+        console.warn('[safePostMessage] Attempting fallback with wildcard origin');
         targetWindow.postMessage(enrichedMessage, '*');
         return true;
       } catch (fallbackError) {
-        console.error('Even fallback sending failed:', fallbackError);
+        console.error('[safePostMessage] Even fallback sending failed:', fallbackError);
       }
     }
     

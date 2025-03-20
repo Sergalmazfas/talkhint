@@ -45,8 +45,12 @@ export function isSafeTargetOrigin(window: Window, targetOrigin: string): boolea
  */
 export function isSafeMessageOrigin(window: Window, messageOrigin: string): boolean {
   try {
+    // Подробное логирование для отладки
+    console.log(`[isSafeMessageOrigin] Checking message from origin: ${messageOrigin}`);
+    
     // Допускаем сообщения от того же origin или от локального хоста в режиме разработки
     if (messageOrigin === window.location.origin) {
+      console.log(`[isSafeMessageOrigin] Message from same origin: ${messageOrigin}`);
       return true;
     }
     
@@ -56,12 +60,16 @@ export function isSafeMessageOrigin(window: Window, messageOrigin: string): bool
         window.location.hostname.includes('dev') ||
         window.location.hostname.includes('preview') ||
         window.location.hostname.includes('staging')) {
+      console.log(`[isSafeMessageOrigin] Development mode, allowing: ${messageOrigin}`);
       return true;
     }
     
-    return ALLOWED_ORIGINS.some(allowedOrigin => {
+    const isAllowed = ALLOWED_ORIGINS.some(allowedOrigin => {
       return messageOrigin === allowedOrigin || messageOrigin.includes(allowedOrigin);
     });
+    
+    console.log(`[isSafeMessageOrigin] Origin ${messageOrigin} allowed: ${isAllowed}`);
+    return isAllowed;
   } catch (error) {
     console.error('Error validating message origin:', error);
     return false;
@@ -76,5 +84,7 @@ export function isSafeMessageOrigin(window: Window, messageOrigin: string): bool
  * @returns true если origin разрешен
  */
 export function isOriginAllowed(window: Window, originToCheck: string): boolean {
+  // Добавляем логирование для отслеживания вызовов
+  console.log(`[isOriginAllowed] Checking origin: ${originToCheck}`);
   return isSafeMessageOrigin(window, originToCheck);
 }
