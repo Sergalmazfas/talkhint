@@ -4,12 +4,15 @@ const express = require("express");
 const app = express();
 const axios = require("axios");
 
-// CORS configuration
+// CORS configuration with more permissive settings
 app.use(cors({
-    origin: ["https://lovable.dev", "http://localhost:3000"], // Разрешённые источники
-    methods: ["GET", "POST"],
+    origin: "*", // Allow all origins
+    methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+// Handle preflight OPTIONS requests
+app.options('*', cors());
 
 // Parse JSON request body
 app.use(express.json());
@@ -39,7 +42,7 @@ app.post("/api/chat", (req, res) => {
 // Proxy route for OpenAI API
 app.post("/api/openai/chat/completions", async (req, res) => {
     try {
-        const apiKey = req.headers.authorization?.split(" ")[1];
+        const apiKey = req.headers.authorization?.split(" ")[1] || process.env.OPENAI_API_KEY;
         
         if (!apiKey) {
             return res.status(401).json({ error: "API key is required" });
@@ -72,6 +75,11 @@ app.post("/api/openai/chat/completions", async (req, res) => {
 // Health check endpoint
 app.get("/health", (req, res) => {
     res.json({ status: "ok" });
+});
+
+// OpenAI API health check
+app.get("/api/openai/health", (req, res) => {
+    res.json({ status: "ok", message: "OpenAI proxy server is running" });
 });
 
 const PORT = process.env.PORT || 3000;

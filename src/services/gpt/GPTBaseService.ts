@@ -107,43 +107,46 @@ class GPTBaseService {
     // If using CORS Anywhere proxy, we need to check differently
     if (this.config.useServerProxy) {
       try {
-        GPTLogger.log(undefined, 'Testing connection to CORS Anywhere proxy');
+        GPTLogger.log(undefined, 'Testing connection to server proxy');
         
-        // For CORS Anywhere, make a simple request to test the connection
+        // For server proxy, make a simple request to test the connection
         const testUrl = this.config.serverProxyUrl;
         const response = await fetch(`${testUrl}/health`, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${this.config.apiKey || 'sk-test'}` // Send a test API key if none is set
+            'Content-Type': 'application/json'
           }
-        }).catch(() => null);
+        }).catch((error) => {
+          GPTLogger.warn(undefined, 'Fetch to server proxy failed:', error);
+          return null;
+        });
         
         if (response && response.ok) {
-          GPTLogger.log(undefined, 'Connection to CORS Anywhere proxy successful');
+          GPTLogger.log(undefined, 'Connection to server proxy successful');
           return true;
         }
         
-        GPTLogger.warn(undefined, 'Connection to CORS Anywhere proxy failed');
+        GPTLogger.warn(undefined, 'Connection to server proxy failed');
       } catch (error) {
-        GPTLogger.warn(undefined, 'CORS Anywhere proxy test failed:', error);
+        GPTLogger.warn(undefined, 'Server proxy test failed:', error);
         // Fall through to API test
       }
     }
     
-    // If no API key and not using proxy, return false immediately
-    if (!this.config.apiKey && !this.config.useServerProxy) {
-      GPTLogger.warn(undefined, 'API key not set and not using server proxy');
-      return false;
+    // Try direct connection with API key
+    if (this.config.apiKey) {
+      try {
+        // Use a simple test prompt
+        const result = await this.callOpenAI([{ role: 'user', content: 'Connection check' }], 0.1, 10);
+        return !!result;
+      } catch (error) {
+        GPTLogger.error(undefined, 'API connection check failed', error);
+        return false;
+      }
     }
     
-    try {
-      // Use a simple test prompt
-      const result = await this.callOpenAI([{ role: 'user', content: 'Connection check' }], 0.1, 10);
-      return !!result;
-    } catch (error) {
-      GPTLogger.error(undefined, 'API connection check failed', error);
-      return false;
-    }
+    // If both checks failed or we don't have required credentials
+    return false;
   }
 
   protected async callOpenAI(messages: any[], temperature: number = 1.0, maxTokens: number = 150, n: number = 1): Promise<any> {
