@@ -85,41 +85,30 @@ export function handleSafePostMessage(
   }
 }
 
+// Хранилище для отслеживания установленных обработчиков
+const messageHandlers = new Map<string, (event: MessageEvent) => void>();
+
 /**
  * Настраивает безопасный обработчик сообщений postMessage
  * @param callback Функция обработки сообщения
+ * @param handlerId Уникальный идентификатор обработчика (опционально)
  * @returns Функция для удаления обработчика
  */
 export function setupMessageListener(
-  callback: (data: any, origin: string) => void
+  callback: (data: any, origin: string) => void,
+  handlerId: string = 'default'
 ): () => void {
-  // Храним ссылки на обработчики для корректного удаления
-  let messageHandler: ((event: MessageEvent) => void) | null = null;
-  let debugHandler: ((event: MessageEvent) => void) | null = null;
-  
-  // Только один активный обработчик на странице
-  const removed = () => {
-    if (messageHandler) {
-      window.removeEventListener('message', messageHandler);
-      messageHandler = null;
+  // Удаляем существующий обработчик с таким же ID если есть
+  if (messageHandlers.has(handlerId)) {
+    const existingHandler = messageHandlers.get(handlerId);
+    if (existingHandler) {
+      window.removeEventListener('message', existingHandler);
+      messageHandlers.delete(handlerId);
+      console.log(`Removed existing message listener with ID: ${handlerId}`);
     }
-    if (debugHandler) {
-      window.removeEventListener('message', debugHandler, true);
-      debugHandler = null;
-    }
-    console.log('PostMessage listeners removed');
-  };
+  }
   
-  // Удаляем любые существующие обработчики перед добавлением нового
-  removed();
-
-  // Debug listener to see ALL messages regardless of origin
-  debugHandler = (event: MessageEvent) => {
-    console.log(`[DEBUG] Raw message received from ${event.origin || 'unknown'}:`, event.data);
-  };
-  window.addEventListener('message', debugHandler, true); // Use capture phase
-
-  messageHandler = (event: MessageEvent) => {
+  const messageHandler = (event: MessageEvent) => {
     const originDisplay = event.origin || 'unknown';
     const isDevelopment = isDevelopmentMode(window);
     
@@ -172,10 +161,21 @@ export function setupMessageListener(
     callback(event.data, event.origin);
   };
 
-  // Добавляем обработчик
+  // Добавляем обработчик и сохраняем его
   window.addEventListener('message', messageHandler);
-  console.log('PostMessage listener set up with allowed origins:', ALLOWED_ORIGINS);
+  messageHandlers.set(handlerId, messageHandler);
+  
+  console.log(`PostMessage listener set up with ID: ${handlerId}, allowed origins:`, ALLOWED_ORIGINS);
   
   // Возвращаем функцию очистки
-  return removed;
+  return () => {
+    if (messageHandlers.has(handlerId)) {
+      const handler = messageHandlers.get(handlerId);
+      if (handler) {
+        window.removeEventListener('message', handler);
+        messageHandlers.delete(handlerId);
+        console.log(`Removed message listener with ID: ${handlerId}`);
+      }
+    }
+  };
 }

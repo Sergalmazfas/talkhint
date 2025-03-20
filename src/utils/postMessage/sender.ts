@@ -3,6 +3,11 @@ import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
 import { isDevelopmentMode, BYPASS_ORIGIN_CHECK } from './constants';
 import { isSafeTargetOrigin } from './validators';
 
+// Counter to prevent infinite loops
+let messageCounter = 0;
+const MAX_MESSAGES_PER_SECOND = 30;
+const messageTimestamps: number[] = [];
+
 /**
  * Безопасная отправка сообщений с проверкой разрешенных доменов
  * @param window Объект окна
@@ -22,6 +27,21 @@ export function safePostMessage(
     return false;
   }
 
+  // Проверка лимита сообщений для предотвращения зацикливания
+  const now = Date.now();
+  messageTimestamps.push(now);
+  
+  // Удаляем старые временные метки (старше 1 секунды)
+  while (messageTimestamps.length > 0 && messageTimestamps[0] < now - 1000) {
+    messageTimestamps.shift();
+  }
+  
+  // Проверяем, не превышен ли лимит сообщений
+  if (messageTimestamps.length > MAX_MESSAGES_PER_SECOND) {
+    console.error(`[safePostMessage] Too many messages (${messageTimestamps.length}) in the last second. Potential infinite loop detected.`);
+    return false;
+  }
+  
   // Определяем режим - разработка или продакшн
   const isDevelopment = isDevelopmentMode(window);
   
@@ -40,8 +60,7 @@ export function safePostMessage(
     ...message,
     _source: window.location.origin,
     _timestamp: new Date().toISOString(),
-    _via: isDevelopment ? 'safePostMessage-dev' : 'safePostMessage-prod',
-    _allowedOrigins: ALLOWED_ORIGINS
+    _id: messageCounter++
   };
 
   try {
@@ -49,17 +68,6 @@ export function safePostMessage(
     if (isDevelopment) {
       console.log('[DEV] Sending message with wildcard origin for development');
       targetWindow.postMessage(enrichedMessage, '*');
-      
-      // Также пробуем с точным origin, если он указан
-      if (targetOrigin && targetOrigin !== '*') {
-        try {
-          targetWindow.postMessage(enrichedMessage, targetOrigin);
-          console.log(`[DEV] Also sent with specific origin: ${targetOrigin}`);
-        } catch (e) {
-          console.warn(`[DEV] Failed with specific origin: ${e}`);
-        }
-      }
-      
       return true;
     }
     
