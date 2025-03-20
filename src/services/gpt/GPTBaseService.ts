@@ -1,3 +1,4 @@
+
 import OpenAI from "openai";
 import { 
   GPTServiceConfig, 
@@ -86,10 +87,11 @@ class GPTBaseService {
 
   /**
    * Get a configured OpenAI client instance
-   * Returns null if no API key is set
+   * Always returns null when server proxy is enforced
    */
   public getOpenAIClient(): OpenAI | null {
-    return GPTClientFactory.createClient(this.config);
+    // When server proxy is enforced, we don't need an OpenAI client
+    return null;
   }
 
   public setApiKey(key: string) {
@@ -167,7 +169,6 @@ class GPTBaseService {
   public async checkApiConnection(): Promise<boolean> {
     GPTLogger.log(undefined, 'Checking GPT API connection');
     
-    // Always try through proxy
     try {
       // Use a minimalist test request
       const testPrompt = [{ role: 'user', content: 'Test' }];
