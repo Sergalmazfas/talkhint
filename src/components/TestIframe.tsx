@@ -98,8 +98,8 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         </div>
         
         {httpsWarning && (
-          <Alert variant="warning" className="mb-2">
-            <AlertTriangle className="h-4 w-4" />
+          <Alert variant="default" className="mb-2 border-yellow-500 bg-yellow-50">
+            <AlertTriangle className="h-4 w-4 text-yellow-500" />
             <AlertTitle>Предупреждение о смешанном контенте</AlertTitle>
             <AlertDescription>
               Страница загружена через HTTPS, а сервер использует HTTP. 
