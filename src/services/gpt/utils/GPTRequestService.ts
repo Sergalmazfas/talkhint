@@ -131,6 +131,32 @@ export class GPTRequestService {
   }
 
   /**
+   * Make a simple chat request to the lovable.dev server
+   */
+  public async makeSimpleChatRequest(message: string): Promise<any> {
+    try {
+      const response = await fetch("https://lovable.dev/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Ошибка:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Make a request using the CORS Anywhere proxy
    */
   private async makeCorsAnywhereRequest(requestId: string, requestPayload: any): Promise<any> {

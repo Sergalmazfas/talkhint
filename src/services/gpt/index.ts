@@ -63,9 +63,23 @@ class GPTService {
     this.suggestionsService.setResponseStyle(style);
   }
 
+  /**
+   * Send a direct message to the lovable.dev chat API
+   */
+  public async sendChatMessage(message: string): Promise<any> {
+    console.log(`[${new Date().toISOString()}] Sending chat message to lovable.dev API: ${message}`);
+    try {
+      const result = await this.suggestionsService.sendChatMessage(message);
+      console.log(`[${new Date().toISOString()}] Chat response received:`, result);
+      return result;
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Error in sendChatMessage:`, error);
+      throw error;
+    }
+  }
+
   public async checkConnection(): Promise<boolean> {
     console.log(`[${new Date().toISOString()}] Checking GPT API connection`);
-    console.log(`[${new Date().toISOString()}] Checking GPT API connection...`);
     
     try {
       return await this.bilingualService.checkApiConnection();

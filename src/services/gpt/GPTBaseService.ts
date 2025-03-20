@@ -91,6 +91,18 @@ class GPTBaseService {
     return this.config.useServerProxy;
   }
 
+  /**
+   * Send a simple message to the chat API on lovable.dev
+   */
+  public async sendChatMessage(message: string): Promise<any> {
+    try {
+      return await this.requestService.makeSimpleChatRequest(message);
+    } catch (error) {
+      console.error('Error sending chat message:', error);
+      throw error;
+    }
+  }
+
   public async checkApiConnection(): Promise<boolean> {
     // If using CORS Anywhere proxy, we need to check differently
     if (this.config.useServerProxy) {

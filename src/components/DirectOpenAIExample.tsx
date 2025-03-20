@@ -6,14 +6,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import GPTService from '@/services/GPTService';
+import GPTService from '@/services/gpt';
 
 const DirectOpenAIExample = () => {
   const [prompt, setPrompt] = useState<string>('Write a one-sentence bedtime story about a unicorn.');
   const [response, setResponse] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [method, setMethod] = useState<'client' | 'proxy'>('client');
+  const [method, setMethod] = useState<'client' | 'proxy' | 'chat'>('client');
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -21,7 +21,11 @@ const DirectOpenAIExample = () => {
     setResponse('');
 
     try {
-      if (method === 'client') {
+      if (method === 'chat') {
+        // Use the new lovable.dev chat API
+        const result = await GPTService.sendChatMessage(prompt);
+        setResponse(JSON.stringify(result, null, 2));
+      } else if (method === 'client') {
         // Direct OpenAI client method
         const client = GPTService.getOpenAIClient();
         
@@ -44,19 +48,13 @@ const DirectOpenAIExample = () => {
         setResponse(completion.choices[0].message.content || 'No response received');
       } else {
         // Proxy server method
-        const response = await fetch('http://localhost:3000/chat', {
+        const response = await fetch('http://localhost:3000/api/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [{
-              role: "user",
-              content: prompt,
-            }],
-            temperature: 0.7,
-            max_tokens: 150,
+            message: prompt
           }),
         });
 
@@ -65,10 +63,10 @@ const DirectOpenAIExample = () => {
         }
 
         const data = await response.json();
-        setResponse(data.choices[0].message.content || 'No response received');
+        setResponse(JSON.stringify(data, null, 2));
       }
     } catch (err) {
-      console.error('Error calling OpenAI:', err);
+      console.error('Error calling API:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
@@ -78,9 +76,9 @@ const DirectOpenAIExample = () => {
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle>OpenAI API Example</CardTitle>
+        <CardTitle>API Example</CardTitle>
         <CardDescription>
-          Generate completions using direct API calls or through your Express proxy server
+          Send messages directly to lovable.dev/api/chat or through different methods
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -92,10 +90,11 @@ const DirectOpenAIExample = () => {
           </Alert>
         )}
         
-        <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'proxy')}>
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'proxy' | 'chat')}>
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="client">OpenAI Client</TabsTrigger>
             <TabsTrigger value="proxy">Express Proxy</TabsTrigger>
+            <TabsTrigger value="chat">Lovable Chat</TabsTrigger>
           </TabsList>
           <TabsContent value="client">
             <p className="text-sm text-muted-foreground mb-4">
@@ -104,20 +103,25 @@ const DirectOpenAIExample = () => {
           </TabsContent>
           <TabsContent value="proxy">
             <p className="text-sm text-muted-foreground mb-4">
-              Using your Express proxy server to avoid CORS issues (make sure it's running on localhost:3000)
+              Using your Express proxy server (make sure it's running on localhost:3000)
+            </p>
+          </TabsContent>
+          <TabsContent value="chat">
+            <p className="text-sm text-muted-foreground mb-4">
+              Using the lovable.dev/api/chat endpoint for direct messaging
             </p>
           </TabsContent>
         </Tabs>
         
         <div className="space-y-2">
           <label htmlFor="prompt" className="text-sm font-medium">
-            Your prompt
+            Your message
           </label>
           <Textarea
             id="prompt"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Enter your prompt here..."
+            placeholder="Enter your message here..."
             className="min-h-24"
           />
         </div>
@@ -125,7 +129,7 @@ const DirectOpenAIExample = () => {
         {response && (
           <div className="space-y-2 mt-4">
             <h3 className="text-sm font-medium">Response:</h3>
-            <div className="bg-muted p-4 rounded-md whitespace-pre-wrap">
+            <div className="bg-muted p-4 rounded-md whitespace-pre-wrap overflow-auto max-h-64">
               {response}
             </div>
           </div>
@@ -140,10 +144,10 @@ const DirectOpenAIExample = () => {
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
+              Sending...
             </>
           ) : (
-            'Generate Completion'
+            'Send Message'
           )}
         </Button>
       </CardFooter>

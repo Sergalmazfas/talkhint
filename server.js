@@ -14,6 +14,28 @@ app.use(cors({
 // Parse JSON request body
 app.use(express.json());
 
+// New simple chat endpoint
+app.post("/api/chat", (req, res) => {
+    try {
+        const { message } = req.body;
+        
+        if (!message) {
+            return res.status(400).json({ error: "Message is required" });
+        }
+        
+        // Simple echo response for testing
+        res.json({ 
+            success: true, 
+            received: message,
+            response: `Server received: "${message}"`,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error("Error processing chat request:", error.message);
+        res.status(500).json({ error: "Error processing request", message: error.message });
+    }
+});
+
 // Proxy route for OpenAI API
 app.post("/api/openai/chat/completions", async (req, res) => {
     try {
