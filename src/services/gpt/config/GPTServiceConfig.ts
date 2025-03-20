@@ -28,14 +28,21 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
  * Available proxy servers for CORS issues
  */
 export const PROXY_SERVERS = {
+  // Primary proxies
   VERCEL: 'https://lovable-server.vercel.app',
   GPTENGINEER: 'https://gptengineer.app',
+  
+  // Fallback proxies
   ALLORIGINS: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1',
   CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
   THINGPROXY: 'https://thingproxy.freeboard.io/fetch/https://api.openai.com/v1',
   CORS_ANYWHERE: 'https://cors-anywhere-lyart-seven.vercel.app',
+  
+  // Development proxies
   LOCAL: 'http://localhost:3000',
   LOCAL_HTTPS: 'https://localhost:3000',
+  
+  // Not recommended - direct connection
   DIRECT: 'https://api.openai.com/v1',
 };
 

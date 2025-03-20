@@ -119,24 +119,44 @@ export class GPTRequestService {
         const serverUrl = this.config.serverProxyUrl;
         GPTLogger.log(requestId, `Making chat request to ${serverUrl}`);
         
-        const response = await fetch(`${serverUrl}/api/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Origin': window.location.origin,
-            'Authorization': this.config.apiKey ? `Bearer ${this.config.apiKey}` : undefined
-          },
-          body: JSON.stringify({ message }),
-          mode: 'cors',
-          credentials: 'omit'
-        });
+        // Add timestamp to help prevent caching issues
+        const timestamp = Date.now();
+        const url = `${serverUrl}/api/chat?_t=${timestamp}`;
         
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Server error: ${response.status} - ${errorText}`);
+        // Create a controller for timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+        }, this.config.timeoutMs);
+        
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Origin': window.location.origin,
+              'Authorization': this.config.apiKey ? `Bearer ${this.config.apiKey}` : undefined,
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache'
+            },
+            body: JSON.stringify({ message }),
+            mode: 'cors',
+            credentials: 'omit',
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Server error: ${response.status} - ${errorText}`);
+          }
+          
+          return await response.json();
+        } catch (error) {
+          clearTimeout(timeoutId);
+          throw error;
         }
-        
-        return await response.json();
       } catch (error) {
         console.error("Error sending message:", error);
         // If server unreachable, try an alternative proxy
@@ -181,6 +201,9 @@ export class GPTRequestService {
       controller.abort();
     }, this.config.timeoutMs);
 
+    // Add timestamp to prevent caching
+    const timestamp = Date.now();
+
     // Different proxies have different URL patterns
     const isAllOrigins = this.config.serverProxyUrl.includes('allorigins');
     const isCorsproxy = this.config.serverProxyUrl.includes('corsproxy.io');
@@ -191,7 +214,9 @@ export class GPTRequestService {
       let url;
       let headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Origin': window.location.origin
+        'Origin': window.location.origin,
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       };
       
       // Add API key to headers if available
@@ -202,19 +227,19 @@ export class GPTRequestService {
       // Different URL construction based on proxy type
       if (isAllOrigins) {
         // For allorigins, the target is already in the URL
-        url = `${this.config.serverProxyUrl}/chat/completions`;
+        url = `${this.config.serverProxyUrl}/chat/completions?_t=${timestamp}`;
       } else if (isCorsproxy) {
         // For corsproxy.io, the target is already in the URL
-        url = `${this.config.serverProxyUrl}/chat/completions`;
+        url = `${this.config.serverProxyUrl}/chat/completions?_t=${timestamp}`;
       } else if (isThingproxy) {
         // For thingproxy, the target is already in the URL
-        url = `${this.config.serverProxyUrl}/chat/completions`;
+        url = `${this.config.serverProxyUrl}/chat/completions?_t=${timestamp}`;
       } else if (isVercel) {
         // For Vercel deployment
-        url = `${this.config.serverProxyUrl}/api/openai/chat/completions`;
+        url = `${this.config.serverProxyUrl}/api/openai/chat/completions?_t=${timestamp}`;
       } else {
         // Default behavior for direct or unknown proxies
-        url = `${this.config.serverProxyUrl}/api/openai/chat/completions`;
+        url = `${this.config.serverProxyUrl}/api/openai/chat/completions?_t=${timestamp}`;
       }
       
       GPTLogger.log(requestId, `Constructed request URL: ${url}`);
@@ -226,7 +251,8 @@ export class GPTRequestService {
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
         mode: 'cors',
-        credentials: 'omit'  // Don't send cookies with CORS requests
+        credentials: 'omit',  // Don't send cookies with CORS requests
+        redirect: 'follow'    // Follow redirects if any
       });
       
       clearTimeout(timeoutId);

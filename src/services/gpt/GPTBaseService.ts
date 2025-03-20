@@ -166,17 +166,49 @@ class GPTBaseService {
     }
   }
 
-  public async checkApiConnection(): Promise<boolean> {
-    GPTLogger.log(undefined, 'Checking GPT API connection');
+  /**
+   * Check connection to the API server
+   */
+  public async checkConnection(): Promise<boolean> {
+    const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
+    GPTLogger.log(requestId, 'Checking connection to API server');
     
     try {
-      // Use a minimalist test request
+      // First try the health endpoint
+      const healthUrl = `${this.config.serverProxyUrl}/health`;
+      GPTLogger.log(requestId, `Testing health endpoint: ${healthUrl}`);
+      
+      try {
+        const response = await fetch(healthUrl, {
+          method: 'GET',
+          headers: {
+            'Origin': window.location.origin,
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+          mode: 'cors',
+          credentials: 'omit',
+          redirect: 'follow'
+        });
+        
+        if (response.ok) {
+          GPTLogger.log(requestId, 'Health check succeeded');
+          return true;
+        }
+      } catch (healthError) {
+        GPTLogger.warn(requestId, `Health check failed: ${String(healthError)}`);
+        // Continue to API check even if health check fails
+      }
+      
+      // Use a minimalist test request as fallback
+      GPTLogger.log(requestId, 'Attempting API test request');
       const testPrompt = [{ role: 'user', content: 'Test' }];
       const result = await this.callOpenAI(testPrompt, 0.1, 5);
-      GPTLogger.log(undefined, 'API connection check successful');
+      
+      GPTLogger.log(requestId, 'API connection check successful');
       return !!result;
     } catch (error) {
-      GPTLogger.error(undefined, 'API connection check failed', error);
+      GPTLogger.error(requestId, 'API connection check failed', error);
       return false;
     }
   }
