@@ -3,6 +3,7 @@ import React, { forwardRef, useEffect, useState } from 'react';
 import { RefreshCw, AlertTriangle, CheckCircle, Lock, Globe } from 'lucide-react';
 import { Button } from './ui/button';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 interface TestIframeProps {
   serverUrl: string;
@@ -138,9 +139,23 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           <div className="flex items-center">
             <h3 className="text-sm font-medium mr-2">Test iframe:</h3>
             {serverProtocol === 'https' ? (
-              <Lock className="h-4 w-4 text-green-500" title="HTTPS connection" />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span><Lock className="h-4 w-4 text-green-500" /></span>
+                  </TooltipTrigger>
+                  <TooltipContent>HTTPS connection</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : serverProtocol === 'http' ? (
-              <Globe className="h-4 w-4 text-amber-500" title="HTTP connection" />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span><Globe className="h-4 w-4 text-amber-500" /></span>
+                  </TooltipTrigger>
+                  <TooltipContent>HTTP connection</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             ) : null}
           </div>
           <Button 
