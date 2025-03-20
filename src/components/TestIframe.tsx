@@ -1,6 +1,6 @@
 
 import React, { forwardRef, useEffect, useState } from 'react';
-import { RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
+import { RefreshCw, AlertTriangle, CheckCircle, Lock, Globe } from 'lucide-react';
 import { Button } from './ui/button';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 
@@ -13,23 +13,39 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
   ({ serverUrl, onReload }, ref) => {
     const [httpsWarning, setHttpsWarning] = useState<boolean>(false);
     const [connectionStatus, setConnectionStatus] = useState<'loading' | 'success' | 'error'>('loading');
+    const [serverProtocol, setServerProtocol] = useState<'http' | 'https' | 'unknown'>('unknown');
     
     // Select URL for iframe considering potential CORS issues
     const getIframeUrl = () => {
       // Check if the app is running over HTTPS
       const isPageHttps = window.location.protocol === 'https:';
       
-      // If page is HTTPS but server is HTTP, generate warning
-      if (isPageHttps && serverUrl.startsWith('http:')) {
-        setHttpsWarning(true);
-        console.log(`[TestIframe] Mixed content warning: page is HTTPS but server is HTTP (${serverUrl})`);
+      try {
+        // Extract protocol from server URL
+        if (serverUrl.startsWith('https:')) {
+          setServerProtocol('https');
+        } else if (serverUrl.startsWith('http:')) {
+          setServerProtocol('http');
+        }
         
-        // Replace http: with https: to prevent mixed content issues
-        return serverUrl.replace('http:', 'https:') + '/postmessage-test';
+        // If page is HTTPS but server is HTTP, generate warning
+        if (isPageHttps && serverUrl.startsWith('http:')) {
+          setHttpsWarning(true);
+          console.log(`[TestIframe] Mixed content warning: page is HTTPS but server is HTTP (${serverUrl})`);
+          
+          // For testing purposes, attempt both protocols
+          const httpsUrl = serverUrl.replace('http:', 'https:') + '/postmessage-test';
+          console.log(`[TestIframe] Attempting HTTPS URL: ${httpsUrl}`);
+          return httpsUrl;
+        }
+      } catch (e) {
+        console.error('[TestIframe] Error parsing server URL:', e);
       }
       
       // Use special test endpoint instead of /health
-      return `${serverUrl}/postmessage-test`;
+      const testUrl = `${serverUrl}/postmessage-test`;
+      console.log(`[TestIframe] Using test URL: ${testUrl}`);
+      return testUrl;
     };
 
     // Handle iframe load
@@ -63,24 +79,42 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         setHttpsWarning(false);
       }
       
-      // Test server connection
-      fetch(`${serverUrl}/health`, { 
-        mode: 'no-cors',
-        cache: 'no-cache',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Origin': window.location.origin
-        }
-      })
-        .then(() => {
-          console.log(`[TestIframe] Server connection test successful: ${serverUrl}`);
+      // Test server connection with both /health and /postmessage-test endpoints
+      const testEndpoints = async () => {
+        try {
+          // Try health endpoint first
+          const healthResponse = await fetch(`${serverUrl}/health`, { 
+            mode: 'no-cors',
+            cache: 'no-cache',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Origin': window.location.origin
+            }
+          });
+          
+          console.log(`[TestIframe] Health endpoint response:`, healthResponse);
+          
+          // Then try postmessage-test endpoint
+          const testResponse = await fetch(`${serverUrl}/postmessage-test`, { 
+            mode: 'no-cors',
+            cache: 'no-cache',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Origin': window.location.origin
+            }
+          });
+          
+          console.log(`[TestIframe] PostMessage test endpoint response:`, testResponse);
           setConnectionStatus('success');
-        })
-        .catch((error) => {
+        } catch (error) {
           console.error('[TestIframe] Server connection test failed:', error);
           setConnectionStatus('error');
-        });
+        }
+      };
+      
+      testEndpoints();
     }, [serverUrl]);
 
     // Define additional attributes for iframe
@@ -101,7 +135,14 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
     return (
       <div className="mt-4 p-4 border rounded-md">
         <div className="flex justify-between items-center mb-2">
-          <h3 className="text-sm font-medium">Test iframe:</h3>
+          <div className="flex items-center">
+            <h3 className="text-sm font-medium mr-2">Test iframe:</h3>
+            {serverProtocol === 'https' ? (
+              <Lock className="h-4 w-4 text-green-500" title="HTTPS connection" />
+            ) : serverProtocol === 'http' ? (
+              <Globe className="h-4 w-4 text-amber-500" title="HTTP connection" />
+            ) : null}
+          </div>
           <Button 
             variant="ghost" 
             size="sm" 

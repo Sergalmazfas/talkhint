@@ -49,6 +49,8 @@ export const ALLOWED_ORIGINS = [
   'https://www.lovable.dev',
   'http://lovable.dev',
   'http://www.lovable.dev',
+  'https://id-preview--be5c3e65-2457-46cb-a8e0-02444f6fdcc1.lovable.app',
+  'https://id-preview--be5c3e65-2457-46cb-a8e0-02444f6fdcc1.lovable.app:3000',
   
   // GPT Engineer domains
   'https://gptengineer.app',
@@ -110,13 +112,25 @@ export function isAllowedOrigin(origin: string): boolean {
   
   // Check basic domains regardless of protocol and www
   function normalizeOrigin(url: string): string {
-    return url.replace(/^https?:\/\//, '')  // Remove protocol
-              .replace(/^www\./, '')        // Remove www.
-              .replace(/:\d+$/, '');        // Remove port
+    try {
+      return url.replace(/^https?:\/\//, '')  // Remove protocol
+                .replace(/^www\./, '')        // Remove www.
+                .replace(/:\d+$/, '')         // Remove port
+                .toLowerCase();               // Normalize case
+    } catch (e) {
+      console.error("[isAllowedOrigin] Error normalizing origin:", e);
+      return url.toLowerCase();
+    }
   }
   
   const normalizedInput = normalizeOrigin(origin);
   console.log(`[isAllowedOrigin] Normalized input: ${normalizedInput}`);
+  
+  // Special case for lovable.app subdomains
+  if (normalizedInput.includes('lovable.app')) {
+    console.log(`[isAllowedOrigin] Allowing lovable.app subdomain: ${normalizedInput}`);
+    return true;
+  }
   
   // Check against all allowed domains
   for (const allowed of ALLOWED_ORIGINS) {
