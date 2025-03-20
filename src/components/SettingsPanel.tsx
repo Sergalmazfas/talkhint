@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from '@/components/ui/dialog';
-import { QrCode, Share2 } from 'lucide-react';
+import { QrCode, Share2, Server } from 'lucide-react';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
 import ApiSettingsQRCode from './ApiSettingsQRCode';
+import { PROXY_SERVERS } from '@/services/gpt/config/GPTServiceConfig';
 
 interface SettingsPanelProps {
   isOpen: boolean;
@@ -33,10 +34,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   const [apiKey, setApiKey] = useState('');
   const [useProxy, setUseProxy] = useState(false);
-  const [serverUrl, setServerUrl] = useState('http://localhost:3000/chat');
+  const [serverUrl, setServerUrl] = useState('');
+  const [selectedProxyServer, setSelectedProxyServer] = useState('VERCEL');
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
+  
+  // Определение продакшн или дев окружения
+  const isProduction = window.location.hostname === 'lovable.dev';
   
   // Load settings when opening
   useEffect(() => {
@@ -44,6 +49,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
       setUseProxy(GPTService.getUseServerProxy());
+      
+      // Determine which proxy server is currently selected
+      const currentProxyUrl = GPTService.getServerProxyUrl();
+      const proxyEntries = Object.entries(PROXY_SERVERS);
+      const foundProxy = proxyEntries.find(([_, url]) => url === currentProxyUrl);
+      if (foundProxy) {
+        setSelectedProxyServer(foundProxy[0]);
+      }
+      
+      setServerUrl(currentProxyUrl);
       checkApiConnection();
     }
   }, [isOpen]);
@@ -76,6 +91,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
+  const handleProxyServerChange = (serverKey: string) => {
+    setSelectedProxyServer(serverKey);
+    const newUrl = PROXY_SERVERS[serverKey as keyof typeof PROXY_SERVERS] || '';
+    setServerUrl(newUrl);
+  };
+
   const handleSave = () => {
     // Update proxy settings
     GPTService.setUseServerProxy(useProxy);
@@ -87,6 +108,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     } else if (!useProxy) {
       // Warn if no key is provided for direct connection
       toast.warning('API ключ необходим для прямых запросов к OpenAI');
+    }
+    
+    // Set server URL
+    if (serverUrl) {
+      GPTService.setServerProxyUrl(serverUrl);
+      toast.success('URL сервера сохранен');
     }
     
     // Set response style
@@ -144,7 +171,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="useProxy" className="text-sm text-foreground/80">
-                  Использовать CORS Anywhere прокси
+                  Использовать прокси-сервер
                 </Label>
                 <Switch
                   id="useProxy"
@@ -154,10 +181,41 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
               <p className="text-xs text-muted-foreground">
                 {useProxy 
-                  ? "Запросы отправляются через CORS Anywhere прокси, решающий проблемы с CORS" 
+                  ? "Запросы отправляются через прокси-сервер, решающий проблемы с CORS" 
                   : "Запросы отправляются напрямую с использованием вашего API ключа"}
               </p>
             </div>
+
+            {useProxy && (
+              <div className="space-y-3">
+                <Label htmlFor="proxyServer" className="text-sm text-foreground/80">
+                  Выберите прокси-сервер
+                </Label>
+                <Select value={selectedProxyServer} onValueChange={handleProxyServerChange}>
+                  <SelectTrigger id="proxyServer">
+                    <SelectValue placeholder="Выберите прокси-сервер" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="VERCEL">Vercel (рекомендуется)</SelectItem>
+                    <SelectItem value="ALLORIGINS">All Origins</SelectItem>
+                    <SelectItem value="CORSPROXY">CORS Proxy.io</SelectItem>
+                    <SelectItem value="THINGPROXY">Thing Proxy</SelectItem>
+                    {!isProduction && <SelectItem value="LOCAL">Локальный сервер (localhost:3000)</SelectItem>}
+                    <SelectItem value="DIRECT">Прямое подключение (без прокси)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="text"
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
+                  placeholder="URL прокси-сервера"
+                  className="font-mono text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  URL прокси-сервера для обхода CORS-ограничений
+                </p>
+              </div>
+            )}
 
             <div className="space-y-3">
               <Label htmlFor="apiKey" className="text-sm text-foreground/80">
@@ -173,7 +231,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               />
               <p className="text-xs text-muted-foreground">
                 {useProxy 
-                  ? "API ключ требуется для запросов через CORS Anywhere прокси" 
+                  ? "API ключ требуется для запросов через прокси" 
                   : "API ключ обязателен для прямого подключения к OpenAI API"}
               </p>
             </div>

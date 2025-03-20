@@ -15,6 +15,16 @@ const DirectOpenAIExample = () => {
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<'client' | 'proxy' | 'chat'>('client');
 
+  // Определяем URL сервера в зависимости от окружения
+  const getServerUrl = () => {
+    // В production используем Vercel URL
+    if (window.location.hostname === 'lovable.dev') {
+      return 'https://lovable-server.vercel.app';
+    }
+    // Для разработки используем локальный сервер
+    return 'http://localhost:3000';
+  };
+
   const handleSubmit = async () => {
     setLoading(true);
     setError(null);
@@ -22,7 +32,7 @@ const DirectOpenAIExample = () => {
 
     try {
       if (method === 'chat') {
-        // Use the new lovable.dev chat API
+        // Use the chat API
         const result = await GPTService.sendChatMessage(prompt);
         setResponse(JSON.stringify(result, null, 2));
       } else if (method === 'client') {
@@ -48,7 +58,10 @@ const DirectOpenAIExample = () => {
         setResponse(completion.choices[0].message.content || 'No response received');
       } else {
         // Proxy server method
-        const response = await fetch('http://localhost:3000/api/chat', {
+        const serverUrl = getServerUrl();
+        console.log(`Making request to proxy server: ${serverUrl}`);
+        
+        const response = await fetch(`${serverUrl}/api/chat`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -56,6 +69,8 @@ const DirectOpenAIExample = () => {
           body: JSON.stringify({
             message: prompt
           }),
+          mode: 'cors',
+          credentials: 'omit'
         });
 
         if (!response.ok) {
@@ -78,14 +93,14 @@ const DirectOpenAIExample = () => {
       <CardHeader>
         <CardTitle>API Example</CardTitle>
         <CardDescription>
-          Send messages directly to lovable.dev/api/chat or through different methods
+          Отправка сообщений через различные методы API
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>Ошибка</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -93,42 +108,42 @@ const DirectOpenAIExample = () => {
         <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'proxy' | 'chat')}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="client">OpenAI Client</TabsTrigger>
-            <TabsTrigger value="proxy">Express Proxy</TabsTrigger>
-            <TabsTrigger value="chat">Lovable Chat</TabsTrigger>
+            <TabsTrigger value="proxy">Прокси-сервер</TabsTrigger>
+            <TabsTrigger value="chat">Lovable API</TabsTrigger>
           </TabsList>
           <TabsContent value="client">
             <p className="text-sm text-muted-foreground mb-4">
-              Using the OpenAI client directly with your API key
+              Прямое использование OpenAI API с вашим ключом API
             </p>
           </TabsContent>
           <TabsContent value="proxy">
             <p className="text-sm text-muted-foreground mb-4">
-              Using your Express proxy server (make sure it's running on localhost:3000)
+              Использование прокси-сервера: {getServerUrl()}
             </p>
           </TabsContent>
           <TabsContent value="chat">
             <p className="text-sm text-muted-foreground mb-4">
-              Using the lovable.dev/api/chat endpoint for direct messaging
+              Использование API Lovable для прямого обмена сообщениями
             </p>
           </TabsContent>
         </Tabs>
         
         <div className="space-y-2">
           <label htmlFor="prompt" className="text-sm font-medium">
-            Your message
+            Ваше сообщение
           </label>
           <Textarea
             id="prompt"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Enter your message here..."
+            placeholder="Введите ваше сообщение здесь..."
             className="min-h-24"
           />
         </div>
 
         {response && (
           <div className="space-y-2 mt-4">
-            <h3 className="text-sm font-medium">Response:</h3>
+            <h3 className="text-sm font-medium">Ответ:</h3>
             <div className="bg-muted p-4 rounded-md whitespace-pre-wrap overflow-auto max-h-64">
               {response}
             </div>
@@ -144,10 +159,10 @@ const DirectOpenAIExample = () => {
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Sending...
+              Отправка...
             </>
           ) : (
-            'Send Message'
+            'Отправить сообщение'
           )}
         </Button>
       </CardFooter>

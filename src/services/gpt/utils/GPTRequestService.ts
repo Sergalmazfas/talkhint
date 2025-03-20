@@ -1,3 +1,4 @@
+
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
 import { GPTServiceConfig, PROXY_SERVERS } from "../config/GPTServiceConfig";
@@ -147,21 +148,54 @@ export class GPTRequestService {
   }
 
   /**
-   * Make a simple chat request to the lovable.dev server
+   * Make a simple chat request to the configured server
    */
   public async makeSimpleChatRequest(message: string): Promise<any> {
     try {
-      // Make a mock request that doesn't actually contact the server
+      const serverUrl = this.determineServerUrl();
+      GPTLogger.log('chat', `Making chat request to ${serverUrl}`);
+      
+      const response = await fetch(`${serverUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message }),
+        mode: 'cors',
+        credentials: 'omit'
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Server error: ${response.status} - ${errorText}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Ошибка при отправке сообщения:", error);
+      // Fallback to mock response if server is unreachable
       return {
         success: true,
         received: message,
-        response: `Mock response for: "${message}"`,
-        timestamp: new Date().toISOString()
+        response: `Не удалось связаться с сервером. Локальный ответ: "${message}"`,
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error)
       };
-    } catch (error) {
-      console.error("Ошибка:", error);
-      throw error;
     }
+  }
+
+  /**
+   * Determine the appropriate server URL
+   */
+  private determineServerUrl(): string {
+    // Проверка production окружения
+    if (window.location.hostname === 'lovable.dev') {
+      // В production используем Vercel URL
+      return 'https://lovable-server.vercel.app';
+    }
+    
+    // Для разработки используем локальный сервер
+    return 'http://localhost:3000';
   }
 
   /**
@@ -181,6 +215,7 @@ export class GPTRequestService {
     const isAllOrigins = this.config.serverProxyUrl.includes('allorigins');
     const isCorsproxy = this.config.serverProxyUrl.includes('corsproxy.io');
     const isThingproxy = this.config.serverProxyUrl.includes('thingproxy');
+    const isVercel = this.config.serverProxyUrl.includes('vercel.app') || this.config.serverProxyUrl.includes('lovable-server');
     
     try {
       let url;
@@ -203,9 +238,12 @@ export class GPTRequestService {
       } else if (isThingproxy) {
         // For thingproxy, the target is already in the URL
         url = `${this.config.serverProxyUrl}/chat/completions`;
+      } else if (isVercel) {
+        // For Vercel deployment
+        url = `${this.config.serverProxyUrl}/api/openai/chat/completions`;
       } else {
         // Default behavior for direct or unknown proxies
-        url = `${this.config.serverProxyUrl}/chat/completions`;
+        url = `${this.config.serverProxyUrl}/api/openai/chat/completions`;
       }
       
       GPTLogger.log(requestId, `Constructed request URL: ${url}`);

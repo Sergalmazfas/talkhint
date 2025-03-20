@@ -17,8 +17,8 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  // Using more reliable proxy service
-  serverProxyUrl: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1', 
+  // Using Vercel-hosted server proxy as default
+  serverProxyUrl: 'https://lovable-server.vercel.app', 
   useServerProxy: true, // Using server proxy by default
   maxRetries: 3,
   timeoutMs: 60000,
@@ -28,9 +28,11 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
  * Available proxy servers for CORS issues
  */
 export const PROXY_SERVERS = {
+  VERCEL: 'https://lovable-server.vercel.app',
   ALLORIGINS: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1',
   CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
   THINGPROXY: 'https://thingproxy.freeboard.io/fetch/https://api.openai.com/v1',
+  LOCAL: 'http://localhost:3000',
   DIRECT: 'https://api.openai.com/v1',
 };
 
