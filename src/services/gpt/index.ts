@@ -82,6 +82,13 @@ class GPTService {
   }
 
   /**
+   * Get the response style
+   */
+  public getResponseStyle(): string {
+    return this.suggestionsService.getResponseStyle();
+  }
+
+  /**
    * Send a direct message to the lovable.dev chat API
    */
   public async sendChatMessage(message: string): Promise<any> {
