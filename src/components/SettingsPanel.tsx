@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Slider } from '@/components/ui/slider';
@@ -40,17 +39,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
   
-  // Определение продакшн или дев окружения
   const isProduction = window.location.hostname === 'lovable.dev';
   
-  // Load settings when opening
   useEffect(() => {
     if (isOpen) {
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
       setUseProxy(GPTService.getUseServerProxy());
       
-      // Determine which proxy server is currently selected
       const currentProxyUrl = GPTService.getServerProxyUrl();
       const proxyEntries = Object.entries(PROXY_SERVERS);
       const foundProxy = proxyEntries.find(([_, url]) => url === currentProxyUrl);
@@ -98,29 +94,23 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const handleSave = () => {
-    // Update proxy settings
     GPTService.setUseServerProxy(useProxy);
     
-    // Set API key if provided
     if (apiKey.trim()) {
       GPTService.setApiKey(apiKey.trim());
       toast.success('API ключ сохранен');
     } else if (!useProxy) {
-      // Warn if no key is provided for direct connection
       toast.warning('API ключ необходим для прямых запросов к OpenAI');
     }
     
-    // Set server URL
     if (serverUrl) {
       GPTService.setServerProxyUrl(serverUrl);
       toast.success('URL сервера сохранен');
     }
     
-    // Set response style
     GPTService.setResponseStyle(settings.responseStyle);
     toast.success('Настройки сохранены');
     
-    // Check connection with new settings
     checkApiConnection();
     
     onClose();
@@ -197,6 +187,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="VERCEL">Vercel (рекомендуется)</SelectItem>
+                    <SelectItem value="CORS_ANYWHERE">CORS Anywhere</SelectItem>
                     <SelectItem value="ALLORIGINS">All Origins</SelectItem>
                     <SelectItem value="CORSPROXY">CORS Proxy.io</SelectItem>
                     <SelectItem value="THINGPROXY">Thing Proxy</SelectItem>
