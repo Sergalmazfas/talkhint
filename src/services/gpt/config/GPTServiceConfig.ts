@@ -1,4 +1,3 @@
-
 /**
  * Configuration for OpenAI API services
  */
@@ -40,18 +39,21 @@ export const PROXY_SERVERS = {
 
 /**
  * Разрешенные домены для postMessage взаимодействия
- * Важно указывать полностью точный домен для postMessage
+ * Добавили дополнительные версии доменов
  */
 export const ALLOWED_ORIGINS = [
   'https://lovable.dev',
+  'https://www.lovable.dev',
   'https://gptengineer.app',
+  'https://www.gptengineer.app',
   'https://gptengineer.io',
+  'https://www.gptengineer.io',
   'http://localhost:3000',
-  'https://localhost:3000', // Добавляем HTTPS версию
+  'https://localhost:3000',
   'http://localhost:8080',
+  'https://localhost:8080',
   'http://localhost:5173',
-  'https://localhost:5173', // Добавляем HTTPS версии
-  'https://localhost:8080'
+  'https://localhost:5173'
 ];
 
 /**
@@ -61,16 +63,33 @@ export const ALLOWED_ORIGINS = [
 export function isAllowedOrigin(origin: string): boolean {
   // Для отладки и локальной разработки
   if (process.env.NODE_ENV === 'development') {
-    // В режиме разработки разрешаем любые localhost
+    // В режиме разработки разрешаем любые localhost или пустой origin
     if (origin === '*' || 
+        !origin || 
         origin.includes('localhost') || 
         window.location.hostname === 'localhost') {
       return true;
     }
   }
   
-  // Для других доменов делаем точную проверку
-  return ALLOWED_ORIGINS.some(allowed => origin === allowed);
+  // Для других доменов делаем более гибкую проверку
+  // Это позволит обрабатывать поддомены и варианты с www/без www
+  return ALLOWED_ORIGINS.some(allowed => {
+    // Точное совпадение
+    if (origin === allowed) return true;
+    
+    // Проверка www/без www вариантов (например, lovable.dev и www.lovable.dev)
+    if (allowed.replace('www.', '') === origin.replace('www.', '')) return true;
+    
+    // В режиме разработки более гибкая проверка для localhost с разными портами
+    if (process.env.NODE_ENV === 'development' && 
+        allowed.includes('localhost') && 
+        origin.includes('localhost')) {
+      return true;
+    }
+    
+    return false;
+  });
 }
 
 /**
