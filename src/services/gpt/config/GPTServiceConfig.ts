@@ -38,6 +38,7 @@ export const PROXY_SERVERS = {
 
 /**
  * Разрешенные домены для postMessage взаимодействия
+ * Важно указывать полностью точный домен для postMessage
  */
 export const ALLOWED_ORIGINS = [
   'https://lovable.dev',
@@ -50,9 +51,20 @@ export const ALLOWED_ORIGINS = [
 
 /**
  * Проверяет, разрешен ли домен для postMessage взаимодействия
+ * Сравнивает точно, так как для postMessage нужно точное совпадение
  */
 export function isAllowedOrigin(origin: string): boolean {
-  return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
+  // Для localhost и разработки разрешаем все (не для продакшена)
+  if (process.env.NODE_ENV === 'development' && (
+    window.location.hostname === 'localhost' ||
+    origin === '*' ||
+    origin.includes('localhost')
+  )) {
+    return true;
+  }
+  
+  // Для других доменов делаем точную проверку
+  return ALLOWED_ORIGINS.some(allowed => origin === allowed);
 }
 
 /**

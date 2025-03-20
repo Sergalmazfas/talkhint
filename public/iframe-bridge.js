@@ -12,7 +12,7 @@
 
   // Проверка разрешенного домена
   function isAllowedOrigin(origin) {
-    return ALLOWED_ORIGINS.some(allowed => origin.startsWith(allowed));
+    return ALLOWED_ORIGINS.some(allowed => origin === allowed || origin.startsWith(allowed));
   }
 
   // Обработчик сообщений
@@ -38,19 +38,52 @@
       timestamp: new Date().toISOString()
     };
     
-    // Отправляем ответ обратно отправителю
-    if (isAllowedOrigin(event.origin)) {
-      event.source.postMessage(response, event.origin);
-      console.log(`[iframe-bridge] Sent response to ${event.origin}`);
-    }
+    // Отправляем ответ обратно отправителю - ВАЖНО: указываем конкретный origin
+    event.source.postMessage(response, event.origin);
+    console.log(`[iframe-bridge] Sent response to ${event.origin}`);
   });
   
   // Отправляем сообщение о готовности
   function notifyReady() {
-    const parentOrigin = document.referrer ? new URL(document.referrer).origin : '*';
-    if (parentOrigin === '*' || isAllowedOrigin(parentOrigin)) {
-      window.parent.postMessage({ type: 'IFRAME_READY', from: window.location.origin }, parentOrigin);
+    try {
+      // Получаем origin родительского окна
+      const parentOrigin = document.referrer ? new URL(document.referrer).origin : '*';
+      
+      window.parent.postMessage(
+        { type: 'IFRAME_READY', from: window.location.origin }, 
+        parentOrigin
+      );
+      
       console.log(`[iframe-bridge] Notified ready to ${parentOrigin}`);
+      
+      // Дополнительно отправляем сообщения в известные домены
+      if (parentOrigin === '*') {
+        ALLOWED_ORIGINS.forEach(origin => {
+          try {
+            console.log(`[iframe-bridge] Attempting to notify ${origin}`);
+            window.parent.postMessage(
+              { type: 'IFRAME_READY', from: window.location.origin },
+              origin
+            );
+          } catch (e) {
+            console.warn(`[iframe-bridge] Failed to notify ${origin}:`, e);
+          }
+        });
+      }
+    } catch (error) {
+      console.error('[iframe-bridge] Error in notifyReady:', error);
+      
+      // В случае ошибки пробуем отправить сообщение через '*'
+      // Это не безопасно, но может помочь в отладке
+      try {
+        window.parent.postMessage(
+          { type: 'IFRAME_READY', from: window.location.origin, error: error.message }, 
+          '*'
+        );
+        console.log('[iframe-bridge] Fallback notification sent to *');
+      } catch (e) {
+        console.error('[iframe-bridge] Even fallback notification failed:', e);
+      }
     }
   }
   

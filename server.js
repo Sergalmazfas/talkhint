@@ -4,31 +4,59 @@ const express = require("express");
 const app = express();
 const axios = require("axios");
 
-// Расширенная конфигурация CORS для разрешения запросов с lovable.dev и gptengineer.app
+// Расширенная конфигурация CORS для разрешения запросов с различных доменов
+const ALLOWED_ORIGINS = [
+    'https://lovable.dev', 
+    'https://gptengineer.app',
+    'https://gptengineer.io',
+    'http://localhost:8080', 
+    'http://localhost:5173', 
+    'http://localhost:3000'
+];
+
+// Middleware для проверки origin и настройки CORS
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    
+    // Лог всех запросов с их origin
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${origin || 'unknown'}`);
+    
+    // Проверяем, разрешен ли origin
+    if (origin && ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    
+    // Обработка preflight запросов OPTIONS
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    
+    next();
+});
+
+// Дополнительно используем cors middleware для базовой поддержки
 app.use(cors({
-    origin: [
-        'https://lovable.dev', 
-        'https://gptengineer.app', 
-        'http://localhost:8080', 
-        'http://localhost:5173', 
-        'http://localhost:3000'
-    ],
+    origin: function(origin, callback) {
+        // Разрешаем запросы без origin (например, от Postman)
+        if (!origin) return callback(null, true);
+        
+        if (ALLOWED_ORIGINS.includes(origin)) {
+            callback(null, true);
+        } else {
+            console.warn(`CORS blocked request from: ${origin}`);
+            callback(new Error(`Origin ${origin} not allowed by CORS`));
+        }
+    },
     methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
     credentials: true
 }));
 
-// Обработка preflight OPTIONS запросов
-app.options('*', cors());
-
 // Парсинг JSON в теле запроса
 app.use(express.json());
-
-// Middleware для логирования всех запросов
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - Origin: ${req.headers.origin || 'unknown'}`);
-    next();
-});
 
 // Simple chat endpoint
 app.post("/api/chat", (req, res) => {
@@ -89,18 +117,33 @@ app.post("/api/openai/chat/completions", async (req, res) => {
     }
 });
 
+// Endpoint для тестирования CORS
+app.get("/cors-test", (req, res) => {
+    res.json({
+        success: true,
+        message: "CORS Test Successful",
+        yourOrigin: req.headers.origin || "Unknown",
+        timestamp: new Date().toISOString(),
+        headers: {
+            'access-control-allow-origin': res.getHeader('Access-Control-Allow-Origin'),
+            'access-control-allow-methods': res.getHeader('Access-Control-Allow-Methods'),
+            'access-control-allow-headers': res.getHeader('Access-Control-Allow-Headers')
+        }
+    });
+});
+
 // Проверка здоровья системы
 app.get("/health", (req, res) => {
     res.json({ 
         status: "ok", 
         timestamp: new Date().toISOString(),
-        allowedOrigins: [
-            'https://lovable.dev', 
-            'https://gptengineer.app', 
-            'http://localhost:8080', 
-            'http://localhost:5173', 
-            'http://localhost:3000'
-        ]
+        clientOrigin: req.headers.origin || "Unknown",
+        allowedOrigins: ALLOWED_ORIGINS,
+        corsHeaders: {
+            'access-control-allow-origin': res.getHeader('Access-Control-Allow-Origin'),
+            'access-control-allow-methods': res.getHeader('Access-Control-Allow-Methods'),
+            'access-control-allow-headers': res.getHeader('Access-Control-Allow-Headers')
+        }
     });
 });
 
@@ -110,21 +153,16 @@ app.get("/api/openai/health", (req, res) => {
         status: "ok", 
         message: "OpenAI proxy server is running",
         timestamp: new Date().toISOString(),
+        clientOrigin: req.headers.origin || "Unknown",
         cors: "enabled",
-        allowedOrigins: [
-            'https://lovable.dev', 
-            'https://gptengineer.app', 
-            'http://localhost:8080', 
-            'http://localhost:5173', 
-            'http://localhost:3000'
-        ]
+        allowedOrigins: ALLOWED_ORIGINS
     });
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
-    console.log(`CORS enabled for: https://lovable.dev, https://gptengineer.app, http://localhost:8080, http://localhost:5173, http://localhost:3000`);
+    console.log(`CORS enabled for:`, ALLOWED_ORIGINS);
 });
 
 // Обработка ошибок для предотвращения падения сервера

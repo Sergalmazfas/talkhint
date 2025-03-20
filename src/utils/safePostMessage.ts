@@ -30,14 +30,34 @@ export function safePostMessage(
     // Добавляем информацию об источнике сообщения
     const enrichedMessage = {
       ...message,
-      _source: window.location.origin
+      _source: window.location.origin,
+      _timestamp: new Date().toISOString()
     };
 
-    // Отправляем сообщение
+    // Отправляем сообщение с точным указанием targetOrigin
+    console.log(`Sending message to ${targetOrigin}:`, enrichedMessage);
     targetWindow.postMessage(enrichedMessage, targetOrigin);
     return true;
   } catch (error) {
     console.error('Error posting message:', error);
+    
+    // Пробуем отправить через '*' только в режиме разработки
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        console.warn('Attempting to send with wildcard origin (development only)');
+        const enrichedMessage = {
+          ...message,
+          _source: window.location.origin,
+          _timestamp: new Date().toISOString(),
+          _fallback: true
+        };
+        targetWindow.postMessage(enrichedMessage, '*');
+        return true;
+      } catch (fallbackError) {
+        console.error('Even fallback sending failed:', fallbackError);
+      }
+    }
+    
     return false;
   }
 }
@@ -52,9 +72,21 @@ export function handleSafePostMessage(
   event: MessageEvent,
   callback: (data: any) => void
 ): boolean {
+  // Разрешаем сообщения из того же окна
+  if (event.source === window) {
+    try {
+      callback(event.data);
+      return true;
+    } catch (error) {
+      console.error('Error handling same-window message:', error);
+      return false;
+    }
+  }
+
   // Проверяем, разрешен ли источник сообщения
   if (!event.origin || !isAllowedOrigin(event.origin)) {
     console.warn(`Message from disallowed origin rejected: ${event.origin}`);
+    console.warn('Allowed origins:', ALLOWED_ORIGINS);
     return false;
   }
 
@@ -77,13 +109,62 @@ export function setupMessageListener(
   callback: (data: any, origin: string) => void
 ): () => void {
   const messageHandler = (event: MessageEvent) => {
-    handleSafePostMessage(event, (data) => callback(data, event.origin));
+    const originDisplay = event.origin || 'unknown';
+    
+    // Проверка того же окна
+    if (event.source === window) {
+      callback(event.data, 'same-window');
+      return;
+    }
+    
+    // Проверяем, разрешен ли источник сообщения
+    if (!event.origin || !isAllowedOrigin(event.origin)) {
+      console.warn(`Message from disallowed origin: ${originDisplay}`);
+      console.warn('Allowed origins:', ALLOWED_ORIGINS);
+      return;
+    }
+    
+    // Обрабатываем сообщение через callback
+    callback(event.data, event.origin);
   };
 
+  // Добавляем обработчик
   window.addEventListener('message', messageHandler);
+  console.log('PostMessage listener set up with allowed origins:', ALLOWED_ORIGINS);
   
   // Возвращаем функцию очистки
   return () => {
     window.removeEventListener('message', messageHandler);
+    console.log('PostMessage listener removed');
   };
+}
+
+/**
+ * Тестирует постмессенджи для всех известных доменов
+ * @param message Сообщение для отправки
+ * @returns Объект с результатами отправки
+ */
+export function testPostMessageAllOrigins(message: any): Record<string, boolean> {
+  const results: Record<string, boolean> = {};
+  
+  // Пробуем отправить сообщение во все разрешенные домены
+  ALLOWED_ORIGINS.forEach(origin => {
+    try {
+      console.log(`Attempting to send test message to ${origin}`);
+      const enrichedMessage = {
+        ...message,
+        _source: window.location.origin,
+        _timestamp: new Date().toISOString(),
+        _test: true
+      };
+      
+      window.parent.postMessage(enrichedMessage, origin);
+      results[origin] = true;
+    } catch (error) {
+      console.error(`Failed to send test message to ${origin}:`, error);
+      results[origin] = false;
+    }
+  });
+  
+  return results;
 }

@@ -4,10 +4,10 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/gpt';
-import { setupMessageListener } from '@/utils/safePostMessage';
+import { setupMessageListener, testPostMessageAllOrigins } from '@/utils/safePostMessage';
 import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
 
 const DirectOpenAIExample = () => {
@@ -17,6 +17,7 @@ const DirectOpenAIExample = () => {
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<'client' | 'proxy' | 'chat'>('client');
   const [messages, setMessages] = useState<any[]>([]);
+  const [testResults, setTestResults] = useState<Record<string, boolean> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Определяем URL сервера в зависимости от окружения
@@ -36,15 +37,45 @@ const DirectOpenAIExample = () => {
       setMessages(prev => [...prev, { origin, data, timestamp: new Date().toISOString() }]);
     });
 
+    // Тестовое сообщение при монтировании - для iframe
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      setTimeout(() => {
+        try {
+          const targetOrigin = new URL(iframeRef.current!.src).origin;
+          iframeRef.current!.contentWindow!.postMessage(
+            { type: 'INIT', from: window.location.origin },
+            targetOrigin
+          );
+          console.log(`Initial postMessage sent to iframe at ${targetOrigin}`);
+        } catch (e) {
+          console.error('Failed to send initial postMessage to iframe:', e);
+        }
+      }, 1500);
+    }
+
     return cleanupListener;
   }, []);
 
   // Безопасная отправка postMessage в iframe
   const sendMessageToIframe = (message: any) => {
-    if (iframeRef.current && iframeRef.current.contentWindow) {
+    if (!iframeRef.current || !iframeRef.current.contentWindow) {
+      setError("Iframe не загружен или недоступен");
+      return false;
+    }
+    
+    try {
       const targetOrigin = new URL(iframeRef.current.src).origin;
       
-      if (ALLOWED_ORIGINS.some(origin => targetOrigin.startsWith(origin))) {
+      // Разрешаем любой origin для localhost в режиме разработки
+      if (process.env.NODE_ENV === 'development' && 
+          (window.location.hostname === 'localhost' || targetOrigin.includes('localhost'))) {
+        iframeRef.current.contentWindow.postMessage(message, '*');
+        console.log(`Sent message to iframe at ${targetOrigin} (dev mode, using *)`, message);
+        return true;
+      }
+      
+      // Проверяем, является ли targetOrigin разрешенным
+      if (ALLOWED_ORIGINS.includes(targetOrigin)) {
         iframeRef.current.contentWindow.postMessage(message, targetOrigin);
         console.log(`Sent message to iframe at ${targetOrigin}:`, message);
         return true;
@@ -53,8 +84,11 @@ const DirectOpenAIExample = () => {
         setError(`Невозможно отправить сообщение к ${targetOrigin}: домен не разрешен`);
         return false;
       }
+    } catch (error) {
+      console.error("Error sending message to iframe:", error);
+      setError(`Ошибка отправки сообщения: ${error instanceof Error ? error.message : String(error)}`);
+      return false;
     }
-    return false;
   };
 
   const handleSubmit = async () => {
@@ -122,23 +156,66 @@ const DirectOpenAIExample = () => {
   };
 
   const testPostMessage = () => {
-    // Отправка сообщения в родительское окно (если это iframe)
-    window.parent.postMessage(
-      { type: 'TEST_MESSAGE', content: prompt, from: window.location.origin },
-      // Используем * только для тестирования, в продакшен коде всегда указывайте конкретный origin
-      '*'
-    );
-    
-    // Отправка сообщения в iframe (если он есть)
-    if (iframeRef.current) {
-      sendMessageToIframe({ 
-        type: 'TEST_MESSAGE', 
-        content: prompt, 
-        from: window.location.origin 
+    try {
+      // Очищаем предыдущие результаты
+      setError(null);
+      setTestResults(null);
+      
+      // 1. Отправка сообщения в родительское окно
+      try {
+        window.parent.postMessage(
+          { type: 'TEST_MESSAGE', content: prompt, from: window.location.origin },
+          window.location.origin // Безопасно отправляем в наш же домен
+        );
+        console.log(`Sent test message to parent (same origin: ${window.location.origin})`);
+      } catch (e) {
+        console.error('Error sending to parent window:', e);
+      }
+      
+      // 2. Отправка сообщения в iframe
+      if (iframeRef.current) {
+        const success = sendMessageToIframe({ 
+          type: 'TEST_MESSAGE', 
+          content: prompt, 
+          from: window.location.origin 
+        });
+        
+        if (success) {
+          console.log('Successfully sent message to iframe');
+        } else {
+          console.warn('Failed to send message to iframe');
+        }
+      }
+      
+      // 3. Тестируем postMessage для всех известных доменов
+      const results = testPostMessageAllOrigins({
+        type: 'DOMAIN_TEST',
+        content: prompt,
+        from: window.location.origin
       });
+      
+      setTestResults(results);
+      
+      // Добавляем отчет в ответ
+      setResponse(`Отправлено тестовое сообщение:\n${JSON.stringify({ 
+        type: 'TEST_MESSAGE', 
+        content: prompt 
+      }, null, 2)}\n\nРезультаты тестирования доменов:\n${
+        Object.entries(results)
+          .map(([domain, success]) => `${domain}: ${success ? '✅' : '❌'}`)
+          .join('\n')
+      }`);
+      
+    } catch (error) {
+      console.error('Ошибка при тестировании postMessage:', error);
+      setError(`Ошибка тестирования: ${error instanceof Error ? error.message : String(error)}`);
     }
-    
-    setResponse(`Отправлено тестовое сообщение:\n${JSON.stringify({ type: 'TEST_MESSAGE', content: prompt }, null, 2)}`);
+  };
+
+  const reloadIframe = () => {
+    if (iframeRef.current) {
+      iframeRef.current.src = iframeRef.current.src;
+    }
   };
 
   return (
@@ -219,6 +296,24 @@ const DirectOpenAIExample = () => {
           </Button>
         </div>
 
+        {testResults && (
+          <div className="space-y-2 mt-4">
+            <h3 className="text-sm font-medium">Результаты тестирования доменов:</h3>
+            <div className="bg-muted p-4 rounded-md">
+              <ul className="space-y-1">
+                {Object.entries(testResults).map(([domain, success]) => (
+                  <li key={domain} className="flex items-center">
+                    <span className={`mr-2 ${success ? 'text-green-500' : 'text-red-500'}`}>
+                      {success ? '✅' : '❌'}
+                    </span>
+                    <code className="text-xs">{domain}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
         {response && (
           <div className="space-y-2 mt-4">
             <h3 className="text-sm font-medium">Ответ:</h3>
@@ -233,21 +328,34 @@ const DirectOpenAIExample = () => {
             <h3 className="text-sm font-medium">Полученные сообщения:</h3>
             <div className="bg-muted p-4 rounded-md overflow-auto max-h-64">
               {messages.map((msg, idx) => (
-                <div key={idx} className="mb-2 pb-2 border-b border-gray-200">
+                <div key={idx} className="mb-2 pb-2 border-b border-gray-200 text-xs">
                   <p><strong>От:</strong> {msg.origin}</p>
                   <p><strong>Время:</strong> {msg.timestamp}</p>
-                  <pre className="text-xs mt-1 whitespace-pre-wrap">
+                  <pre className="text-xs mt-1 whitespace-pre-wrap overflow-auto max-h-20">
                     {JSON.stringify(msg.data, null, 2)}
                   </pre>
                 </div>
               ))}
             </div>
+            <Button variant="outline" size="sm" onClick={() => setMessages([])}>
+              Очистить сообщения
+            </Button>
           </div>
         )}
         
         {/* Тестовый iframe для проверки postMessage */}
         <div className="mt-4 p-4 border rounded-md">
-          <h3 className="text-sm font-medium mb-2">Тестовый iframe:</h3>
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-medium">Тестовый iframe:</h3>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={reloadIframe}
+              className="h-6 w-6 p-0"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
           <iframe
             ref={iframeRef}
             src={`${getServerUrl()}/health`}
@@ -257,7 +365,10 @@ const DirectOpenAIExample = () => {
           />
         </div>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex-col">
+        <p className="text-xs text-muted-foreground w-full text-center mb-2">
+          Ваш текущий origin: <code>{window.location.origin}</code>
+        </p>
         <p className="text-xs text-muted-foreground w-full text-center">
           Разрешенные домены для postMessage: {ALLOWED_ORIGINS.join(', ')}
         </p>
