@@ -23,52 +23,41 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
     const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
     const debugHandlerRef = useRef<((event: MessageEvent) => void) | null>(null);
     
-    // Предотвращаем множественное добавление обработчиков сообщений
     const setupListenersOnce = useRef<boolean>(false);
     
-    // Добавляем функцию для отображения ошибки
     const addError = useCallback((error: string) => {
       setErrors(prev => {
-        // Проверяем, нет ли уже такой ошибки
         if (prev.includes(error)) return prev;
-        // Добавляем новую ошибку в начало списка
-        return [error, ...prev].slice(0, 10); // Ограничиваем список 10 ошибками
+        return [error, ...prev].slice(0, 10);
       });
     }, []);
     
-    // Функция для отображения ошибок React
     const addReactError = useCallback((error: string) => {
       setReactErrors(prev => {
         if (prev.includes(error)) return prev;
-        return [error, ...prev].slice(0, 3); // Ограничиваем 3 ошибками
+        return [error, ...prev].slice(0, 3);
       });
       
-      // Также показываем тост с ошибкой
       toast.error('React Error Detected', {
         description: error.substring(0, 100) + (error.length > 100 ? '...' : ''),
         duration: 5000,
       });
     }, []);
     
-    // Select URL for iframe considering potential CORS issues
     const getIframeUrl = useCallback(() => {
-      // Check if the app is running over HTTPS
       const isPageHttps = window.location.protocol === 'https:';
       
       try {
-        // Extract protocol from server URL
         if (serverUrl.startsWith('https:')) {
           setServerProtocol('https');
         } else if (serverUrl.startsWith('http:')) {
           setServerProtocol('http');
         }
         
-        // If page is HTTPS but server is HTTP, generate warning
         if (isPageHttps && serverUrl.startsWith('http:')) {
           setHttpsWarning(true);
           console.log(`[TestIframe] Mixed content warning: page is HTTPS but server is HTTP (${serverUrl})`);
           
-          // For testing purposes, attempt both protocols
           const httpsUrl = serverUrl.replace('http:', 'https:') + '/postmessage-test';
           console.log(`[TestIframe] Attempting HTTPS URL: ${httpsUrl}`);
           return httpsUrl;
@@ -78,44 +67,36 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         addError(`Error parsing URL: ${e instanceof Error ? e.message : String(e)}`);
       }
       
-      // Use special test endpoint instead of /health
       const testUrl = `${serverUrl}/postmessage-test`;
       console.log(`[TestIframe] Using test URL: ${testUrl}`);
       return testUrl;
     }, [serverUrl, addError]);
-
-    // Setup postMessage event listener ONCE
+    
     useEffect(() => {
-      // Проверяем, не установлены ли уже обработчики
       if (setupListenersOnce.current) return;
       
-      // Помечаем, что обработчики уже установлены
       setupListenersOnce.current = true;
       
       const handleMessage = (event: MessageEvent) => {
         try {
           console.log(`[TestIframe] Received message from ${event.origin}:`, event.data);
           
-          // Обрабатываем сообщения об ошибках React
           if (event.data && event.data.type === 'REACT_ERROR') {
             console.error('[TestIframe] React error reported from iframe:', event.data.error);
             addReactError(event.data.error);
             return;
           }
           
-          // Verify the message is from our iframe
           const iframeUrl = getIframeUrl();
           let iframeOrigin = '*';
           
           try {
-            // Extract origin from iframe URL
             const url = new URL(iframeUrl);
             iframeOrigin = url.origin;
           } catch (e) {
             console.warn('[TestIframe] Could not parse iframe URL:', e);
           }
           
-          // Более мягкая проверка origin для тестирования
           const isSameOrigin = event.origin === iframeOrigin;
           const isAllowedDomain = event.origin.includes('localhost') || 
                                  event.origin.includes('lovable') ||
@@ -123,8 +104,6 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           
           if (event.data && (isSameOrigin || isAllowedDomain)) {
             setMessagesReceived(prev => prev + 1);
-            
-            // Для отладки показываем полученное сообщение
             console.log('[TestIframe] Processed message:', event.data);
           }
         } catch (error) {
@@ -133,20 +112,16 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         }
       };
       
-      // Debug listener to see ALL messages regardless of origin
       const debugHandler = (event: MessageEvent) => {
         console.log(`[DEBUG] Raw message received from ${event.origin || 'unknown'}:`, event.data);
       };
       
-      // Сохраняем ссылки на обработчики, чтобы правильно удалить их при размонтировании
       messageHandlerRef.current = handleMessage;
       debugHandlerRef.current = debugHandler;
       
-      // Add listeners
       window.addEventListener('message', handleMessage);
-      window.addEventListener('message', debugHandler, true); // Use capture phase
+      window.addEventListener('message', debugHandler, true);
       
-      // Cleanup
       return () => {
         if (messageHandlerRef.current) {
           window.removeEventListener('message', messageHandlerRef.current);
@@ -158,23 +133,19 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           debugHandlerRef.current = null;
         }
         
-        // Сбрасываем флаг, чтобы обработчики можно было установить снова
         setupListenersOnce.current = false;
       };
     }, [getIframeUrl, addError, addReactError]);
-
-    // Handle iframe load
+    
     const handleIframeLoad = () => {
       console.log('[TestIframe] Iframe loaded successfully');
       setConnectionStatus('success');
       
-      // Clear timeout if it exists
       if (iframeTimeoutRef.current) {
         clearTimeout(iframeTimeoutRef.current);
         iframeTimeoutRef.current = null;
       }
       
-      // Send init message to iframe only ONCE after loading
       const iframe = ref as React.RefObject<HTMLIFrameElement>;
       if (iframe && iframe.current && iframe.current.contentWindow) {
         try {
@@ -184,11 +155,9 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
             origin: window.location.origin
           };
           
-          // Try with wildcard first (most compatible)
           iframe.current.contentWindow.postMessage(message, '*');
           console.log('[TestIframe] Sent init message with wildcard origin');
           
-          // Also try with specific origin
           const iframeUrl = getIframeUrl();
           try {
             const url = new URL(iframeUrl);
@@ -205,21 +174,18 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         }
       }
     };
-
-    // Handle iframe load error
+    
     const handleIframeError = () => {
       console.error('[TestIframe] Error loading iframe');
       setConnectionStatus('error');
       addError('Failed to load iframe');
     };
     
-    // Check connection status ONCE on mount and URL change
     useEffect(() => {
       setConnectionStatus('loading');
       console.log(`[TestIframe] Testing connection to ${serverUrl}`);
       setErrors([]);
       
-      // Set a timeout for iframe loading
       iframeTimeoutRef.current = setTimeout(() => {
         if (connectionStatus === 'loading') {
           setConnectionStatus('error');
@@ -227,13 +193,11 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         }
       }, 10000);
       
-      // Check if URL includes protocol
       if (!serverUrl.startsWith('http:') && !serverUrl.startsWith('https:')) {
         console.warn('[TestIframe] Server URL does not include protocol, this may cause issues');
         addError('Server URL missing protocol (http:// or https://)');
       }
       
-      // Check for mixed content
       const isPageHttps = window.location.protocol === 'https:';
       if (isPageHttps && serverUrl.startsWith('http:')) {
         setHttpsWarning(true);
@@ -242,21 +206,18 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         setHttpsWarning(false);
       }
       
-      // Cleanup
       return () => {
         if (iframeTimeoutRef.current) {
           clearTimeout(iframeTimeoutRef.current);
           iframeTimeoutRef.current = null;
         }
       };
-    }, [serverUrl, addError]); // Убрали connectionStatus из зависимостей - это вызывало лишние ререндеры
-
-    // Define additional attributes for iframe with maximum permissions
+    }, [serverUrl, addError]);
+    
     const getSandboxAttributes = () => {
       return "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals allow-presentation";
     };
     
-    // Send test message to iframe
     const sendTestMessage = () => {
       const iframe = ref as React.RefObject<HTMLIFrameElement>;
       if (iframe && iframe.current && iframe.current.contentWindow) {
@@ -268,11 +229,9 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
             counter: messagesSent + 1
           };
           
-          // Try with wildcard (most compatible)
           iframe.current.contentWindow.postMessage(message, '*');
           console.log('[TestIframe] Sent test message with wildcard origin');
           
-          // Try with specific origin if possible
           try {
             const iframeUrl = getIframeUrl();
             const url = new URL(iframeUrl);
@@ -284,7 +243,6 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           
           setMessagesSent(prev => prev + 1);
           
-          // Показываем тост об успешной отправке
           toast.success('Test message sent', {
             description: `Message #${messagesSent + 1} sent to iframe`,
             duration: 2000,
@@ -293,7 +251,6 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
           console.error('[TestIframe] Error sending test message:', error);
           addError(`Error sending test message: ${error instanceof Error ? error.message : String(error)}`);
           
-          // Показываем тост об ошибке
           toast.error('Failed to send message', {
             description: error instanceof Error ? error.message : String(error),
             duration: 3000,
@@ -301,17 +258,15 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
         }
       }
     };
-
-    // Determine URL for iframe
+    
     const iframeUrl = getIframeUrl();
     
-    // Функция очистки ошибок для пользователя
     const clearErrors = () => {
       setErrors([]);
       setReactErrors([]);
       toast.success('Errors cleared');
     };
-
+    
     return (
       <div className="mt-4 p-4 border rounded-md">
         <div className="flex justify-between items-center mb-2">
@@ -467,3 +422,4 @@ const TestIframe = forwardRef<HTMLIFrameElement, TestIframeProps>(
 TestIframe.displayName = 'TestIframe';
 
 export default TestIframe;
+

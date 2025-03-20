@@ -64,6 +64,12 @@ export function isSafeMessageOrigin(window: Window, messageOrigin: string): bool
       return true;
     }
     
+    // Проверяем googletagmanager.com отдельно
+    if (messageOrigin.includes('googletagmanager.com')) {
+      console.log(`[isSafeMessageOrigin] Google Tag Manager origin allowed: ${messageOrigin}`);
+      return true;
+    }
+    
     const isAllowed = ALLOWED_ORIGINS.some(allowedOrigin => {
       // Проверка на wildcard поддомены (*.domain.com)
       if (allowedOrigin.startsWith('*.')) {

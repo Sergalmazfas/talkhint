@@ -85,6 +85,10 @@ export const ALLOWED_ORIGINS = [
   'https://lovable-server.vercel.app',
   'http://lovable-server.vercel.app',
   
+  // Google Tag Manager domains
+  'https://googletagmanager.com',
+  'https://www.googletagmanager.com',
+  
   // Дополнительно добавим все возможные поддомены lovable.app и gptengineer.app
   '*.lovable.app',
   '*.gptengineer.app',

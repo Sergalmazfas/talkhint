@@ -25,7 +25,9 @@
     'http://localhost',
     'https://localhost',
     'https://lovable-server.vercel.app',
-    'http://lovable-server.vercel.app'
+    'http://lovable-server.vercel.app',
+    'https://www.googletagmanager.com',
+    'https://googletagmanager.com'
   ];
 
   // Always accept messages in debug mode
