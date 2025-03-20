@@ -1,6 +1,6 @@
-
 import { isDevelopmentMode, BYPASS_ORIGIN_CHECK } from './constants';
 import { isOriginAllowed } from './validators';
+import { ALLOWED_ORIGINS } from '@/services/gpt/config/GPTServiceConfig';
 
 /**
  * Безопасная обработка входящих postMessage сообщений
@@ -153,4 +153,3 @@ export function setupMessageListener(
     console.log('PostMessage listeners removed');
   };
 }
-
