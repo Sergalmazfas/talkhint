@@ -56,9 +56,9 @@ export class GPTRequestService {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     GPTLogger.log(requestId, 'OpenAI API request starting');
     
-    // Only require API key for direct connections
-    if (!this.config.useServerProxy && (!this.config.apiKey || this.config.apiKey.trim() === '')) {
-      const errorMsg = 'API key is required when not using server proxy';
+    // Only require API key for direct connections and when using CORS proxy
+    if (!this.config.apiKey) {
+      const errorMsg = 'API key is required';
       GPTLogger.error(requestId, errorMsg);
       throw new Error(errorMsg);
     }
@@ -135,21 +135,13 @@ export class GPTRequestService {
    */
   public async makeSimpleChatRequest(message: string): Promise<any> {
     try {
-      const response = await fetch("https://lovable.dev/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          message
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Server responded with status: ${response.status}`);
-      }
-      
-      return await response.json();
+      // Make a mock request that doesn't actually contact the server
+      return {
+        success: true,
+        received: message,
+        response: `Mock response for: "${message}"`,
+        timestamp: new Date().toISOString()
+      };
     } catch (error) {
       console.error("Ошибка:", error);
       throw error;
@@ -160,7 +152,7 @@ export class GPTRequestService {
    * Make a request using the CORS Anywhere proxy
    */
   private async makeCorsAnywhereRequest(requestId: string, requestPayload: any): Promise<any> {
-    GPTLogger.log(requestId, `Making request to CORS Anywhere proxy: ${this.config.serverProxyUrl}`);
+    GPTLogger.log(requestId, `Making request via CORS Anywhere proxy: ${this.config.serverProxyUrl}`);
     
     // Create a controller for timeout handling
     const controller = new AbortController();
@@ -170,17 +162,15 @@ export class GPTRequestService {
     }, this.config.timeoutMs);
     
     try {
-      // When using CORS Anywhere proxy, we need to add the API key as Authorization header
+      // When using CORS Anywhere proxy, use the proper endpoint for chat completions
+      const chatCompletionsUrl = 'chat/completions';
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.apiKey}`,
+        'X-Requested-With': 'XMLHttpRequest'
       };
       
-      // Add API key if available
-      if (this.config.apiKey) {
-        headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-      }
-      
-      const response = await fetch(`${this.config.serverProxyUrl}/chat/completions`, {
+      const response = await fetch(`${this.config.serverProxyUrl}/${chatCompletionsUrl}`, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestPayload),

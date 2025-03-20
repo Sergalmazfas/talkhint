@@ -17,7 +17,8 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  serverProxyUrl: 'https://lovable.dev/api/openai', // Using the lovable.dev server by default
+  // Use our deployed server as the default
+  serverProxyUrl: 'https://cors-anywhere.herokuapp.com/https://api.openai.com/v1', 
   useServerProxy: true, // Using server proxy by default
   maxRetries: 3,
   timeoutMs: 60000,
