@@ -34,8 +34,19 @@ export function Toaster() {
         <ToastViewport />
       </ToastProvider>
       
-      {/* Sonner toaster for better mobile experience */}
-      <SonnerToaster position="top-center" closeButton richColors />
+      {/* Sonner toaster with improved configuration for better mobile experience */}
+      <SonnerToaster 
+        position="top-center" 
+        closeButton 
+        richColors 
+        duration={4000}
+        expand={false}
+        visibleToasts={3}
+        toastOptions={{
+          className: "rounded-lg border border-border shadow-lg",
+          descriptionClassName: "text-sm text-muted-foreground",
+        }}
+      />
     </>
   )
 }

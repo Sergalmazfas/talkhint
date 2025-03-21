@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -217,6 +218,7 @@ const PhoneCall = () => {
 
   const getProxyName = (url: string): string => {
     if (url === PROXY_SERVERS.VERCEL_PROXY) return 'Vercel Proxy';
+    if (url === PROXY_SERVERS.VSL_PROXY) return 'VSL Proxy';
     if (url === PROXY_SERVERS.DIRECT) return 'Без прокси';
     return 'Неизвестный прокси';
   };
@@ -482,6 +484,7 @@ const PhoneCall = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={PROXY_SERVERS.VERCEL_PROXY}>Vercel Proxy</SelectItem>
+                    <SelectItem value={PROXY_SERVERS.VSL_PROXY}>VSL Proxy</SelectItem>
                     <SelectItem value={PROXY_SERVERS.DIRECT}>Без прокси</SelectItem>
                   </SelectContent>
                 </Select>

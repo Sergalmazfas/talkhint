@@ -1,3 +1,4 @@
+
 /**
  * Configuration for OpenAI API services
  */
@@ -29,6 +30,10 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
 export const PROXY_SERVERS = {
   // OpenAI direct
   DIRECT: 'https://api.openai.com/v1',
+  // Vercel proxy
+  VERCEL_PROXY: 'https://talkhint-sergs-projects-149ff317.vercel.app/api',
+  // VSL proxy
+  VSL_PROXY: 'https://api.vslgpt.com/v1',
   // Your own server if deployed
   SELF_HOSTED: window.location.origin + '/api',
 };
