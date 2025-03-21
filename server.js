@@ -1,3 +1,4 @@
+
 import cors from "cors";
 import express from "express";
 import axios from "axios";
@@ -8,7 +9,7 @@ const app = express();
 const allowedOrigins = [
     'https://lovable.dev',
     'https://www.lovable.dev',
-    'https://*.lovable.dev',     // Добавлен wildcard для поддоменов lovable.dev
+    'https://*.lovable.dev',     // Wildcard for lovable.dev subdomains
     'http://localhost:3000',
     'http://localhost:5173',     // Vite default dev port
     'https://talkhint-sergs-projects-149ff317.vercel.app',
@@ -150,11 +151,25 @@ app.post("/api/openai/chat/completions", async (req, res) => {
             // Only use header key if it's not empty
             if (headerKey && headerKey.trim() !== 'null' && headerKey !== 'undefined') {
                 apiKey = headerKey;
-                console.log(`[${new Date().toISOString()}] Using API key from request header`);
+                console.log(`[${new Date().toISOString()}] Using API key from request header: ${headerKey.substring(0, 5)}...${headerKey.slice(-5)}`);
             } else {
                 console.log(`[${new Date().toISOString()}] Invalid API key in header: "${headerKey}"`);
             }
+        } else {
+            console.log(`[${new Date().toISOString()}] No API key in Authorization header`);
         }
+        
+        // Check for environment variable API key
+        if (process.env.OPENAI_API_KEY) {
+            console.log(`[${new Date().toISOString()}] Found API key in environment variables`);
+        } else {
+            console.log(`[${new Date().toISOString()}] No API key in environment variables`);
+        }
+        
+        // Log complete request details for debugging
+        console.log(`[${new Date().toISOString()}] Request headers:`, req.headers);
+        console.log(`[${new Date().toISOString()}] Request body model:`, req.body.model);
+        console.log(`[${new Date().toISOString()}] Request body message count:`, req.body.messages?.length || 0);
         
         if (!apiKey || apiKey.trim() === '') {
             console.error(`[${new Date().toISOString()}] API key missing in request and environment`);
@@ -165,6 +180,9 @@ app.post("/api/openai/chat/completions", async (req, res) => {
                 timestamp: new Date().toISOString()
             });
         }
+        
+        // Log full API key for debugging (WARNING: Only for debugging)
+        console.log(`[${new Date().toISOString()}] Full API key (for debugging only):`, apiKey);
         
         console.log(`[${new Date().toISOString()}] Proxying request to OpenAI API with valid API key`);
         console.log(`[${new Date().toISOString()}] Origin: ${req.headers.origin || 'unknown'}`);
@@ -182,9 +200,16 @@ app.post("/api/openai/chat/completions", async (req, res) => {
         );
         
         console.log(`[${new Date().toISOString()}] OpenAI API response received successfully`);
+        console.log(`[${new Date().toISOString()}] Response status:`, response.status);
+        console.log(`[${new Date().toISOString()}] Response headers:`, response.headers);
+        console.log(`[${new Date().toISOString()}] Response data:`, response.data);
+        
         res.json(response.data);
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Error proxying to OpenAI:`, error.response?.data || error.message);
+        
+        // Enhanced error reporting with full error details
+        console.error(`[${new Date().toISOString()}] Full error object:`, error);
         
         // Enhanced error reporting
         if (error.response) {
@@ -247,6 +272,9 @@ app.get("/api/openai/health", async (req, res) => {
         console.log(`[${new Date().toISOString()}] Checking OpenAI health with ${apiKey ? "valid" : "test"} API key`);
         console.log(`[${new Date().toISOString()}] Origin: ${req.headers.origin || 'unknown'}`);
         
+        // Print the API key for debugging (WARNING: Only for debugging)
+        console.log(`[${new Date().toISOString()}] Using API key for health check:`, apiKey);
+        
         // Try to make a lightweight request to OpenAI API
         await axios.get("https://api.openai.com/v1/models", {
             headers: {
@@ -264,6 +292,8 @@ app.get("/api/openai/health", async (req, res) => {
         });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Error checking OpenAI API health:`, error.message);
+        console.error(`[${new Date().toISOString()}] Full error:`, error);
+        
         res.status(503).json({ 
             status: "error", 
             message: "OpenAI API may be unreachable", 
@@ -273,6 +303,19 @@ app.get("/api/openai/health", async (req, res) => {
             cors: "enabled"
         });
     }
+});
+
+// Test endpoint that always succeeds
+app.get("/api/test", (req, res) => {
+    res.json({
+        status: "ok",
+        message: "Test endpoint working correctly",
+        timestamp: new Date().toISOString(),
+        clientInfo: {
+            ip: req.ip,
+            headers: req.headers
+        }
+    });
 });
 
 // Log all incoming API requests with more details

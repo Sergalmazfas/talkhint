@@ -9,6 +9,7 @@ export interface GPTServiceConfig {
   useServerProxy: boolean;
   maxRetries: number;
   timeoutMs: number;
+  debugMode: boolean; // Added debug mode option
 }
 
 /**
@@ -22,6 +23,7 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
   useServerProxy: true, // Default to proxy for better compatibility
   maxRetries: 3,
   timeoutMs: 60000,
+  debugMode: true, // Enable debug mode by default for easier troubleshooting
 };
 
 /**
@@ -58,6 +60,7 @@ export function loadApiKeyFromStorage(): string | null {
 export function saveApiKeyToStorage(key: string): void {
   try {
     localStorage.setItem('openai_api_key', key);
+    console.log('API key saved to storage');
   } catch (error) {
     console.error('Error saving API key to storage:', error);
   }
@@ -137,4 +140,55 @@ export function saveServerProxyUrlToStorage(url: string): void {
   } catch (error) {
     console.error('Error saving proxy URL to storage:', error);
   }
+}
+
+/**
+ * Load debug mode setting from localStorage
+ */
+export function loadDebugModeFromStorage(): boolean | null {
+  try {
+    const debugMode = localStorage.getItem('debug_mode');
+    return debugMode === null ? null : debugMode === 'true';
+  } catch (error) {
+    console.error('Error loading debug mode from storage:', error);
+    return null;
+  }
+}
+
+/**
+ * Save debug mode setting to localStorage
+ */
+export function saveDebugModeToStorage(debugMode: boolean): void {
+  try {
+    localStorage.setItem('debug_mode', String(debugMode));
+  } catch (error) {
+    console.error('Error saving debug mode to storage:', error);
+  }
+}
+
+/**
+ * Check if a URL is valid
+ */
+export function isValidUrl(url: string): boolean {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ensure a URL has a proper protocol (https:// or http://)
+ */
+export function ensureUrlProtocol(url: string): string {
+  if (!url) return url;
+  
+  // If URL already has protocol, return as is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // Default to https protocol
+  return `https://${url}`;
 }
