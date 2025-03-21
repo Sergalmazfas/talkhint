@@ -1,3 +1,4 @@
+
 /**
  * Configuration for OpenAI API services
  */
@@ -37,6 +38,8 @@ export const PROXY_SERVERS = {
   SELF_HOSTED: window.location.origin + '/api',
   // Vercel proxy
   VERCEL_PROXY: 'https://talkhint-sergs-projects-149ff317.vercel.app/api',
+  // VSL proxy (more stable alternative)
+  VSL_PROXY: 'https://vsl-proxy.vercel.app/api',
   // Local development
   LOCAL: 'http://localhost:3000/api',
 };

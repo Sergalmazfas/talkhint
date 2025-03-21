@@ -218,8 +218,9 @@ const PhoneCall = () => {
 
   const getProxyName = (url: string): string => {
     if (url === PROXY_SERVERS.VERCEL_PROXY) return 'Vercel Proxy';
-    if (url === PROXY_SERVERS.VSL_PROXY) return 'VSL Proxy';
     if (url === PROXY_SERVERS.DIRECT) return 'Без прокси';
+    if (url === PROXY_SERVERS.SELF_HOSTED) return 'Локальный сервер';
+    if (PROXY_SERVERS.VSL_PROXY && url === PROXY_SERVERS.VSL_PROXY) return 'VSL Proxy';
     return 'Неизвестный прокси';
   };
 
@@ -484,7 +485,10 @@ const PhoneCall = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={PROXY_SERVERS.VERCEL_PROXY}>Vercel Proxy</SelectItem>
-                    <SelectItem value={PROXY_SERVERS.VSL_PROXY}>VSL Proxy</SelectItem>
+                    {PROXY_SERVERS.VSL_PROXY && (
+                      <SelectItem value={PROXY_SERVERS.VSL_PROXY}>VSL Proxy</SelectItem>
+                    )}
+                    <SelectItem value={PROXY_SERVERS.SELF_HOSTED}>Локальный сервер</SelectItem>
                     <SelectItem value={PROXY_SERVERS.DIRECT}>Без прокси</SelectItem>
                   </SelectContent>
                 </Select>
