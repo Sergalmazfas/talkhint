@@ -1,3 +1,4 @@
+
 const cors = require("cors");
 const express = require("express");
 const app = express();
@@ -144,8 +145,7 @@ app.get("/api/openai/health", async (req, res) => {
     }
 });
 
-// ВАЖНОЕ ИЗМЕНЕНИЕ: Updated route structure for Vercel serverless functions
-// Make all endpoints start with /api/ for Vercel compatibility
+// Log all incoming API requests
 app.all("/api/*", (req, res, next) => {
     console.log(`[${new Date().toISOString()}] Received request: ${req.method} ${req.path}`);
     next();
