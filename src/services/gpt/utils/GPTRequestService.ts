@@ -1,3 +1,4 @@
+
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
 import { GPTServiceConfig, PROXY_SERVERS } from "../config/GPTServiceConfig";
@@ -145,17 +146,20 @@ export class GPTRequestService {
     try {
       // Construct the chat URL correctly from the server proxy URL
       const serverUrl = this.config.serverProxyUrl;
-      // Make sure we add /chat to the URL
-      const chatUrl = `${serverUrl}/chat`;
+      // Make sure we add /chat to the URL if it doesn't already contain it
+      const chatUrl = serverUrl.endsWith('/chat') ? serverUrl : `${serverUrl}/chat`;
       
       GPTLogger.log(requestId, `Using chat URL: ${chatUrl}`);
       
       const response = await fetch(chatUrl, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin
         },
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ message }),
+        mode: 'cors', // Explicitly set CORS mode
+        credentials: 'omit' // Don't send cookies for cross-origin requests
       });
       
       if (!response.ok) {
@@ -195,11 +199,16 @@ export class GPTRequestService {
     }, this.config.timeoutMs);
     
     try {
-      // For our Vercel proxy, use the openai endpoint
-      const url = `${this.config.serverProxyUrl}/openai/chat/completions`;
+      // For our Vercel proxy, construct the URL correctly
+      let url = this.config.serverProxyUrl;
+      if (!url.endsWith('/openai/chat/completions')) {
+        // Make sure /openai/chat/completions is at the end
+        url = url.endsWith('/') ? `${url}openai/chat/completions` : `${url}/openai/chat/completions`;
+      }
       
       const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Origin': window.location.origin
       };
       
       // Add API key to headers if available

@@ -16,20 +16,13 @@
   ],
   "routes": [
     {
-      "src": "/api/openai/(.*)",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/api/chat",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/api/health",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/api",
-      "dest": "/server.js"
+      "src": "/api/(.*)",
+      "dest": "/server.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Accept, Authorization"
+      }
     },
     {
       "src": "^/assets/(.*)",

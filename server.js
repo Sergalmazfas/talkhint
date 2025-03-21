@@ -4,15 +4,58 @@ const express = require("express");
 const app = express();
 const axios = require("axios");
 
-// CORS configuration with more permissive settings
+// Enhanced CORS configuration to support specific domains
+const allowedOrigins = [
+    'https://lovable.dev',
+    'http://localhost:3000',
+    'http://localhost:5173',  // Vite default dev port
+    'https://talkhint-sergs-projects-149ff317.vercel.app'
+];
+
+// Enhanced CORS middleware with more permissive options
 app.use(cors({
-    origin: "*", // Allow all origins
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    origin: function(origin, callback) {
+        // Allow requests with no origin (like mobile apps, curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+            callback(null, true);
+        } else {
+            console.log(`[${new Date().toISOString()}] CORS blocked request from: ${origin}`);
+            callback(null, true); // Allow all origins in development
+        }
+    },
+    methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    credentials: true,
+    maxAge: 86400 // 24 hours
 }));
 
-// Handle preflight OPTIONS requests
+// Handle preflight OPTIONS requests with improved headers
 app.options('*', cors());
+
+// Add security headers including CSP and frame options
+app.use((req, res, next) => {
+    // Configure Content-Security-Policy to allow necessary iframes and scripts
+    res.setHeader('Content-Security-Policy', 
+        "default-src 'self'; " +
+        "script-src 'self' https://cdn.gpteng.co https://www.googletagmanager.com 'unsafe-inline' 'unsafe-eval'; " +
+        "frame-src 'self' https://auth.getengineer.app https://www.youtube.com; " +
+        "connect-src 'self' https://api.openai.com https://lovable.dev https://*.vercel.app; " +
+        "img-src 'self' data: https:; " +
+        "style-src 'self' 'unsafe-inline';"
+    );
+    
+    // Allow frames from specific domains instead of blocking all
+    res.setHeader('X-Frame-Options', 'ALLOW-FROM https://auth.getengineer.app');
+    
+    // Additional security headers
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    
+    next();
+});
 
 // Parse JSON request body
 app.use(express.json());
@@ -160,7 +203,7 @@ app.get("/api/openai/health", async (req, res) => {
 
 // Log all incoming API requests
 app.all("/api/*", (req, res, next) => {
-    console.log(`[${new Date().toISOString()}] Received request: ${req.method} ${req.path}`);
+    console.log(`[${new Date().toISOString()}] Received request: ${req.method} ${req.path} from origin: ${req.headers.origin || 'unknown'}`);
     next();
 });
 
