@@ -16,6 +16,15 @@ app.options('*', cors());
 // Parse JSON request body
 app.use(express.json());
 
+// Simple health check endpoint for Vercel
+app.get("/api", (req, res) => {
+    res.status(200).json({ 
+        status: "ok", 
+        message: "OpenAI proxy server is running",
+        timestamp: new Date().toISOString() 
+    });
+});
+
 // New simple chat endpoint
 app.post("/api/chat", (req, res) => {
     try {
@@ -135,8 +144,16 @@ app.get("/api/openai/health", async (req, res) => {
     }
 });
 
+// ВАЖНОЕ ИЗМЕНЕНИЕ: Updated route structure for Vercel serverless functions
+// Make all endpoints start with /api/ for Vercel compatibility
+app.all("/api/*", (req, res, next) => {
+    console.log(`[${new Date().toISOString()}] Received request: ${req.method} ${req.path}`);
+    next();
+});
+
 // Catch-all for other routes
 app.all("*", (req, res) => {
+    console.log(`[${new Date().toISOString()}] Unknown route requested: ${req.path}`);
     res.status(404).json({ 
         error: "Route not found", 
         path: req.path,
@@ -147,7 +164,7 @@ app.all("*", (req, res) => {
 // Setup for both local development and Vercel
 const PORT = process.env.PORT || 3000;
 
-// Check if we're not in a serverless environment (like Vercel)
+// Only start server if not running on Vercel
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(`[${new Date().toISOString()}] Server is running on port ${PORT}`);
