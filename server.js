@@ -26,7 +26,7 @@ app.get("/api", (req, res) => {
     });
 });
 
-// New simple chat endpoint
+// New simple chat endpoint with better error handling
 app.post("/api/chat", (req, res) => {
     try {
         const { message } = req.body;
@@ -35,7 +35,9 @@ app.post("/api/chat", (req, res) => {
             return res.status(400).json({ error: "Message is required" });
         }
         
-        // Simple echo response for testing
+        console.log(`[${new Date().toISOString()}] Chat request received: ${message.substring(0, 30)}...`);
+        
+        // Echo response for testing, with timestamp for debugging
         res.json({ 
             success: true, 
             received: message,
@@ -43,18 +45,23 @@ app.post("/api/chat", (req, res) => {
             timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error("Error processing chat request:", error.message);
+        console.error(`[${new Date().toISOString()}] Error processing chat request:`, error.message);
         res.status(500).json({ error: "Error processing request", message: error.message });
     }
 });
 
-// Proxy route for OpenAI API with improved error handling
+// Proxy route for OpenAI API with improved error handling and environment variable support
 app.post("/api/openai/chat/completions", async (req, res) => {
     try {
+        // First try to get API key from request headers, then from environment variable
         const apiKey = req.headers.authorization?.split(" ")[1] || process.env.OPENAI_API_KEY;
         
         if (!apiKey) {
-            return res.status(401).json({ error: "API key is required" });
+            console.error(`[${new Date().toISOString()}] API key missing in request and environment`);
+            return res.status(401).json({ 
+                error: "API key is required", 
+                message: "No API key provided in request or server environment" 
+            });
         }
         
         console.log(`[${new Date().toISOString()}] Proxying request to OpenAI API`);
@@ -71,10 +78,10 @@ app.post("/api/openai/chat/completions", async (req, res) => {
             }
         );
         
-        console.log(`[${new Date().toISOString()}] OpenAI API response received`);
+        console.log(`[${new Date().toISOString()}] OpenAI API response received successfully`);
         res.json(response.data);
     } catch (error) {
-        console.error("Error proxying to OpenAI:", error.response?.data || error.message);
+        console.error(`[${new Date().toISOString()}] Error proxying to OpenAI:`, error.response?.data || error.message);
         
         // Enhanced error reporting
         if (error.response) {
@@ -114,6 +121,8 @@ app.get("/api/health", (req, res) => {
         status: "ok", 
         service: "OpenAI proxy server",
         version: "1.0.0",
+        environment: process.env.NODE_ENV || "development",
+        hasApiKey: Boolean(process.env.OPENAI_API_KEY),
         timestamp: new Date().toISOString()
     });
 });
@@ -121,10 +130,14 @@ app.get("/api/health", (req, res) => {
 // OpenAI API health check
 app.get("/api/openai/health", async (req, res) => {
     try {
+        // Try to use the environment API key if available
+        const apiKey = process.env.OPENAI_API_KEY || "sk_test";
+        console.log(`[${new Date().toISOString()}] Checking OpenAI health with ${apiKey ? "valid" : "test"} API key`);
+        
         // Try to make a lightweight request to OpenAI API
         await axios.get("https://api.openai.com/v1/models", {
             headers: {
-                "Authorization": `Bearer ${process.env.OPENAI_API_KEY || "sk_test"}`
+                "Authorization": `Bearer ${apiKey}`
             },
             timeout: 5000
         });
@@ -135,7 +148,7 @@ app.get("/api/openai/health", async (req, res) => {
             timestamp: new Date().toISOString() 
         });
     } catch (error) {
-        console.error("Error checking OpenAI API health:", error.message);
+        console.error(`[${new Date().toISOString()}] Error checking OpenAI API health:`, error.message);
         res.status(503).json({ 
             status: "error", 
             message: "OpenAI API may be unreachable", 

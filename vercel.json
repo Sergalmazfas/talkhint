@@ -16,7 +16,19 @@
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
+      "src": "/api/openai/(.*)",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/api/chat",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/api/health",
+      "dest": "/server.js"
+    },
+    {
+      "src": "/api",
       "dest": "/server.js"
     },
     {

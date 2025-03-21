@@ -1,3 +1,4 @@
+
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
 import { GPTServiceConfig, PROXY_SERVERS } from "../config/GPTServiceConfig";
@@ -154,11 +155,12 @@ export class GPTRequestService {
     GPTLogger.log(requestId, `Making simple chat request with message: ${message.substring(0, 30)}...`);
     
     try {
-      // Use the server proxy URL base without the specific endpoint
-      // This assumes our proxy URL is like "https://example.com/api/openai/chat/completions"
-      // and we want to use "https://example.com/api/chat"
-      const baseUrl = this.config.serverProxyUrl.split('/').slice(0, -2).join('/');
-      const chatUrl = `${baseUrl}/chat`;
+      // Construct the chat URL correctly from the server proxy URL
+      const serverUrl = this.config.serverProxyUrl;
+      // Make sure we don't append /chat to an already complete URL
+      const chatUrl = serverUrl.endsWith('/chat') 
+        ? serverUrl 
+        : `${serverUrl}/chat`;
       
       GPTLogger.log(requestId, `Using chat URL: ${chatUrl}`);
       
@@ -233,8 +235,8 @@ export class GPTRequestService {
         // For thingproxy, the target is already in the URL
         url = `${this.config.serverProxyUrl}/chat/completions`;
       } else {
-        // Default behavior for direct or unknown proxies
-        url = `${this.config.serverProxyUrl}/chat/completions`;
+        // For our Vercel proxy, use the openai endpoint
+        url = `${this.config.serverProxyUrl}/openai/chat/completions`;
       }
       
       GPTLogger.log(requestId, `Constructed request URL: ${url}`);
