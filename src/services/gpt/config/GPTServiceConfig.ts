@@ -1,6 +1,7 @@
 
 // Re-export all configuration types and functions
-import { GPTServiceConfig, DEFAULT_CONFIG, PROXY_SERVERS, STORAGE_KEYS } from './GPTConfigTypes';
+import { DEFAULT_CONFIG, PROXY_SERVERS, STORAGE_KEYS } from './GPTConfigTypes';
+import type { GPTServiceConfig } from './GPTConfigTypes';
 import { isValidApiKey, isValidUrl, ensureUrlProtocol } from './GPTConfigValidation';
 import {
   loadApiKeyFromStorage,
@@ -16,9 +17,9 @@ import {
 } from './GPTConfigStorage';
 
 // Export everything for backward compatibility
+export type { GPTServiceConfig };
 export {
   // Types and constants
-  GPTServiceConfig,
   DEFAULT_CONFIG,
   PROXY_SERVERS,
   STORAGE_KEYS,
