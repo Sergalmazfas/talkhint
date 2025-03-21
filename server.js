@@ -1,3 +1,4 @@
+
 const cors = require("cors");
 const express = require("express");
 const app = express();
@@ -125,17 +126,31 @@ app.post("/api/chat", (req, res) => {
 app.post("/api/openai/chat/completions", async (req, res) => {
     try {
         // First try to get API key from request headers, then from environment variable
-        const apiKey = req.headers.authorization?.split(" ")[1] || process.env.OPENAI_API_KEY;
+        const authHeader = req.headers.authorization;
+        let apiKey = process.env.OPENAI_API_KEY || '';
         
-        if (!apiKey) {
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const headerKey = authHeader.substring(7); // Remove 'Bearer ' prefix
+            // Only use header key if it's not empty
+            if (headerKey && headerKey.trim() !== 'null' && headerKey !== 'undefined') {
+                apiKey = headerKey;
+                console.log(`[${new Date().toISOString()}] Using API key from request header`);
+            } else {
+                console.log(`[${new Date().toISOString()}] Invalid API key in header: "${headerKey}"`);
+            }
+        }
+        
+        if (!apiKey || apiKey.trim() === '') {
             console.error(`[${new Date().toISOString()}] API key missing in request and environment`);
             return res.status(401).json({ 
                 error: "API key is required", 
-                message: "No API key provided in request or server environment" 
+                message: "No valid API key provided in request or server environment",
+                details: "The Authorization header should contain 'Bearer YOUR_OPENAI_API_KEY'",
+                timestamp: new Date().toISOString()
             });
         }
         
-        console.log(`[${new Date().toISOString()}] Proxying request to OpenAI API`);
+        console.log(`[${new Date().toISOString()}] Proxying request to OpenAI API with valid API key`);
         
         const response = await axios.post(
             "https://api.openai.com/v1/chat/completions",

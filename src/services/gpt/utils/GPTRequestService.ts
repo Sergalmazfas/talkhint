@@ -27,7 +27,7 @@ export class GPTRequestService {
    * Initialize the OpenAI client with the current API key
    */
   public initializeOpenAIClient(): void {
-    if (this.config.apiKey) {
+    if (this.config.apiKey && this.config.apiKey.trim() !== '') {
       try {
         this.openaiClient = new OpenAI({
           apiKey: this.config.apiKey,
@@ -57,7 +57,7 @@ export class GPTRequestService {
     GPTLogger.log(requestId, 'OpenAI API request starting');
     
     // Check if we have an API key when needed
-    if (!this.config.useServerProxy && !this.config.apiKey) {
+    if (!this.config.useServerProxy && (!this.config.apiKey || this.config.apiKey.trim() === '')) {
       const errorMsg = 'API key is required for direct OpenAI access';
       GPTLogger.error(requestId, errorMsg);
       throw new Error(errorMsg);
@@ -206,12 +206,17 @@ export class GPTRequestService {
         'Accept': 'application/json'
       };
       
-      // Add API key to headers if available
-      if (this.config.apiKey) {
+      // Add API key to headers if available and not empty
+      if (this.config.apiKey && this.config.apiKey.trim() !== '') {
         headers['Authorization'] = `Bearer ${this.config.apiKey}`;
+        GPTLogger.log(requestId, 'Using provided API key for authorization');
+      } else {
+        GPTLogger.log(requestId, 'No API key provided for request');
       }
       
       GPTLogger.log(requestId, `Constructed request URL: ${apiUrl}`);
+      GPTLogger.log(requestId, `Request headers: ${JSON.stringify(headers, (key, value) => 
+        key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value)}`);
       
       const response = await fetch(apiUrl, {
         method: 'POST',

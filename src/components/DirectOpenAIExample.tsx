@@ -1,10 +1,10 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Info, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
@@ -15,6 +15,23 @@ const DirectOpenAIExample = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<'client' | 'vercel' | 'chat'>('vercel');
+  const [apiKeySet, setApiKeySet] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Check if API key is set when component mounts or method changes
+    const checkApiKey = () => {
+      const hasApiKey = !!GPTService.getApiKey();
+      setApiKeySet(hasApiKey);
+      
+      if (!hasApiKey && method !== 'chat') {
+        setError('API key is not set. Please configure it in the Settings panel.');
+      } else {
+        setError(null);
+      }
+    };
+    
+    checkApiKey();
+  }, [method]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -31,9 +48,7 @@ const DirectOpenAIExample = () => {
         const client = GPTService.getOpenAIClient();
         
         if (!client) {
-          setError('OpenAI client not available. Please set your API key in Settings.');
-          setLoading(false);
-          return;
+          throw new Error('OpenAI client not available. Please set your API key in Settings.');
         }
 
         const completion = await client.chat.completions.create({
@@ -50,15 +65,31 @@ const DirectOpenAIExample = () => {
       } else {
         // Vercel proxy server method
         const proxyUrl = GPTService.getServerProxyUrl();
+        const apiKey = GPTService.getApiKey();
+        
+        if (!apiKey && !method.includes('chat')) {
+          throw new Error('API key is required for this method. Please set it in Settings.');
+        }
         
         toast.info(`Sending request to ${proxyUrl}/openai/chat/completions`);
         
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        
+        // Only add Authorization header if API key is set and not empty
+        if (apiKey && apiKey.trim() !== '') {
+          headers['Authorization'] = `Bearer ${apiKey}`;
+        } else {
+          console.warn('No API key provided for request');
+        }
+        
+        console.log('Request headers:', JSON.stringify(headers, (key, value) => 
+          key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value));
+        
         const response = await fetch(`${proxyUrl}/openai/chat/completions`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${GPTService.getApiKey()}`
-          },
+          headers,
           body: JSON.stringify({
             model: "gpt-4o-mini",
             messages: [{
@@ -71,8 +102,15 @@ const DirectOpenAIExample = () => {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(`Server responded with status: ${response.status}. ${JSON.stringify(errorData)}`);
+          let errorMessage = `Server responded with status: ${response.status}.`;
+          try {
+            const errorData = await response.json();
+            errorMessage += ` ${JSON.stringify(errorData)}`;
+          } catch (e) {
+            const errorText = await response.text();
+            errorMessage += ` ${errorText}`;
+          }
+          throw new Error(errorMessage);
         }
 
         const data = await response.json();
@@ -95,6 +133,16 @@ const DirectOpenAIExample = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {!apiKeySet && method !== 'chat' && (
+          <Alert variant="warning" className="bg-yellow-50 border-yellow-200">
+            <Info className="h-4 w-4" />
+            <AlertTitle>API Key Required</AlertTitle>
+            <AlertDescription>
+              The current method requires an API key. Please set it in the Settings panel.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -151,7 +199,7 @@ const DirectOpenAIExample = () => {
       <CardFooter>
         <Button 
           onClick={handleSubmit} 
-          disabled={loading || !prompt.trim()}
+          disabled={loading || !prompt.trim() || (!apiKeySet && method !== 'chat')}
           className="w-full"
         >
           {loading ? (
