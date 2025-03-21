@@ -216,9 +216,7 @@ const PhoneCall = () => {
   };
 
   const getProxyName = (url: string): string => {
-    if (url.includes('allorigins')) return 'AllOrigins';
-    if (url.includes('corsproxy.io')) return 'CORS Proxy';
-    if (url.includes('thingproxy')) return 'ThingProxy';
+    if (url === PROXY_SERVERS.VERCEL_PROXY) return 'Vercel Proxy';
     if (url === PROXY_SERVERS.DIRECT) return 'Без прокси';
     return 'Неизвестный прокси';
   };
@@ -483,9 +481,8 @@ const PhoneCall = () => {
                     <SelectValue placeholder="Выберите прокси-сервер" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={PROXY_SERVERS.ALLORIGINS}>AllOrigins</SelectItem>
-                    <SelectItem value={PROXY_SERVERS.CORSPROXY}>CORS Proxy</SelectItem>
-                    <SelectItem value={PROXY_SERVERS.THINGPROXY}>ThingProxy</SelectItem>
+                    <SelectItem value={PROXY_SERVERS.VERCEL_PROXY}>Vercel Proxy</SelectItem>
+                    <SelectItem value={PROXY_SERVERS.DIRECT}>Без прокси</SelectItem>
                   </SelectContent>
                 </Select>
                 <div className="flex justify-end">
