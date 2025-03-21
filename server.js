@@ -1,8 +1,8 @@
+import cors from "cors";
+import express from "express";
+import axios from "axios";
 
-const cors = require("cors");
-const express = require("express");
 const app = express();
-const axios = require("axios");
 
 // Enhanced CORS configuration with more comprehensive domain support
 const allowedOrigins = [
@@ -277,5 +277,5 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
-// Export for serverless environments
-module.exports = app;
+// Export for serverless environments - ES Module version
+export default app;

@@ -17,9 +17,9 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  // Using a more reliable proxy service configuration
-  serverProxyUrl: 'https://api.openai.com/v1', 
-  useServerProxy: false, // Default to direct API connection
+  // Using VSL proxy as default for better reliability
+  serverProxyUrl: 'https://api.vslgpt.com/v1', 
+  useServerProxy: true, // Default to proxy for better compatibility
   maxRetries: 3,
   timeoutMs: 60000,
 };
@@ -44,6 +44,7 @@ export const PROXY_SERVERS = {
 export function loadApiKeyFromStorage(): string | null {
   try {
     const storedKey = localStorage.getItem('openai_api_key');
+    console.log('Loading API key from storage:', storedKey ? 'Key exists' : 'No key found');
     return storedKey || null;
   } catch (error) {
     console.error('Error loading API key from storage:', error);
@@ -92,6 +93,7 @@ export function saveResponseStyleToStorage(style: string): void {
 export function loadUseServerProxyFromStorage(): boolean | null {
   try {
     const useProxy = localStorage.getItem('use_server_proxy');
+    console.log('Loading proxy setting from storage:', useProxy);
     return useProxy === null ? null : useProxy === 'true';
   } catch (error) {
     console.error('Error loading proxy setting from storage:', error);
@@ -104,6 +106,7 @@ export function loadUseServerProxyFromStorage(): boolean | null {
  */
 export function saveUseServerProxyToStorage(useProxy: boolean): void {
   try {
+    console.log('Saving proxy setting to storage:', useProxy);
     localStorage.setItem('use_server_proxy', String(useProxy));
   } catch (error) {
     console.error('Error saving proxy setting to storage:', error);
@@ -116,6 +119,7 @@ export function saveUseServerProxyToStorage(useProxy: boolean): void {
 export function loadServerProxyUrlFromStorage(): string | null {
   try {
     const proxyUrl = localStorage.getItem('server_proxy_url');
+    console.log('Loading proxy URL from storage:', proxyUrl);
     return proxyUrl || null;
   } catch (error) {
     console.error('Error loading proxy URL from storage:', error);
@@ -128,6 +132,7 @@ export function loadServerProxyUrlFromStorage(): string | null {
  */
 export function saveServerProxyUrlToStorage(url: string): void {
   try {
+    console.log('Saving proxy URL to storage:', url);
     localStorage.setItem('server_proxy_url', url);
   } catch (error) {
     console.error('Error saving proxy URL to storage:', error);
