@@ -11,8 +11,12 @@ const allowedOrigins = [
     'http://localhost:3000',
     'http://localhost:5173',  // Vite default dev port
     'https://talkhint-sergs-projects-149ff317.vercel.app',
+    'https://gptengineer.app',
+    'https://www.gptengineer.app',
+    'https://auth.getengineer.app',
     /\.vercel\.app$/,         // Allow all vercel.app subdomains
-    /\.lovable\.dev$/         // Allow all lovable.dev subdomains
+    /\.lovable\.dev$/,        // Allow all lovable.dev subdomains
+    /\.getengineer\.app$/     // Allow all getengineer.app subdomains
 ];
 
 // Comprehensive CORS middleware with detailed configuration
@@ -63,18 +67,18 @@ app.use((req, res, next) => {
         "default-src 'self'; " +
         "script-src 'self' https://cdn.gpteng.co https://www.googletagmanager.com https://tagmanager.google.com https://www.google-analytics.com 'unsafe-inline' 'unsafe-eval'; " +
         "frame-src 'self' https://auth.getengineer.app https://www.youtube.com https://*.google.com https://*.doubleclick.net; " +
-        "connect-src 'self' https://api.openai.com https://lovable.dev https://*.vercel.app https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; " +
+        "connect-src 'self' https://api.openai.com https://lovable.dev https://gptengineer.app https://*.vercel.app https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; " +
         "img-src 'self' data: https: blob:; " +
         "style-src 'self' 'unsafe-inline' https://tagmanager.google.com https://fonts.googleapis.com; " +
         "font-src 'self' https://fonts.gstatic.com data:; " +
         "object-src 'none'; " +
         "base-uri 'self'; " +
         "form-action 'self'; " +
-        "frame-ancestors 'self' https://lovable.dev https://*.lovable.dev https://*.vercel.app;"
+        "frame-ancestors 'self' https://lovable.dev https://gptengineer.app https://*.lovable.dev https://*.vercel.app https://*.getengineer.app;"
     );
     
     // Allow frames from specific domains
-    res.setHeader('X-Frame-Options', 'ALLOW-FROM https://lovable.dev https://auth.getengineer.app');
+    res.setHeader('X-Frame-Options', 'ALLOW-FROM https://lovable.dev https://auth.getengineer.app https://gptengineer.app');
     
     // Additional security headers
     res.setHeader('X-Content-Type-Options', 'nosniff');
