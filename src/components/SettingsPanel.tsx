@@ -33,7 +33,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   const [apiKey, setApiKey] = useState('');
   const [useProxy, setUseProxy] = useState(true);
-  const [serverUrl, setServerUrl] = useState('https://talkhint-sergs-projects-149ff317.vercel.app/api');
+  const [serverUrl, setServerUrl] = useState('');
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
@@ -56,6 +56,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       setApiKeyError(null);
     }
   };
+
+  // Get default server URL based on environment
+  const getDefaultServerUrl = () => {
+    const hostname = window.location.hostname;
+    if (hostname.includes('localhost')) {
+      return 'http://localhost:3000/api';
+    }
+    return window.location.origin + '/api';
+  };
+  
+  // Reset server URL to default
+  const resetServerUrlToDefault = () => {
+    const defaultUrl = getDefaultServerUrl();
+    setServerUrl(defaultUrl);
+    return defaultUrl;
+  };
   
   // Load settings when opening
   useEffect(() => {
@@ -63,7 +79,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
       setUseProxy(GPTService.getUseServerProxy());
-      setServerUrl(GPTService.getServerProxyUrl());
+      
+      const currentServerUrl = GPTService.getServerProxyUrl();
+      // If the current URL is thingproxy, reset it to our default
+      if (currentServerUrl.includes('thingproxy.freeboard.io')) {
+        const defaultUrl = resetServerUrlToDefault();
+        GPTService.setServerProxyUrl(defaultUrl);
+      } else {
+        setServerUrl(currentServerUrl);
+      }
+      
       checkApiConnection();
     }
   }, [isOpen]);
@@ -91,7 +116,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         toast.success('Подключение к OpenAI API успешно');
       } else {
         if (!GPTService.getApiKey() && !useProxy) {
-          toast.error('API ключ необходим для подключения к OpenAI API');
+          toast.error('API ключ необходим для прямого подключения к OpenAI API');
         } else {
           toast.error('Не удалось подключиться к OpenAI API');
         }
@@ -118,6 +143,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     // Update server URL if provided
     if (serverUrl && serverUrl.trim() !== '') {
       GPTService.setServerProxyUrl(serverUrl.trim());
+    } else {
+      // If empty, use the default URL
+      const defaultUrl = resetServerUrlToDefault();
+      GPTService.setServerProxyUrl(defaultUrl);
     }
     
     // Set API key if provided
@@ -184,7 +213,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="useProxy" className="text-sm text-foreground/80">
-                  Использовать Vercel прокси
+                  Использовать серверный прокси
                 </Label>
                 <Switch
                   id="useProxy"
@@ -194,7 +223,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
               <p className="text-xs text-muted-foreground">
                 {useProxy 
-                  ? "Запросы отправляются через Vercel прокси, решающий проблемы с CORS" 
+                  ? "Запросы отправляются через ваш сервер, который использует свой API ключ" 
                   : "Запросы отправляются напрямую с использованием вашего API ключа"}
               </p>
             </div>
@@ -202,18 +231,28 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             {useProxy && (
               <div className="space-y-3">
                 <Label htmlFor="serverUrl" className="text-sm text-foreground/80">
-                  URL Vercel прокси-сервера
+                  URL сервера
                 </Label>
-                <Input
-                  id="serverUrl"
-                  type="text"
-                  value={serverUrl}
-                  onChange={(e) => setServerUrl(e.target.value)}
-                  placeholder="https://your-proxy-server.vercel.app/api"
-                  className="text-xs"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="serverUrl"
+                    type="text"
+                    value={serverUrl}
+                    onChange={(e) => setServerUrl(e.target.value)}
+                    placeholder={getDefaultServerUrl()}
+                    className="text-xs flex-1"
+                  />
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={resetServerUrlToDefault}
+                    title="Сбросить к значению по умолчанию"
+                  >
+                    Сбросить
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  URL вашего прокси-сервера на Vercel
+                  URL вашего сервера (по умолчанию использует текущий домен)
                 </p>
               </div>
             )}
@@ -238,7 +277,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               )}
               <p className="text-xs text-muted-foreground">
                 {useProxy 
-                  ? "API ключ опционален при использовании Vercel прокси" 
+                  ? "API ключ опционален при использовании прокси-сервера (сервер использует собственный ключ)" 
                   : "API ключ обязателен для прямого подключения к OpenAI API"}
               </p>
               {!useProxy && (

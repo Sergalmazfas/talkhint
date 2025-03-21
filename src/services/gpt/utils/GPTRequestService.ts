@@ -219,10 +219,10 @@ export class GPTRequestService {
   }
 
   /**
-   * Make a request using the Vercel proxy service
+   * Make a proxy request using the server proxy service
    */
   private async makeProxyRequest(requestId: string, requestPayload: any): Promise<any> {
-    GPTLogger.log(requestId, `Making request via Vercel proxy: ${this.config.serverProxyUrl}`);
+    GPTLogger.log(requestId, `Making request via server proxy: ${this.config.serverProxyUrl}`);
     console.log('[API_KEY_DEBUG] Making proxy request to:', this.config.serverProxyUrl);
     
     // Create a controller for timeout handling
@@ -235,6 +235,8 @@ export class GPTRequestService {
     try {
       // Properly construct the API URL
       const baseUrl = this.ensureValidUrl(this.config.serverProxyUrl);
+      
+      // When using our own server/proxy, we should send requests to the /openai/chat/completions endpoint
       const apiUrl = this.ensureEndpoint(baseUrl, '/openai/chat/completions');
       
       const headers: Record<string, string> = {
@@ -243,14 +245,16 @@ export class GPTRequestService {
         'Accept': 'application/json'
       };
       
-      // Add API key to headers if available and not empty
+      // Only add Authorization header if API key is set, valid, and not empty
+      // When using our own server, this is optional as the server should use its own API key
       if (this.config.apiKey && this.config.apiKey.trim() !== '') {
         headers['Authorization'] = `Bearer ${this.config.apiKey}`;
         GPTLogger.log(requestId, 'Using provided API key for authorization');
         console.log('[API_KEY_DEBUG] Using provided API key in proxy request:', this.config.apiKey.substring(0, 5) + '...' + this.config.apiKey.slice(-5));
       } else {
-        GPTLogger.log(requestId, 'No API key provided for request');
-        console.warn('[API_KEY_DEBUG] No API key provided for proxy request');
+        // When using our own proxy, we'll let the server use its own API key
+        GPTLogger.log(requestId, 'No API key provided in request, server should use its own API key');
+        console.log('[API_KEY_DEBUG] No API key provided for proxy request - server should use its own key');
       }
       
       GPTLogger.log(requestId, `Constructed request URL: ${apiUrl}`);
@@ -258,6 +262,7 @@ export class GPTRequestService {
         key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value)}`);
       
       console.log('[API_KEY_DEBUG] Constructed request URL:', apiUrl);
+      console.log('[API_KEY_DEBUG] Request payload:', JSON.stringify(requestPayload).substring(0, 200) + '...');
       console.log('[API_KEY_DEBUG] Request headers:', JSON.stringify(headers, (key, value) => 
         key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value));
       
@@ -267,16 +272,27 @@ export class GPTRequestService {
         body: JSON.stringify(requestPayload),
         signal: controller.signal,
         mode: 'cors',
-        credentials: 'omit'  // Don't send cookies with CORS requests
+        credentials: 'include'  // Include credentials when using our own server
       });
       
       clearTimeout(timeoutId);
       
       if (!response.ok) {
-        const errorText = await response.text();
-        const errorMessage = `API error: ${response.status} ${errorText}`;
+        let errorMessage = `API error: ${response.status}`;
+        let errorDetails = '';
+        
+        try {
+          const errorData = await response.json();
+          errorDetails = JSON.stringify(errorData);
+          console.error('[API_KEY_DEBUG] Server error response:', errorData);
+        } catch (e) {
+          const errorText = await response.text();
+          errorDetails = errorText;
+          console.error('[API_KEY_DEBUG] Server error text:', errorText);
+        }
+        
+        errorMessage += ` ${errorDetails}`;
         GPTLogger.error(requestId, errorMessage);
-        console.error('[API_KEY_DEBUG] Proxy request error:', response.status, errorText);
         throw new Error(errorMessage);
       }
       

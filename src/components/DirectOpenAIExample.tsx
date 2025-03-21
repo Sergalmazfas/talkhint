@@ -18,6 +18,13 @@ const DirectOpenAIExample = () => {
   const [method, setMethod] = useState<'client' | 'vercel' | 'chat'>('vercel');
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
   const [apiKeyValid, setApiKeyValid] = useState<boolean>(false);
+  const [serverUrl, setServerUrl] = useState<string>('');
+
+  // Load server URL when component mounts
+  useEffect(() => {
+    const url = GPTService.getServerProxyUrl();
+    setServerUrl(url);
+  }, []);
 
   useEffect(() => {
     // Check if API key is set when component mounts or method changes
@@ -29,10 +36,10 @@ const DirectOpenAIExample = () => {
       // Also check if the API key is valid format
       setApiKeyValid(hasApiKey && isValidApiKey(apiKey));
       
-      if (!hasApiKey && method !== 'chat') {
+      if (!hasApiKey && method === 'client') {
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: No API key set');
-        setError('API key is not set. Please configure it in the Settings panel.');
-      } else if (hasApiKey && !isValidApiKey(apiKey) && method !== 'chat') {
+        setError('API key is required for direct client method. Please configure it in the Settings panel.');
+      } else if (hasApiKey && !isValidApiKey(apiKey) && method === 'client') {
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: Invalid API key format:', apiKey?.substring(0, 3) + '...');
         setError('API key is invalid format. It should start with "sk-"');
       } else {
@@ -77,7 +84,7 @@ const DirectOpenAIExample = () => {
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: Making direct request to OpenAI with client');
         
         const completion = await client.chat.completions.create({
-          model: "gpt-4o-mini", // Using smaller model for efficiency
+          model: "gpt-4o-mini",
           messages: [{
             role: "user",
             content: prompt,
@@ -91,14 +98,15 @@ const DirectOpenAIExample = () => {
         // Vercel proxy server method
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using Vercel proxy method');
         const proxyUrl = GPTService.getServerProxyUrl();
-        const apiKey = GPTService.getApiKey();
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Server proxy URL:', proxyUrl);
         
-        if (!apiKey && !method.includes('chat') && !GPTService.getUseServerProxy()) {
+        const apiKey = GPTService.getApiKey();
+        if (!apiKey && method === 'vercel' && !GPTService.getUseServerProxy()) {
           console.error('[API_KEY_DEBUG] DirectOpenAIExample: API key required but not set');
-          throw new Error('API key is required for this method. Please set it in Settings.');
+          throw new Error('API key is required if not using server proxy. Please set it in Settings.');
         }
         
-        toast.info(`Sending request to ${proxyUrl}/openai/chat/completions`);
+        toast.info(`Sending request to server: ${proxyUrl}`);
         
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
@@ -113,7 +121,7 @@ const DirectOpenAIExample = () => {
           headers['Authorization'] = `Bearer ${apiKey}`;
           console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using API key in request:', apiKey.substring(0, 5) + '...' + apiKey.slice(-5));
         } else {
-          console.warn('[API_KEY_DEBUG] DirectOpenAIExample: No API key provided for request');
+          console.warn('[API_KEY_DEBUG] DirectOpenAIExample: No API key provided for request, server will use its own API key');
         }
         
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: Request headers:', JSON.stringify(headers, (key, value) => 
@@ -131,6 +139,7 @@ const DirectOpenAIExample = () => {
             temperature: 0.7,
             max_tokens: 150,
           }),
+          credentials: 'include'
         });
 
         if (!response.ok) {
@@ -158,6 +167,15 @@ const DirectOpenAIExample = () => {
     }
   };
 
+  // Display the current server URL
+  const displayServerInfo = () => {
+    return (
+      <div className="text-xs text-muted-foreground mt-1">
+        Current server: {serverUrl || "Not configured"}
+      </div>
+    );
+  };
+
   return (
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
@@ -167,17 +185,17 @@ const DirectOpenAIExample = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!apiKeySet && method !== 'chat' && (
+        {!apiKeySet && method === 'client' && (
           <Alert variant="default" className="bg-yellow-50 border-yellow-200">
             <Info className="h-4 w-4" />
             <AlertTitle>API Key Required</AlertTitle>
             <AlertDescription>
-              The current method requires an API key. Please set it in the Settings panel.
+              The direct client method requires an API key. Please set it in the Settings panel.
             </AlertDescription>
           </Alert>
         )}
         
-        {apiKeySet && !apiKeyValid && method !== 'chat' && (
+        {apiKeySet && !apiKeyValid && method === 'client' && (
           <Alert variant="destructive">
             <Shield className="h-4 w-4" />
             <AlertTitle>Invalid API Key Format</AlertTitle>
@@ -198,7 +216,7 @@ const DirectOpenAIExample = () => {
         <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'vercel' | 'chat')}>
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="client">Direct Client</TabsTrigger>
-            <TabsTrigger value="vercel">Vercel Proxy</TabsTrigger>
+            <TabsTrigger value="vercel">Server Proxy</TabsTrigger>
             <TabsTrigger value="chat">Simple Chat</TabsTrigger>
           </TabsList>
           <TabsContent value="client">
@@ -208,8 +226,9 @@ const DirectOpenAIExample = () => {
           </TabsContent>
           <TabsContent value="vercel">
             <p className="text-sm text-muted-foreground mb-4">
-              Using our Vercel proxy server to avoid CORS issues (API key required)
+              Using your server as a proxy to avoid CORS issues (server API key will be used if available)
             </p>
+            {displayServerInfo()}
           </TabsContent>
           <TabsContent value="chat">
             <p className="text-sm text-muted-foreground mb-4">
@@ -243,7 +262,7 @@ const DirectOpenAIExample = () => {
       <CardFooter>
         <Button 
           onClick={handleSubmit} 
-          disabled={loading || !prompt.trim() || (!apiKeySet && method !== 'chat') || (apiKeySet && !apiKeyValid && method !== 'chat')}
+          disabled={loading || !prompt.trim() || (method === 'client' && (!apiKeySet || !apiKeyValid))}
           className="w-full"
         >
           {loading ? (

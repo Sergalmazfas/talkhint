@@ -1,4 +1,3 @@
-
 /**
  * Configuration for OpenAI API services
  */
@@ -9,7 +8,7 @@ export interface GPTServiceConfig {
   useServerProxy: boolean;
   maxRetries: number;
   timeoutMs: number;
-  debugMode: boolean; // Added debug mode option
+  debugMode: boolean;
 }
 
 /**
@@ -18,8 +17,10 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  // Using Vercel proxy as default for better reliability with lovable.dev
-  serverProxyUrl: 'https://talkhint-sergs-projects-149ff317.vercel.app/api', 
+  // Using our own server as default for better reliability
+  serverProxyUrl: window.location.hostname.includes('localhost') 
+    ? 'http://localhost:3000/api' 
+    : (window.location.origin + '/api'),
   useServerProxy: true, // Default to proxy for better compatibility
   maxRetries: 3,
   timeoutMs: 60000,
@@ -32,12 +33,12 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
 export const PROXY_SERVERS = {
   // OpenAI direct
   DIRECT: 'https://api.openai.com/v1',
+  // Our own server
+  SELF_HOSTED: window.location.origin + '/api',
   // Vercel proxy
   VERCEL_PROXY: 'https://talkhint-sergs-projects-149ff317.vercel.app/api',
-  // VSL proxy
-  VSL_PROXY: 'https://api.vslgpt.com/v1',
-  // Your own server if deployed
-  SELF_HOSTED: window.location.origin + '/api',
+  // Local development
+  LOCAL: 'http://localhost:3000/api',
 };
 
 // Storage key constants for better consistency
