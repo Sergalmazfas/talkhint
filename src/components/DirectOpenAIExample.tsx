@@ -30,10 +30,15 @@ const DirectOpenAIExample = () => {
       setApiKeyValid(hasApiKey && isValidApiKey(apiKey));
       
       if (!hasApiKey && method !== 'chat') {
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: No API key set');
         setError('API key is not set. Please configure it in the Settings panel.');
       } else if (hasApiKey && !isValidApiKey(apiKey) && method !== 'chat') {
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Invalid API key format:', apiKey?.substring(0, 3) + '...');
         setError('API key is invalid format. It should start with "sk-"');
       } else {
+        if (hasApiKey) {
+          console.log('[API_KEY_DEBUG] DirectOpenAIExample: Valid API key set:', apiKey?.substring(0, 5) + '...' + apiKey?.slice(-5));
+        }
         setError(null);
       }
     };
@@ -49,23 +54,27 @@ const DirectOpenAIExample = () => {
     try {
       if (method === 'chat') {
         // Use the new chat API
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using chat API method');
         const result = await GPTService.sendChatMessage(prompt);
         setResponse(JSON.stringify(result, null, 2));
       } else if (method === 'client') {
         // Direct OpenAI client method
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using client method');
         const client = GPTService.getOpenAIClient();
         
         if (!client) {
+          console.error('[API_KEY_DEBUG] DirectOpenAIExample: OpenAI client not available');
           throw new Error('OpenAI client not available. Please set your API key in Settings.');
         }
 
         // API key validation
         const apiKey = GPTService.getApiKey();
         if (!apiKey || !isValidApiKey(apiKey)) {
+          console.error('[API_KEY_DEBUG] DirectOpenAIExample: Invalid API key format:', apiKey?.substring(0, 3) + '...');
           throw new Error('Invalid API key format. Key should start with "sk-"');
         }
 
-        console.log('Making direct request to OpenAI with client');
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Making direct request to OpenAI with client');
         
         const completion = await client.chat.completions.create({
           model: "gpt-4o-mini", // Using smaller model for efficiency
@@ -80,10 +89,12 @@ const DirectOpenAIExample = () => {
         setResponse(completion.choices[0].message.content || 'No response received');
       } else {
         // Vercel proxy server method
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using Vercel proxy method');
         const proxyUrl = GPTService.getServerProxyUrl();
         const apiKey = GPTService.getApiKey();
         
         if (!apiKey && !method.includes('chat') && !GPTService.getUseServerProxy()) {
+          console.error('[API_KEY_DEBUG] DirectOpenAIExample: API key required but not set');
           throw new Error('API key is required for this method. Please set it in Settings.');
         }
         
@@ -96,15 +107,16 @@ const DirectOpenAIExample = () => {
         // Only add Authorization header if API key is set and not empty
         if (apiKey && apiKey.trim() !== '') {
           if (!isValidApiKey(apiKey)) {
+            console.error('[API_KEY_DEBUG] DirectOpenAIExample: Invalid API key format:', apiKey.substring(0, 3) + '...');
             throw new Error('Invalid API key format. Key should start with "sk-"');
           }
           headers['Authorization'] = `Bearer ${apiKey}`;
-          console.log('Using API key in request:', apiKey.substring(0, 5) + '...' + apiKey.slice(-5));
+          console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using API key in request:', apiKey.substring(0, 5) + '...' + apiKey.slice(-5));
         } else {
-          console.warn('No API key provided for request');
+          console.warn('[API_KEY_DEBUG] DirectOpenAIExample: No API key provided for request');
         }
         
-        console.log('Request headers:', JSON.stringify(headers, (key, value) => 
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Request headers:', JSON.stringify(headers, (key, value) => 
           key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value));
         
         const response = await fetch(`${proxyUrl}/openai/chat/completions`, {
@@ -126,9 +138,11 @@ const DirectOpenAIExample = () => {
           try {
             const errorData = await response.json();
             errorMessage += ` ${JSON.stringify(errorData)}`;
+            console.error('[API_KEY_DEBUG] DirectOpenAIExample: Server error response:', errorData);
           } catch (e) {
             const errorText = await response.text();
             errorMessage += ` ${errorText}`;
+            console.error('[API_KEY_DEBUG] DirectOpenAIExample: Server error text:', errorText);
           }
           throw new Error(errorMessage);
         }
@@ -137,7 +151,7 @@ const DirectOpenAIExample = () => {
         setResponse(data.choices[0].message.content || JSON.stringify(data, null, 2));
       }
     } catch (err) {
-      console.error('Error calling API:', err);
+      console.error('[API_KEY_DEBUG] DirectOpenAIExample: Error calling API:', err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setLoading(false);

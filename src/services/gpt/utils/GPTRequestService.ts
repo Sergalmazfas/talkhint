@@ -1,4 +1,3 @@
-
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
 import { GPTServiceConfig, PROXY_SERVERS } from "../config/GPTServiceConfig";
@@ -32,6 +31,7 @@ export class GPTRequestService {
         // Validate API key format to catch obvious errors
         if (!this.isValidApiKeyFormat(this.config.apiKey)) {
           GPTLogger.warn(undefined, 'API key has invalid format - should start with "sk-"');
+          console.warn('[API_KEY_DEBUG] API key has invalid format:', this.config.apiKey.substring(0, 3) + '...');
           this.openaiClient = null;
           return;
         }
@@ -41,13 +41,16 @@ export class GPTRequestService {
           dangerouslyAllowBrowser: true, // Required for client-side usage
         });
         GPTLogger.log(undefined, 'OpenAI client initialized');
+        console.log('[API_KEY_DEBUG] OpenAI client initialized with key:', this.config.apiKey.substring(0, 5) + '...' + this.config.apiKey.slice(-5));
       } catch (error) {
         GPTLogger.error(undefined, 'Failed to initialize OpenAI client:', error);
+        console.error('[API_KEY_DEBUG] Failed to initialize OpenAI client:', error);
         this.openaiClient = null;
       }
     } else {
       this.openaiClient = null;
       GPTLogger.log(undefined, 'OpenAI client not initialized: missing API key');
+      console.warn('[API_KEY_DEBUG] OpenAI client not initialized: missing API key');
     }
   }
 
@@ -55,7 +58,9 @@ export class GPTRequestService {
    * Basic validation of API key format
    */
   private isValidApiKeyFormat(apiKey: string): boolean {
-    return apiKey.trim().startsWith('sk-') && apiKey.trim().length > 20;
+    const isValid = apiKey.trim().startsWith('sk-') && apiKey.trim().length > 20;
+    console.log('[API_KEY_DEBUG] API key format validation:', isValid);
+    return isValid;
   }
 
   /**
@@ -173,6 +178,7 @@ export class GPTRequestService {
       const chatUrl = this.ensureEndpoint(baseUrl, '/chat');
       
       GPTLogger.log(requestId, `Using chat URL: ${chatUrl}`);
+      console.log('[API_KEY_DEBUG] Making simple chat request to URL:', chatUrl);
       
       const response = await fetch(chatUrl, {
         method: 'POST',
@@ -188,6 +194,7 @@ export class GPTRequestService {
       
       if (!response.ok) {
         const errorText = await response.text();
+        console.error('[API_KEY_DEBUG] Chat API error:', response.status, errorText);
         throw new Error(`Chat API error (${response.status}): ${errorText}`);
       }
       
@@ -197,9 +204,11 @@ export class GPTRequestService {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       GPTLogger.error(requestId, 'Error in makeSimpleChatRequest:', errorMessage);
+      console.error('[API_KEY_DEBUG] Error in makeSimpleChatRequest:', errorMessage);
       
       // Fallback to a mock response if the server is unavailable
       GPTLogger.log(requestId, 'Returning mock response as fallback');
+      console.warn('[API_KEY_DEBUG] Returning mock response as fallback due to error');
       return {
         success: true,
         received: message,
@@ -214,6 +223,7 @@ export class GPTRequestService {
    */
   private async makeProxyRequest(requestId: string, requestPayload: any): Promise<any> {
     GPTLogger.log(requestId, `Making request via Vercel proxy: ${this.config.serverProxyUrl}`);
+    console.log('[API_KEY_DEBUG] Making proxy request to:', this.config.serverProxyUrl);
     
     // Create a controller for timeout handling
     const controller = new AbortController();
@@ -237,13 +247,19 @@ export class GPTRequestService {
       if (this.config.apiKey && this.config.apiKey.trim() !== '') {
         headers['Authorization'] = `Bearer ${this.config.apiKey}`;
         GPTLogger.log(requestId, 'Using provided API key for authorization');
+        console.log('[API_KEY_DEBUG] Using provided API key in proxy request:', this.config.apiKey.substring(0, 5) + '...' + this.config.apiKey.slice(-5));
       } else {
         GPTLogger.log(requestId, 'No API key provided for request');
+        console.warn('[API_KEY_DEBUG] No API key provided for proxy request');
       }
       
       GPTLogger.log(requestId, `Constructed request URL: ${apiUrl}`);
       GPTLogger.log(requestId, `Request headers: ${JSON.stringify(headers, (key, value) => 
         key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value)}`);
+      
+      console.log('[API_KEY_DEBUG] Constructed request URL:', apiUrl);
+      console.log('[API_KEY_DEBUG] Request headers:', JSON.stringify(headers, (key, value) => 
+        key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value));
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -260,14 +276,17 @@ export class GPTRequestService {
         const errorText = await response.text();
         const errorMessage = `API error: ${response.status} ${errorText}`;
         GPTLogger.error(requestId, errorMessage);
+        console.error('[API_KEY_DEBUG] Proxy request error:', response.status, errorText);
         throw new Error(errorMessage);
       }
       
       const data = await response.json();
       GPTLogger.log(requestId, 'API response received successfully');
+      console.log('[API_KEY_DEBUG] Proxy request successful with response');
       return data;
     } catch (error) {
       clearTimeout(timeoutId);
+      console.error('[API_KEY_DEBUG] Error in makeProxyRequest:', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }
