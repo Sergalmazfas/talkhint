@@ -85,9 +85,6 @@ export class GPTRequestService {
     while (currentRetry <= this.config.maxRetries) {
       if (currentRetry > 0) {
         GPTLogger.log(requestId, `Retry attempt ${currentRetry}/${this.config.maxRetries}`);
-        
-        // We no longer switch between multiple proxies since CORS Anywhere was removed
-        // Just use the Vercel proxy
       }
       
       const startTime = Date.now();
@@ -144,10 +141,9 @@ export class GPTRequestService {
     GPTLogger.log(requestId, `Making simple chat request with message: ${message.substring(0, 30)}...`);
     
     try {
-      // Construct the chat URL correctly from the server proxy URL
-      const serverUrl = this.config.serverProxyUrl;
-      // Make sure we add /chat to the URL if it doesn't already contain it
-      const chatUrl = serverUrl.endsWith('/chat') ? serverUrl : `${serverUrl}/chat`;
+      // Properly construct the URL with domain and path
+      const baseUrl = this.ensureValidUrl(this.config.serverProxyUrl);
+      const chatUrl = this.ensureEndpoint(baseUrl, '/chat');
       
       GPTLogger.log(requestId, `Using chat URL: ${chatUrl}`);
       
@@ -155,7 +151,8 @@ export class GPTRequestService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': window.location.origin
+          'Origin': window.location.origin,
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ message }),
         mode: 'cors', // Explicitly set CORS mode
@@ -199,16 +196,14 @@ export class GPTRequestService {
     }, this.config.timeoutMs);
     
     try {
-      // For our Vercel proxy, construct the URL correctly
-      let url = this.config.serverProxyUrl;
-      if (!url.endsWith('/openai/chat/completions')) {
-        // Make sure /openai/chat/completions is at the end
-        url = url.endsWith('/') ? `${url}openai/chat/completions` : `${url}/openai/chat/completions`;
-      }
+      // Properly construct the API URL
+      const baseUrl = this.ensureValidUrl(this.config.serverProxyUrl);
+      const apiUrl = this.ensureEndpoint(baseUrl, '/openai/chat/completions');
       
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Origin': window.location.origin
+        'Origin': window.location.origin,
+        'Accept': 'application/json'
       };
       
       // Add API key to headers if available
@@ -216,10 +211,9 @@ export class GPTRequestService {
         headers['Authorization'] = `Bearer ${this.config.apiKey}`;
       }
       
-      GPTLogger.log(requestId, `Constructed request URL: ${url}`);
-      GPTLogger.log(requestId, `Using headers: ${JSON.stringify(headers)}`);
+      GPTLogger.log(requestId, `Constructed request URL: ${apiUrl}`);
       
-      const response = await fetch(url, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestPayload),
@@ -305,6 +299,40 @@ export class GPTRequestService {
       clearTimeout(timeoutId);
       throw error;
     }
+  }
+
+  /**
+   * Helper method to ensure URL is valid
+   */
+  private ensureValidUrl(url: string): string {
+    // If URL doesn't start with http(s), assume https
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return `https://${url}`;
+    }
+    return url;
+  }
+
+  /**
+   * Helper method to ensure endpoint path is correctly appended
+   */
+  private ensureEndpoint(baseUrl: string, endpoint: string): string {
+    // Remove trailing slash from base URL if any
+    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    
+    // Ensure endpoint starts with slash
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    
+    // Check if endpoint is already in the URL
+    if (cleanBaseUrl.endsWith(cleanEndpoint)) {
+      return cleanBaseUrl;
+    }
+    
+    // Check if we need to add /api before the endpoint
+    if (!cleanBaseUrl.endsWith('/api') && !cleanEndpoint.startsWith('/api/')) {
+      return `${cleanBaseUrl}/api${cleanEndpoint}`;
+    }
+    
+    return `${cleanBaseUrl}${cleanEndpoint}`;
   }
 
   /**

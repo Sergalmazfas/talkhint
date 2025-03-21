@@ -1,58 +1,86 @@
-
 const cors = require("cors");
 const express = require("express");
 const app = express();
 const axios = require("axios");
 
-// Enhanced CORS configuration to support specific domains
+// Enhanced CORS configuration with more comprehensive domain support
 const allowedOrigins = [
     'https://lovable.dev',
+    'https://www.lovable.dev',
     'http://localhost:3000',
     'http://localhost:5173',  // Vite default dev port
-    'https://talkhint-sergs-projects-149ff317.vercel.app'
+    'https://talkhint-sergs-projects-149ff317.vercel.app',
+    /\.vercel\.app$/,         // Allow all vercel.app subdomains
+    /\.lovable\.dev$/         // Allow all lovable.dev subdomains
 ];
 
-// Enhanced CORS middleware with more permissive options
+// Comprehensive CORS middleware with detailed configuration
 app.use(cors({
     origin: function(origin, callback) {
-        // Allow requests with no origin (like mobile apps, curl requests)
+        // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
         if (!origin) return callback(null, true);
         
-        if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+        // Check if origin matches allowed patterns
+        const isAllowed = allowedOrigins.some(allowedOrigin => {
+            if (allowedOrigin instanceof RegExp) {
+                return allowedOrigin.test(origin);
+            }
+            return allowedOrigin === origin;
+        });
+        
+        if (isAllowed) {
             callback(null, true);
         } else {
             console.log(`[${new Date().toISOString()}] CORS blocked request from: ${origin}`);
-            callback(null, true); // Allow all origins in development
+            
+            // In production, be strict about origins
+            if (process.env.NODE_ENV === 'production') {
+                callback(new Error('Not allowed by CORS'));
+            } else {
+                // In development, allow all origins but log a warning
+                console.log(`[${new Date().toISOString()}] WARNING: Allowing request from non-whitelisted origin in development mode`);
+                callback(null, true);
+            }
         }
     },
-    methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    methods: ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "X-Auth-Token"],
+    exposedHeaders: ["Content-Length", "X-Request-Id"],
     credentials: true,
-    maxAge: 86400 // 24 hours
+    maxAge: 86400, // 24 hours
+    preflightContinue: false,
+    optionsSuccessStatus: 204
 }));
 
-// Handle preflight OPTIONS requests with improved headers
+// Handle preflight OPTIONS requests
 app.options('*', cors());
 
-// Add security headers including CSP and frame options
+// Add security headers with comprehensive CSP configuration
 app.use((req, res, next) => {
-    // Configure Content-Security-Policy to allow necessary iframes and scripts
+    // Configure Content-Security-Policy to allow necessary resources
     res.setHeader('Content-Security-Policy', 
         "default-src 'self'; " +
-        "script-src 'self' https://cdn.gpteng.co https://www.googletagmanager.com 'unsafe-inline' 'unsafe-eval'; " +
-        "frame-src 'self' https://auth.getengineer.app https://www.youtube.com; " +
-        "connect-src 'self' https://api.openai.com https://lovable.dev https://*.vercel.app; " +
-        "img-src 'self' data: https:; " +
-        "style-src 'self' 'unsafe-inline';"
+        "script-src 'self' https://cdn.gpteng.co https://www.googletagmanager.com https://tagmanager.google.com https://www.google-analytics.com 'unsafe-inline' 'unsafe-eval'; " +
+        "frame-src 'self' https://auth.getengineer.app https://www.youtube.com https://*.google.com https://*.doubleclick.net; " +
+        "connect-src 'self' https://api.openai.com https://lovable.dev https://*.vercel.app https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com; " +
+        "img-src 'self' data: https: blob:; " +
+        "style-src 'self' 'unsafe-inline' https://tagmanager.google.com https://fonts.googleapis.com; " +
+        "font-src 'self' https://fonts.gstatic.com data:; " +
+        "object-src 'none'; " +
+        "base-uri 'self'; " +
+        "form-action 'self'; " +
+        "frame-ancestors 'self' https://lovable.dev https://*.lovable.dev https://*.vercel.app;"
     );
     
-    // Allow frames from specific domains instead of blocking all
-    res.setHeader('X-Frame-Options', 'ALLOW-FROM https://auth.getengineer.app');
+    // Allow frames from specific domains
+    res.setHeader('X-Frame-Options', 'ALLOW-FROM https://lovable.dev https://auth.getengineer.app');
     
     // Additional security headers
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     
     next();
 });
@@ -201,9 +229,11 @@ app.get("/api/openai/health", async (req, res) => {
     }
 });
 
-// Log all incoming API requests
+// Log all incoming API requests with more details
 app.all("/api/*", (req, res, next) => {
-    console.log(`[${new Date().toISOString()}] Received request: ${req.method} ${req.path} from origin: ${req.headers.origin || 'unknown'}`);
+    console.log(`[${new Date().toISOString()}] Received request: ${req.method} ${req.path}`);
+    console.log(`[${new Date().toISOString()}] Origin: ${req.headers.origin || 'unknown'}`);
+    console.log(`[${new Date().toISOString()}] User-Agent: ${req.headers['user-agent'] || 'unknown'}`);
     next();
 });
 

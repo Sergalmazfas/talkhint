@@ -32,8 +32,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSettingsChange 
 }) => {
   const [apiKey, setApiKey] = useState('');
-  const [useProxy, setUseProxy] = useState(false);
-  const [serverUrl, setServerUrl] = useState('http://localhost:3000/chat');
+  const [useProxy, setUseProxy] = useState(true);
+  const [serverUrl, setServerUrl] = useState('https://talkhint-sergs-projects-149ff317.vercel.app/api');
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
@@ -44,6 +44,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
       setUseProxy(GPTService.getUseServerProxy());
+      setServerUrl(GPTService.getConfig().serverProxyUrl);
       checkApiConnection();
     }
   }, [isOpen]);
@@ -79,6 +80,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const handleSave = () => {
     // Update proxy settings
     GPTService.setUseServerProxy(useProxy);
+    
+    // Update server URL if provided
+    if (serverUrl && serverUrl.trim() !== '') {
+      GPTService.setServerProxyUrl(serverUrl.trim());
+    }
     
     // Set API key if provided
     if (apiKey.trim()) {
@@ -158,6 +164,25 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   : "Запросы отправляются напрямую с использованием вашего API ключа"}
               </p>
             </div>
+
+            {useProxy && (
+              <div className="space-y-3">
+                <Label htmlFor="serverUrl" className="text-sm text-foreground/80">
+                  URL Vercel прокси-сервера
+                </Label>
+                <Input
+                  id="serverUrl"
+                  type="text"
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
+                  placeholder="https://your-proxy-server.vercel.app/api"
+                  className="text-xs"
+                />
+                <p className="text-xs text-muted-foreground">
+                  URL вашего прокси-сервера на Vercel
+                </p>
+              </div>
+            )}
 
             <div className="space-y-3">
               <Label htmlFor="apiKey" className="text-sm text-foreground/80">
