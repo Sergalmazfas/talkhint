@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from '@/components/ui/dialog';
-import { QrCode, Share2 } from 'lucide-react';
+import { QrCode, Share2, AlertTriangle } from 'lucide-react';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
 import ApiSettingsQRCode from './ApiSettingsQRCode';
@@ -37,6 +37,25 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  
+  // Validate API key format
+  const validateApiKey = (key: string): boolean => {
+    if (!key || key.trim() === '') return true; // Empty is allowed with proxy
+    return key.trim().startsWith('sk-') && key.trim().length > 20;
+  };
+  
+  // Handle API key change with validation
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newKey = e.target.value;
+    setApiKey(newKey);
+    
+    if (!useProxy && newKey.trim() !== '' && !validateApiKey(newKey)) {
+      setApiKeyError('API ключ должен начинаться с "sk-" и быть достаточной длины');
+    } else {
+      setApiKeyError(null);
+    }
+  };
   
   // Load settings when opening
   useEffect(() => {
@@ -48,6 +67,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       checkApiConnection();
     }
   }, [isOpen]);
+  
+  // Update validation when proxy setting changes
+  useEffect(() => {
+    if (!useProxy && apiKey && !validateApiKey(apiKey)) {
+      setApiKeyError('API ключ должен начинаться с "sk-" и быть достаточной длины');
+    } else {
+      setApiKeyError(null);
+    }
+  }, [useProxy]);
   
   if (!isOpen) return null;
 
@@ -78,6 +106,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const handleSave = () => {
+    // Validate API key if direct connection is used
+    if (!useProxy && apiKey.trim() !== '' && !validateApiKey(apiKey)) {
+      toast.error('Неверный формат API ключа. Ключ должен начинаться с "sk-"');
+      return;
+    }
+    
     // Update proxy settings
     GPTService.setUseServerProxy(useProxy);
     
@@ -192,15 +226,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 id="apiKey"
                 type="password"
                 value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
+                onChange={handleApiKeyChange}
                 placeholder="sk-..."
-                className="font-mono text-xs"
+                className={`font-mono text-xs ${apiKeyError ? 'border-red-500' : ''}`}
               />
+              {apiKeyError && (
+                <div className="flex items-start gap-2 mt-1 text-red-500 text-xs">
+                  <AlertTriangle size={14} className="mt-0.5" />
+                  <span>{apiKeyError}</span>
+                </div>
+              )}
               <p className="text-xs text-muted-foreground">
                 {useProxy 
                   ? "API ключ опционален при использовании Vercel прокси" 
                   : "API ключ обязателен для прямого подключения к OpenAI API"}
               </p>
+              {!useProxy && (
+                <p className="text-xs text-amber-600">
+                  Ключ должен начинаться с "sk-" и иметь правильный формат
+                </p>
+              )}
             </div>
 
             <Button 
@@ -265,7 +310,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
         
         <div className="p-4 border-t border-border">
-          <Button className="w-full" onClick={handleSave}>
+          <Button 
+            className="w-full" 
+            onClick={handleSave}
+            disabled={!useProxy && apiKeyError !== null}
+          >
             Сохранить
           </Button>
         </div>

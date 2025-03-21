@@ -29,6 +29,13 @@ export class GPTRequestService {
   public initializeOpenAIClient(): void {
     if (this.config.apiKey && this.config.apiKey.trim() !== '') {
       try {
+        // Validate API key format to catch obvious errors
+        if (!this.isValidApiKeyFormat(this.config.apiKey)) {
+          GPTLogger.warn(undefined, 'API key has invalid format - should start with "sk-"');
+          this.openaiClient = null;
+          return;
+        }
+        
         this.openaiClient = new OpenAI({
           apiKey: this.config.apiKey,
           dangerouslyAllowBrowser: true, // Required for client-side usage
@@ -45,6 +52,13 @@ export class GPTRequestService {
   }
 
   /**
+   * Basic validation of API key format
+   */
+  private isValidApiKeyFormat(apiKey: string): boolean {
+    return apiKey.trim().startsWith('sk-') && apiKey.trim().length > 20;
+  }
+
+  /**
    * Call the OpenAI API with retry logic
    */
   public async callOpenAI(
@@ -56,11 +70,19 @@ export class GPTRequestService {
     const requestId = Date.now().toString(36) + Math.random().toString(36).substring(2, 5);
     GPTLogger.log(requestId, 'OpenAI API request starting');
     
-    // Check if we have an API key when needed
-    if (!this.config.useServerProxy && (!this.config.apiKey || this.config.apiKey.trim() === '')) {
-      const errorMsg = 'API key is required for direct OpenAI access';
-      GPTLogger.error(requestId, errorMsg);
-      throw new Error(errorMsg);
+    // Check if we have a valid API key when needed
+    if (!this.config.useServerProxy) {
+      if (!this.config.apiKey || this.config.apiKey.trim() === '') {
+        const errorMsg = 'API key is required for direct OpenAI access';
+        GPTLogger.error(requestId, errorMsg);
+        throw new Error(errorMsg);
+      } 
+      
+      if (!this.isValidApiKeyFormat(this.config.apiKey)) {
+        const errorMsg = 'Invalid API key format. API key should start with "sk-"';
+        GPTLogger.error(requestId, errorMsg);
+        throw new Error(errorMsg);
+      }
     }
     
     // Using gpt-4o-mini model - more affordable
@@ -107,6 +129,11 @@ export class GPTRequestService {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         GPTLogger.error(requestId, 'Error in API request:', errorMessage);
+        
+        // Don't retry authentication errors
+        if (errorMessage.includes('401') || errorMessage.includes('API key')) {
+          throw new Error(`Authentication error: ${errorMessage}. Please check that your API key is valid.`);
+        }
         
         // Check if it's a timeout
         if (errorMessage.includes('abort') || errorMessage.includes('timeout')) {

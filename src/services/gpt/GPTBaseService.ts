@@ -91,9 +91,22 @@ class GPTBaseService {
     return GPTClientFactory.createClient(this.config);
   }
 
+  /**
+   * Validate API key format
+   */
+  private isValidApiKeyFormat(key: string): boolean {
+    return key && key.trim().startsWith('sk-') && key.trim().length > 20;
+  }
+
   public setApiKey(key: string) {
     if (!key || key.trim() === '') {
       GPTLogger.warn(undefined, 'Attempted to set empty API key');
+      return;
+    }
+    
+    // Validate key format
+    if (!this.isValidApiKeyFormat(key)) {
+      GPTLogger.warn(undefined, 'Invalid API key format. API key should start with "sk-"');
       return;
     }
     
@@ -174,6 +187,12 @@ class GPTBaseService {
     // For direct connection, we need an API key
     if (!this.config.apiKey) {
       GPTLogger.error(undefined, 'Cannot check API connection: API key is missing');
+      return false;
+    }
+    
+    // Validate API key format
+    if (!this.isValidApiKeyFormat(this.config.apiKey)) {
+      GPTLogger.error(undefined, 'Cannot check API connection: API key format is invalid');
       return false;
     }
     
