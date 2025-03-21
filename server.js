@@ -8,19 +8,20 @@ const app = express();
 const allowedOrigins = [
     'https://lovable.dev',
     'https://www.lovable.dev',
+    'https://*.lovable.dev',     // Добавлен wildcard для поддоменов lovable.dev
     'http://localhost:3000',
-    'http://localhost:5173',  // Vite default dev port
+    'http://localhost:5173',     // Vite default dev port
     'https://talkhint-sergs-projects-149ff317.vercel.app',
     'https://gptengineer.app',
     'https://www.gptengineer.app',
     'https://auth.getengineer.app',
-    /\.vercel\.app$/,         // Allow all vercel.app subdomains
-    /\.lovable\.dev$/,        // Allow all lovable.dev subdomains
-    /\.lovable\.app$/,        // Allow all lovable.app subdomains
-    /\.getengineer\.app$/     // Allow all getengineer.app subdomains
+    /\.vercel\.app$/,            // Allow all vercel.app subdomains
+    /\.lovable\.dev$/,           // Allow all lovable.dev subdomains
+    /\.lovable\.app$/,           // Allow all lovable.app subdomains
+    /\.getengineer\.app$/        // Allow all getengineer.app subdomains
 ];
 
-// Comprehensive CORS middleware with detailed configuration
+// Comprehensive CORS middleware with improved error handling
 app.use(cors({
     origin: function(origin, callback) {
         // Allow requests with no origin (like mobile apps, curl, or same-origin requests)
@@ -35,13 +36,14 @@ app.use(cors({
         });
         
         if (isAllowed) {
+            console.log(`[${new Date().toISOString()}] CORS allowed request from: ${origin}`);
             callback(null, true);
         } else {
             console.log(`[${new Date().toISOString()}] CORS blocked request from: ${origin}`);
             
-            // In production, be strict about origins
+            // In production, be strict about origins but provide detailed error
             if (process.env.NODE_ENV === 'production') {
-                callback(new Error('Not allowed by CORS'));
+                callback(new Error(`Origin ${origin} not allowed by CORS policy`));
             } else {
                 // In development, allow all origins but log a warning
                 console.log(`[${new Date().toISOString()}] WARNING: Allowing request from non-whitelisted origin in development mode`);
@@ -63,7 +65,7 @@ app.options('*', cors());
 
 // Add security headers with comprehensive CSP configuration
 app.use((req, res, next) => {
-    // Configure Content-Security-Policy to allow necessary resources
+    // Configure Content-Security-Policy to allow necessary resources including lovable.dev
     res.setHeader('Content-Security-Policy', 
         "default-src 'self'; " +
         "script-src 'self' https://cdn.gpteng.co https://www.googletagmanager.com https://tagmanager.google.com https://www.google-analytics.com 'unsafe-inline' 'unsafe-eval'; " +
@@ -78,8 +80,14 @@ app.use((req, res, next) => {
         "frame-ancestors 'self' https://lovable.dev https://*.lovable.dev https://gptengineer.app https://*.lovable.app https://*.vercel.app https://*.getengineer.app;"
     );
     
-    // Allow frames from specific domains
+    // Allow frames from specific domains including lovable.dev
     res.setHeader('X-Frame-Options', 'ALLOW-FROM https://lovable.dev https://auth.getengineer.app https://gptengineer.app https://*.lovable.app');
+    
+    // Explicitly set CORS headers for all responses to ensure they are applied consistently
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Auth-Token');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
     
     // Additional security headers
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -99,7 +107,10 @@ app.get("/api", (req, res) => {
     res.status(200).json({ 
         status: "ok", 
         message: "OpenAI proxy server is running",
-        timestamp: new Date().toISOString() 
+        timestamp: new Date().toISOString(),
+        origin: req.headers.origin || 'unknown',
+        headers: req.headers,
+        cors: "enabled"
     });
 });
 
@@ -156,6 +167,7 @@ app.post("/api/openai/chat/completions", async (req, res) => {
         }
         
         console.log(`[${new Date().toISOString()}] Proxying request to OpenAI API with valid API key`);
+        console.log(`[${new Date().toISOString()}] Origin: ${req.headers.origin || 'unknown'}`);
         
         const response = await axios.post(
             "https://api.openai.com/v1/chat/completions",
@@ -184,7 +196,8 @@ app.post("/api/openai/chat/completions", async (req, res) => {
             res.status(statusCode).json({
                 error: "OpenAI API error",
                 details: errorData,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                origin: req.headers.origin || 'unknown'
             });
         } else if (error.code === 'ECONNABORTED') {
             // Timeout error
@@ -192,7 +205,8 @@ app.post("/api/openai/chat/completions", async (req, res) => {
             res.status(504).json({ 
                 error: "Gateway Timeout", 
                 message: "Request to OpenAI API timed out", 
-                timestamp: new Date().toISOString() 
+                timestamp: new Date().toISOString(),
+                origin: req.headers.origin || 'unknown'
             });
         } else {
             // Other errors
@@ -200,13 +214,14 @@ app.post("/api/openai/chat/completions", async (req, res) => {
             res.status(500).json({ 
                 error: "Error processing request", 
                 message: error.message,
-                timestamp: new Date().toISOString() 
+                timestamp: new Date().toISOString(),
+                origin: req.headers.origin || 'unknown' 
             });
         }
     }
 });
 
-// Health check endpoint with enhanced information
+// Enhanced health check endpoint with more detailed information
 app.get("/api/health", (req, res) => {
     res.json({ 
         status: "ok", 
@@ -214,16 +229,23 @@ app.get("/api/health", (req, res) => {
         version: "1.0.0",
         environment: process.env.NODE_ENV || "development",
         hasApiKey: Boolean(process.env.OPENAI_API_KEY),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        headers: {
+            origin: req.headers.origin || 'unknown',
+            referer: req.headers.referer || 'unknown',
+            userAgent: req.headers['user-agent'] || 'unknown'
+        },
+        cors: "enabled"
     });
 });
 
-// OpenAI API health check
+// OpenAI API health check with CORS information
 app.get("/api/openai/health", async (req, res) => {
     try {
         // Try to use the environment API key if available
         const apiKey = process.env.OPENAI_API_KEY || "sk_test";
         console.log(`[${new Date().toISOString()}] Checking OpenAI health with ${apiKey ? "valid" : "test"} API key`);
+        console.log(`[${new Date().toISOString()}] Origin: ${req.headers.origin || 'unknown'}`);
         
         // Try to make a lightweight request to OpenAI API
         await axios.get("https://api.openai.com/v1/models", {
@@ -236,7 +258,9 @@ app.get("/api/openai/health", async (req, res) => {
         res.json({ 
             status: "ok", 
             message: "OpenAI API is reachable", 
-            timestamp: new Date().toISOString() 
+            timestamp: new Date().toISOString(),
+            origin: req.headers.origin || 'unknown',
+            cors: "enabled"
         });
     } catch (error) {
         console.error(`[${new Date().toISOString()}] Error checking OpenAI API health:`, error.message);
@@ -244,7 +268,9 @@ app.get("/api/openai/health", async (req, res) => {
             status: "error", 
             message: "OpenAI API may be unreachable", 
             details: error.message,
-            timestamp: new Date().toISOString() 
+            timestamp: new Date().toISOString(),
+            origin: req.headers.origin || 'unknown',
+            cors: "enabled"
         });
     }
 });
@@ -257,13 +283,19 @@ app.all("/api/*", (req, res, next) => {
     next();
 });
 
-// Catch-all for other routes
+// Catch-all for other routes with detailed debugging information
 app.all("*", (req, res) => {
     console.log(`[${new Date().toISOString()}] Unknown route requested: ${req.path}`);
+    console.log(`[${new Date().toISOString()}] Origin: ${req.headers.origin || 'unknown'}`);
+    console.log(`[${new Date().toISOString()}] Headers:`, req.headers);
+    
     res.status(404).json({ 
         error: "Route not found", 
         path: req.path,
-        timestamp: new Date().toISOString() 
+        timestamp: new Date().toISOString(),
+        origin: req.headers.origin || 'unknown',
+        headers: req.headers,
+        message: "If you're seeing this, make sure you're accessing the correct API endpoint"
     });
 });
 

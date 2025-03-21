@@ -17,8 +17,8 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  // Using VSL proxy as default for better reliability
-  serverProxyUrl: 'https://api.vslgpt.com/v1', 
+  // Using Vercel proxy as default for better reliability with lovable.dev
+  serverProxyUrl: 'https://talkhint-sergs-projects-149ff317.vercel.app/api', 
   useServerProxy: true, // Default to proxy for better compatibility
   maxRetries: 3,
   timeoutMs: 60000,
