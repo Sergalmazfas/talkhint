@@ -44,7 +44,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
       setUseProxy(GPTService.getUseServerProxy());
-      setServerUrl(GPTService.getConfig().serverProxyUrl);
+      setServerUrl(GPTService.getServerProxyUrl());
       checkApiConnection();
     }
   }, [isOpen]);
