@@ -134,7 +134,7 @@ const DirectOpenAIExample = () => {
       </CardHeader>
       <CardContent className="space-y-4">
         {!apiKeySet && method !== 'chat' && (
-          <Alert variant="warning" className="bg-yellow-50 border-yellow-200">
+          <Alert variant="default" className="bg-yellow-50 border-yellow-200">
             <Info className="h-4 w-4" />
             <AlertTitle>API Key Required</AlertTitle>
             <AlertDescription>
