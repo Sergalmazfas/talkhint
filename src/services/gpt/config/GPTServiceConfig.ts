@@ -16,10 +16,9 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  // Using our Vercel-deployed proxy service
-  // Ensure this URL matches your actual Vercel deployment
-  serverProxyUrl: 'https://talkhint-sergs-projects-149ff317.vercel.app/api', 
-  useServerProxy: true, // Using server proxy by default
+  // Using a more reliable proxy service configuration
+  serverProxyUrl: 'https://api.openai.com/v1', 
+  useServerProxy: false, // Default to direct API connection
   maxRetries: 3,
   timeoutMs: 60000,
 };
@@ -28,10 +27,10 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
  * Available proxy servers
  */
 export const PROXY_SERVERS = {
-  // Primary Vercel proxy - this should match your actual deployment
-  VERCEL_PROXY: 'https://talkhint-sergs-projects-149ff317.vercel.app/api',
-  // Direct OpenAI API (only used when API key is provided)
+  // OpenAI direct
   DIRECT: 'https://api.openai.com/v1',
+  // Your own server if deployed
+  SELF_HOSTED: window.location.origin + '/api',
 };
 
 /**

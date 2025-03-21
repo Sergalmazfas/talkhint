@@ -15,6 +15,7 @@ import {
 import { GPTRequestService } from './utils/GPTRequestService';
 import { GPTLogger } from './utils/GPTLogger';
 import { GPTClientFactory } from './utils/GPTClientFactory';
+import { toast } from "sonner";
 
 /**
  * Base service that handles API key management and core OpenAI API functionality
@@ -101,12 +102,14 @@ class GPTBaseService {
   public setApiKey(key: string) {
     if (!key || key.trim() === '') {
       GPTLogger.warn(undefined, 'Attempted to set empty API key');
+      toast.warning('API ключ не может быть пустым');
       return;
     }
     
     // Validate key format
     if (!this.isValidApiKeyFormat(key)) {
       GPTLogger.warn(undefined, 'Invalid API key format. API key should start with "sk-"');
+      toast.error('Неверный формат API ключа. Ключ должен начинаться с "sk-"');
       return;
     }
     
@@ -114,6 +117,7 @@ class GPTBaseService {
     saveApiKeyToStorage(key);
     this.requestService.updateConfig(this.config);
     GPTLogger.log(undefined, 'API key set and saved to storage');
+    toast.success('API ключ успешно сохранен');
   }
 
   public getApiKey(): string | null {
@@ -135,6 +139,7 @@ class GPTBaseService {
     saveUseServerProxyToStorage(use);
     this.requestService.updateConfig(this.config);
     GPTLogger.log(undefined, `Server proxy usage set to: ${use}`);
+    toast.success(use ? 'Использование прокси-сервера включено' : 'Прямое подключение к API включено');
   }
   
   public getUseServerProxy(): boolean {
@@ -147,6 +152,7 @@ class GPTBaseService {
   public setServerProxyUrl(url: string) {
     if (!url || url.trim() === '') {
       GPTLogger.warn(undefined, 'Attempted to set empty server proxy URL');
+      toast.warning('URL прокси-сервера не может быть пустым');
       return;
     }
     
@@ -154,6 +160,7 @@ class GPTBaseService {
     saveServerProxyUrlToStorage(url);
     this.requestService.updateConfig(this.config);
     GPTLogger.log(undefined, `Server proxy URL set to: ${url}`);
+    toast.success(`URL прокси-сервера установлен: ${url.substring(0, 30)}${url.length > 30 ? '...' : ''}`);
   }
   
   /**
@@ -171,6 +178,7 @@ class GPTBaseService {
       return await this.requestService.makeSimpleChatRequest(message);
     } catch (error) {
       console.error('Error sending chat message:', error);
+      toast.error('Ошибка при отправке сообщения');
       throw error;
     }
   }
@@ -187,12 +195,14 @@ class GPTBaseService {
     // For direct connection, we need an API key
     if (!this.config.apiKey) {
       GPTLogger.error(undefined, 'Cannot check API connection: API key is missing');
+      toast.error('Для проверки соединения необходим API ключ');
       return false;
     }
     
     // Validate API key format
     if (!this.isValidApiKeyFormat(this.config.apiKey)) {
       GPTLogger.error(undefined, 'Cannot check API connection: API key format is invalid');
+      toast.error('Неверный формат API ключа');
       return false;
     }
     
@@ -205,6 +215,18 @@ class GPTBaseService {
       return !!result;
     } catch (error) {
       GPTLogger.error(undefined, 'API connection check failed', error);
+      
+      if (error instanceof Error) {
+        const errorMessage = error.message.toLowerCase();
+        if (errorMessage.includes('401') || errorMessage.includes('unauthorized') || errorMessage.includes('api key')) {
+          toast.error('Неверный API ключ');
+        } else if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+          toast.error('Превышен лимит запросов к API');
+        } else {
+          toast.error(`Ошибка API: ${error.message.substring(0, 50)}`);
+        }
+      }
+      
       return false;
     }
   }
