@@ -17,8 +17,9 @@ export interface GPTServiceConfig {
 export const DEFAULT_CONFIG: GPTServiceConfig = {
   apiKey: null,
   responseStyle: 'casual',
-  // Using our own Vercel-deployed proxy service as default
-  serverProxyUrl: 'https://openai-proxy.vercel.app/api', 
+  // Using our Vercel-deployed proxy service as default
+  // This should be updated with your actual Vercel deployment URL after deployment
+  serverProxyUrl: 'https://your-vercel-app.vercel.app/api', 
   useServerProxy: true, // Using server proxy by default
   maxRetries: 3,
   timeoutMs: 60000,
@@ -28,8 +29,8 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
  * Available proxy servers
  */
 export const PROXY_SERVERS = {
-  // Our own Vercel-deployed proxy (will be created)
-  VERCEL_PROXY: 'https://openai-proxy.vercel.app/api',
+  // Your Vercel-deployed proxy (update with your actual URL after deployment)
+  VERCEL_PROXY: 'https://your-vercel-app.vercel.app/api',
   // Legacy proxy servers as fallbacks
   ALLORIGINS: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1',
   CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
