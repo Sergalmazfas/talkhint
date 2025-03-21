@@ -1,6 +1,11 @@
+
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
-import { GPTServiceConfig, PROXY_SERVERS } from "../config/GPTServiceConfig";
+import { GPTServiceConfig } from "../config/GPTServiceConfig";
+import { RequestUtilities } from "./GPTRequestUtilities";
+import { DirectRequestHandler } from "./GPTDirectRequestHandler";
+import { ProxyRequestHandler } from "./GPTProxyRequestHandler";
+import { GPTClientFactory } from "./GPTClientFactory";
 
 /**
  * Service to handle OpenAI API requests
@@ -29,19 +34,21 @@ export class GPTRequestService {
     if (this.config.apiKey && this.config.apiKey.trim() !== '') {
       try {
         // Validate API key format to catch obvious errors
-        if (!this.isValidApiKeyFormat(this.config.apiKey)) {
+        if (!RequestUtilities.isValidApiKeyFormat(this.config.apiKey)) {
           GPTLogger.warn(undefined, 'API key has invalid format - should start with "sk-"');
           console.warn('[API_KEY_DEBUG] API key has invalid format:', this.config.apiKey.substring(0, 3) + '...');
           this.openaiClient = null;
           return;
         }
         
-        this.openaiClient = new OpenAI({
-          apiKey: this.config.apiKey,
-          dangerouslyAllowBrowser: true, // Required for client-side usage
-        });
-        GPTLogger.log(undefined, 'OpenAI client initialized');
-        console.log('[API_KEY_DEBUG] OpenAI client initialized with key:', this.config.apiKey.substring(0, 5) + '...' + this.config.apiKey.slice(-5));
+        this.openaiClient = GPTClientFactory.createClient(this.config);
+        
+        if (this.openaiClient) {
+          GPTLogger.log(undefined, 'OpenAI client initialized');
+          console.log('[API_KEY_DEBUG] OpenAI client initialized with key:', this.config.apiKey.substring(0, 5) + '...' + this.config.apiKey.slice(-5));
+        } else {
+          GPTLogger.error(undefined, 'Failed to create OpenAI client');
+        }
       } catch (error) {
         GPTLogger.error(undefined, 'Failed to initialize OpenAI client:', error);
         console.error('[API_KEY_DEBUG] Failed to initialize OpenAI client:', error);
@@ -52,15 +59,6 @@ export class GPTRequestService {
       GPTLogger.log(undefined, 'OpenAI client not initialized: missing API key');
       console.warn('[API_KEY_DEBUG] OpenAI client not initialized: missing API key');
     }
-  }
-
-  /**
-   * Basic validation of API key format
-   */
-  private isValidApiKeyFormat(apiKey: string): boolean {
-    const isValid = apiKey.trim().startsWith('sk-') && apiKey.trim().length > 20;
-    console.log('[API_KEY_DEBUG] API key format validation:', isValid);
-    return isValid;
   }
 
   /**
@@ -83,7 +81,7 @@ export class GPTRequestService {
         throw new Error(errorMsg);
       } 
       
-      if (!this.isValidApiKeyFormat(this.config.apiKey)) {
+      if (!RequestUtilities.isValidApiKeyFormat(this.config.apiKey)) {
         const errorMsg = 'Invalid API key format. API key should start with "sk-"';
         GPTLogger.error(requestId, errorMsg);
         throw new Error(errorMsg);
@@ -120,10 +118,18 @@ export class GPTRequestService {
         
         if (this.config.useServerProxy) {
           // Using Vercel proxy server
-          response = await this.makeProxyRequest(requestId, requestPayload);
+          response = await ProxyRequestHandler.makeProxyRequest(this.config, requestId, requestPayload);
         } else {
           // Direct API access with OpenAI SDK
-          response = await this.makeDirectOpenAIRequest(requestId, messages, temperature, maxTokens, n);
+          response = await DirectRequestHandler.makeDirectOpenAIRequest(
+            this.openaiClient, 
+            this.config, 
+            requestId, 
+            messages, 
+            temperature, 
+            maxTokens, 
+            n
+          );
         }
 
         const endTime = Date.now();
@@ -145,7 +151,7 @@ export class GPTRequestService {
           GPTLogger.warn(requestId, `Request timed out after ${this.config.timeoutMs}ms`);
           
           if (currentRetry < this.config.maxRetries) {
-            await this.backoff(requestId, currentRetry);
+            await RequestUtilities.backoff(requestId, currentRetry);
             currentRetry++;
             continue;
           }
@@ -153,7 +159,7 @@ export class GPTRequestService {
         
         // For other errors, retry if possible
         if (currentRetry < this.config.maxRetries) {
-          await this.backoff(requestId, currentRetry);
+          await RequestUtilities.backoff(requestId, currentRetry);
           currentRetry++;
           continue;
         }
@@ -169,245 +175,6 @@ export class GPTRequestService {
    * Make a simple chat request to the server
    */
   public async makeSimpleChatRequest(message: string): Promise<any> {
-    const requestId = Date.now().toString(36);
-    GPTLogger.log(requestId, `Making simple chat request with message: ${message.substring(0, 30)}...`);
-    
-    try {
-      // Properly construct the URL with domain and path
-      const baseUrl = this.ensureValidUrl(this.config.serverProxyUrl);
-      const chatUrl = this.ensureEndpoint(baseUrl, '/chat');
-      
-      GPTLogger.log(requestId, `Using chat URL: ${chatUrl}`);
-      console.log('[API_KEY_DEBUG] Making simple chat request to URL:', chatUrl);
-      
-      const response = await fetch(chatUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin,
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ message }),
-        mode: 'cors', // Explicitly set CORS mode
-        credentials: 'omit' // Don't send cookies for cross-origin requests
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[API_KEY_DEBUG] Chat API error:', response.status, errorText);
-        throw new Error(`Chat API error (${response.status}): ${errorText}`);
-      }
-      
-      const data = await response.json();
-      GPTLogger.log(requestId, 'Chat response received successfully');
-      return data;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      GPTLogger.error(requestId, 'Error in makeSimpleChatRequest:', errorMessage);
-      console.error('[API_KEY_DEBUG] Error in makeSimpleChatRequest:', errorMessage);
-      
-      // Fallback to a mock response if the server is unavailable
-      GPTLogger.log(requestId, 'Returning mock response as fallback');
-      console.warn('[API_KEY_DEBUG] Returning mock response as fallback due to error');
-      return {
-        success: true,
-        received: message,
-        response: `Mock response for: "${message}" (server unavailable)`,
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
-  /**
-   * Make a proxy request using the server proxy service
-   */
-  private async makeProxyRequest(requestId: string, requestPayload: any): Promise<any> {
-    GPTLogger.log(requestId, `Making request via server proxy: ${this.config.serverProxyUrl}`);
-    console.log('[API_KEY_DEBUG] Making proxy request to:', this.config.serverProxyUrl);
-    
-    // Create a controller for timeout handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      GPTLogger.log(requestId, `Request timed out after ${this.config.timeoutMs}ms`);
-      controller.abort();
-    }, this.config.timeoutMs);
-    
-    try {
-      // Properly construct the API URL
-      const baseUrl = this.ensureValidUrl(this.config.serverProxyUrl);
-      
-      // When using our own server/proxy, we should send requests to the /openai/chat/completions endpoint
-      const apiUrl = this.ensureEndpoint(baseUrl, '/openai/chat/completions');
-      
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Origin': window.location.origin,
-        'Accept': 'application/json'
-      };
-      
-      // Only add Authorization header if API key is set, valid, and not empty
-      // When using our own server, this is optional as the server should use its own API key
-      if (this.config.apiKey && this.config.apiKey.trim() !== '') {
-        headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-        GPTLogger.log(requestId, 'Using provided API key for authorization');
-        console.log('[API_KEY_DEBUG] Using provided API key in proxy request:', this.config.apiKey.substring(0, 5) + '...' + this.config.apiKey.slice(-5));
-      } else {
-        // When using our own proxy, we'll let the server use its own API key
-        GPTLogger.log(requestId, 'No API key provided in request, server should use its own API key');
-        console.log('[API_KEY_DEBUG] No API key provided for proxy request - server should use its own key');
-      }
-      
-      GPTLogger.log(requestId, `Constructed request URL: ${apiUrl}`);
-      GPTLogger.log(requestId, `Request headers: ${JSON.stringify(headers, (key, value) => 
-        key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value)}`);
-      
-      console.log('[API_KEY_DEBUG] Constructed request URL:', apiUrl);
-      console.log('[API_KEY_DEBUG] Request payload:', JSON.stringify(requestPayload).substring(0, 200) + '...');
-      console.log('[API_KEY_DEBUG] Request headers:', JSON.stringify(headers, (key, value) => 
-        key === 'Authorization' ? (value ? 'Bearer [KEY SET]' : value) : value));
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
-        mode: 'cors',
-        credentials: 'include'  // Include credentials when using our own server
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        let errorMessage = `API error: ${response.status}`;
-        let errorDetails = '';
-        
-        try {
-          const errorData = await response.json();
-          errorDetails = JSON.stringify(errorData);
-          console.error('[API_KEY_DEBUG] Server error response:', errorData);
-        } catch (e) {
-          const errorText = await response.text();
-          errorDetails = errorText;
-          console.error('[API_KEY_DEBUG] Server error text:', errorText);
-        }
-        
-        errorMessage += ` ${errorDetails}`;
-        GPTLogger.error(requestId, errorMessage);
-        throw new Error(errorMessage);
-      }
-      
-      const data = await response.json();
-      GPTLogger.log(requestId, 'API response received successfully');
-      console.log('[API_KEY_DEBUG] Proxy request successful with response');
-      return data;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      console.error('[API_KEY_DEBUG] Error in makeProxyRequest:', error instanceof Error ? error.message : String(error));
-      throw error;
-    }
-  }
-
-  /**
-   * Make a direct request to OpenAI API using the SDK
-   */
-  private async makeDirectOpenAIRequest(
-    requestId: string, 
-    messages: any[], 
-    temperature: number, 
-    maxTokens: number, 
-    n: number
-  ): Promise<any> {
-    GPTLogger.log(requestId, 'Sending request using OpenAI SDK');
-    
-    if (!this.openaiClient) {
-      this.initializeOpenAIClient();
-      if (!this.openaiClient) {
-        throw new Error('Failed to initialize OpenAI client');
-      }
-    }
-    
-    // Create a controller for timeout handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      GPTLogger.log(requestId, `Request timed out after ${this.config.timeoutMs}ms`);
-      controller.abort();
-    }, this.config.timeoutMs);
-    
-    try {
-      // Using the OpenAI SDK
-      const completion = await this.openaiClient.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: messages.map(msg => ({
-          role: msg.role,
-          content: msg.content
-        })),
-        temperature: temperature,
-        max_tokens: maxTokens,
-        n: n
-      }, {
-        signal: controller.signal as AbortSignal
-      });
-      
-      clearTimeout(timeoutId);
-
-      // Transform the response to match the expected format
-      return {
-        id: completion.id,
-        choices: completion.choices.map(choice => ({
-          message: {
-            role: choice.message.role,
-            content: choice.message.content
-          },
-          index: choice.index,
-          finish_reason: choice.finish_reason
-        }))
-      };
-    } catch (error) {
-      clearTimeout(timeoutId);
-      throw error;
-    }
-  }
-
-  /**
-   * Helper method to ensure URL is valid
-   */
-  private ensureValidUrl(url: string): string {
-    // If URL doesn't start with http(s), assume https
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      return `https://${url}`;
-    }
-    return url;
-  }
-
-  /**
-   * Helper method to ensure endpoint path is correctly appended
-   */
-  private ensureEndpoint(baseUrl: string, endpoint: string): string {
-    // Remove trailing slash from base URL if any
-    const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    
-    // Ensure endpoint starts with slash
-    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    
-    // Check if endpoint is already in the URL
-    if (cleanBaseUrl.endsWith(cleanEndpoint)) {
-      return cleanBaseUrl;
-    }
-    
-    // Check if we need to add /api before the endpoint
-    if (!cleanBaseUrl.endsWith('/api') && !cleanEndpoint.startsWith('/api/')) {
-      return `${cleanBaseUrl}/api${cleanEndpoint}`;
-    }
-    
-    return `${cleanBaseUrl}${cleanEndpoint}`;
-  }
-
-  /**
-   * Implement exponential backoff for retries
-   */
-  private async backoff(requestId: string, retryCount: number): Promise<void> {
-    const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 10000);
-    GPTLogger.log(requestId, `Backing off for ${backoffTime}ms before retry`);
-    await new Promise(resolve => setTimeout(resolve, backoffTime));
+    return ProxyRequestHandler.makeSimpleChatRequest(this.config, message);
   }
 }
