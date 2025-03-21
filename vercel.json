@@ -6,7 +6,8 @@
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["dist/**"]
+        "includeFiles": ["dist/**"],
+        "nodeVersion": "18.x"
       }
     },
     {
