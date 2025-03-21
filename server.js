@@ -64,7 +64,7 @@ app.use(cors({
 // Handle preflight OPTIONS requests
 app.options('*', cors());
 
-// Add security headers with comprehensive CSP configuration
+// Add security headers
 app.use((req, res, next) => {
     // Configure Content-Security-Policy to allow necessary resources including lovable.dev
     res.setHeader('Content-Security-Policy', 
@@ -146,33 +146,43 @@ app.post("/api/openai/chat/completions", async (req, res) => {
         const authHeader = req.headers.authorization;
         let apiKey = process.env.OPENAI_API_KEY || '';
         
+        // Detailed logging of API key source and format (FOR DEBUGGING ONLY - REMOVE IN PRODUCTION!)
+        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Auth header exists: ${!!authHeader}`);
+        if (authHeader) {
+            console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Auth header format: ${authHeader.substring(0, 7)}...`);
+        }
+        
+        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Environment API key exists: ${!!process.env.OPENAI_API_KEY}`);
+        if (process.env.OPENAI_API_KEY) {
+            console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Environment API key format: ${process.env.OPENAI_API_KEY.substring(0, 5)}...${process.env.OPENAI_API_KEY.slice(-5)}`);
+        }
+        
+        // Process API key from header if available
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const headerKey = authHeader.substring(7); // Remove 'Bearer ' prefix
-            // Only use header key if it's not empty
+            // Only use header key if it's not empty and valid format
             if (headerKey && headerKey.trim() !== 'null' && headerKey !== 'undefined') {
-                apiKey = headerKey;
-                console.log(`[${new Date().toISOString()}] Using API key from request header: ${headerKey.substring(0, 5)}...${headerKey.slice(-5)}`);
+                if (headerKey.trim().startsWith('sk-')) {
+                    apiKey = headerKey.trim();
+                    console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Using valid API key from request header: ${apiKey.substring(0, 5)}...${apiKey.slice(-5)}`);
+                } else {
+                    console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Invalid API key format in header: "${headerKey.substring(0, 3)}..."`);
+                }
             } else {
-                console.log(`[${new Date().toISOString()}] Invalid API key in header: "${headerKey}"`);
+                console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Invalid API key in header: "${headerKey}"`);
             }
         } else {
-            console.log(`[${new Date().toISOString()}] No API key in Authorization header`);
+            console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] No API key in Authorization header or invalid format`);
         }
         
-        // Check for environment variable API key
-        if (process.env.OPENAI_API_KEY) {
-            console.log(`[${new Date().toISOString()}] Found API key in environment variables`);
-        } else {
-            console.log(`[${new Date().toISOString()}] No API key in environment variables`);
-        }
+        // Detailed request logging
+        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Request headers:`, JSON.stringify(req.headers, null, 2));
+        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Request body model:`, req.body.model);
+        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Request body message count:`, req.body.messages?.length || 0);
         
-        // Log complete request details for debugging
-        console.log(`[${new Date().toISOString()}] Request headers:`, req.headers);
-        console.log(`[${new Date().toISOString()}] Request body model:`, req.body.model);
-        console.log(`[${new Date().toISOString()}] Request body message count:`, req.body.messages?.length || 0);
-        
+        // Validate API key
         if (!apiKey || apiKey.trim() === '') {
-            console.error(`[${new Date().toISOString()}] API key missing in request and environment`);
+            console.error(`[${new Date().toISOString()}] [API_KEY_DEBUG] API key missing in request and environment`);
             return res.status(401).json({ 
                 error: "API key is required", 
                 message: "No valid API key provided in request or server environment",
@@ -181,12 +191,19 @@ app.post("/api/openai/chat/completions", async (req, res) => {
             });
         }
         
-        // Log full API key for debugging (WARNING: Only for debugging)
-        console.log(`[${new Date().toISOString()}] Full API key (for debugging only):`, apiKey);
+        if (!apiKey.trim().startsWith('sk-')) {
+            console.error(`[${new Date().toISOString()}] [API_KEY_DEBUG] Invalid API key format: ${apiKey.substring(0, 3)}...`);
+            return res.status(401).json({
+                error: "Invalid API key format",
+                message: "API key must start with 'sk-'",
+                timestamp: new Date().toISOString()
+            });
+        }
         
-        console.log(`[${new Date().toISOString()}] Proxying request to OpenAI API with valid API key`);
+        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Proxying request to OpenAI API with valid API key: ${apiKey.substring(0, 5)}...${apiKey.slice(-5)}`);
         console.log(`[${new Date().toISOString()}] Origin: ${req.headers.origin || 'unknown'}`);
         
+        // Make request to OpenAI API
         const response = await axios.post(
             "https://api.openai.com/v1/chat/completions",
             req.body,
@@ -201,8 +218,8 @@ app.post("/api/openai/chat/completions", async (req, res) => {
         
         console.log(`[${new Date().toISOString()}] OpenAI API response received successfully`);
         console.log(`[${new Date().toISOString()}] Response status:`, response.status);
-        console.log(`[${new Date().toISOString()}] Response headers:`, response.headers);
-        console.log(`[${new Date().toISOString()}] Response data:`, response.data);
+        console.log(`[${new Date().toISOString()}] Response headers:`, JSON.stringify(response.headers, null, 2));
+        console.log(`[${new Date().toISOString()}] Response data:`, JSON.stringify(response.data, null, 2));
         
         res.json(response.data);
     } catch (error) {

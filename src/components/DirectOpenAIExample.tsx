@@ -4,10 +4,11 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { AlertCircle, Info, Loader2 } from 'lucide-react';
+import { AlertCircle, Info, Loader2, Shield } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
+import { isValidApiKey } from '@/services/gpt/config/GPTServiceConfig';
 
 const DirectOpenAIExample = () => {
   const [prompt, setPrompt] = useState<string>('Write a one-sentence bedtime story about a unicorn.');
@@ -16,15 +17,22 @@ const DirectOpenAIExample = () => {
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<'client' | 'vercel' | 'chat'>('vercel');
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
+  const [apiKeyValid, setApiKeyValid] = useState<boolean>(false);
 
   useEffect(() => {
     // Check if API key is set when component mounts or method changes
     const checkApiKey = () => {
-      const hasApiKey = !!GPTService.getApiKey();
+      const apiKey = GPTService.getApiKey();
+      const hasApiKey = !!apiKey;
       setApiKeySet(hasApiKey);
+      
+      // Also check if the API key is valid format
+      setApiKeyValid(hasApiKey && isValidApiKey(apiKey));
       
       if (!hasApiKey && method !== 'chat') {
         setError('API key is not set. Please configure it in the Settings panel.');
+      } else if (hasApiKey && !isValidApiKey(apiKey) && method !== 'chat') {
+        setError('API key is invalid format. It should start with "sk-"');
       } else {
         setError(null);
       }
@@ -51,6 +59,14 @@ const DirectOpenAIExample = () => {
           throw new Error('OpenAI client not available. Please set your API key in Settings.');
         }
 
+        // API key validation
+        const apiKey = GPTService.getApiKey();
+        if (!apiKey || !isValidApiKey(apiKey)) {
+          throw new Error('Invalid API key format. Key should start with "sk-"');
+        }
+
+        console.log('Making direct request to OpenAI with client');
+        
         const completion = await client.chat.completions.create({
           model: "gpt-4o-mini", // Using smaller model for efficiency
           messages: [{
@@ -67,7 +83,7 @@ const DirectOpenAIExample = () => {
         const proxyUrl = GPTService.getServerProxyUrl();
         const apiKey = GPTService.getApiKey();
         
-        if (!apiKey && !method.includes('chat')) {
+        if (!apiKey && !method.includes('chat') && !GPTService.getUseServerProxy()) {
           throw new Error('API key is required for this method. Please set it in Settings.');
         }
         
@@ -79,7 +95,11 @@ const DirectOpenAIExample = () => {
         
         // Only add Authorization header if API key is set and not empty
         if (apiKey && apiKey.trim() !== '') {
+          if (!isValidApiKey(apiKey)) {
+            throw new Error('Invalid API key format. Key should start with "sk-"');
+          }
           headers['Authorization'] = `Bearer ${apiKey}`;
+          console.log('Using API key in request:', apiKey.substring(0, 5) + '...' + apiKey.slice(-5));
         } else {
           console.warn('No API key provided for request');
         }
@@ -143,6 +163,16 @@ const DirectOpenAIExample = () => {
           </Alert>
         )}
         
+        {apiKeySet && !apiKeyValid && method !== 'chat' && (
+          <Alert variant="destructive">
+            <Shield className="h-4 w-4" />
+            <AlertTitle>Invalid API Key Format</AlertTitle>
+            <AlertDescription>
+              Your API key has an invalid format. It should start with "sk-" and be at least 32 characters long.
+            </AlertDescription>
+          </Alert>
+        )}
+        
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -199,7 +229,7 @@ const DirectOpenAIExample = () => {
       <CardFooter>
         <Button 
           onClick={handleSubmit} 
-          disabled={loading || !prompt.trim() || (!apiKeySet && method !== 'chat')}
+          disabled={loading || !prompt.trim() || (!apiKeySet && method !== 'chat') || (apiKeySet && !apiKeyValid && method !== 'chat')}
           className="w-full"
         >
           {loading ? (

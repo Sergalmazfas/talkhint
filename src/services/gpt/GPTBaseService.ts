@@ -10,7 +10,10 @@ import {
   loadResponseStyleFromStorage,
   saveResponseStyleToStorage,
   loadServerProxyUrlFromStorage,
-  saveServerProxyUrlToStorage
+  saveServerProxyUrlToStorage,
+  loadDebugModeFromStorage,
+  saveDebugModeToStorage,
+  isValidApiKey
 } from './config/GPTServiceConfig';
 import { GPTRequestService } from './utils/GPTRequestService';
 import { GPTLogger } from './utils/GPTLogger';
@@ -45,8 +48,13 @@ class GPTBaseService {
     // Load API key
     const storedKey = loadApiKeyFromStorage();
     if (storedKey) {
-      this.config.apiKey = storedKey;
-      GPTLogger.log(undefined, 'API key loaded from storage');
+      if (isValidApiKey(storedKey)) {
+        this.config.apiKey = storedKey;
+        GPTLogger.log(undefined, `API key loaded from storage: ${storedKey.substring(0, 5)}...${storedKey.slice(-5)}`);
+      } else {
+        GPTLogger.warn(undefined, `Invalid API key format found in storage: ${storedKey.substring(0, 3)}...`);
+        this.config.apiKey = null;
+      }
     } else {
       this.config.apiKey = null;
       GPTLogger.log(undefined, 'No API key found in storage');
@@ -72,6 +80,13 @@ class GPTBaseService {
       this.config.responseStyle = responseStyle;
       GPTLogger.log(undefined, `Response style loaded from storage: ${responseStyle}`);
     }
+    
+    // Load debug mode
+    const debugMode = loadDebugModeFromStorage();
+    if (debugMode !== null) {
+      this.config.debugMode = debugMode;
+      GPTLogger.log(undefined, `Debug mode loaded from storage: ${debugMode}`);
+    }
   }
 
   /**
@@ -79,9 +94,13 @@ class GPTBaseService {
    */
   private logConfiguration(): void {
     GPTLogger.log(undefined, `API key status: ${this.config.apiKey ? 'Set' : 'Not set'}`);
+    if (this.config.apiKey) {
+      GPTLogger.log(undefined, `API key format: ${this.config.apiKey.substring(0, 5)}...${this.config.apiKey.slice(-5)}`);
+    }
     GPTLogger.log(undefined, `Server proxy usage: ${this.config.useServerProxy}`);
     GPTLogger.log(undefined, `Response style: ${this.config.responseStyle}`);
     GPTLogger.log(undefined, `Server proxy URL: ${this.config.serverProxyUrl}`);
+    GPTLogger.log(undefined, `Debug mode: ${this.config.debugMode}`);
   }
 
   /**
@@ -93,31 +112,28 @@ class GPTBaseService {
   }
 
   /**
-   * Validate API key format
+   * Set the API key and validate its format
    */
-  private isValidApiKeyFormat(key: string): boolean {
-    return key && key.trim().startsWith('sk-') && key.trim().length > 20;
-  }
-
-  public setApiKey(key: string) {
+  public setApiKey(key: string): boolean {
     if (!key || key.trim() === '') {
       GPTLogger.warn(undefined, 'Attempted to set empty API key');
       toast.warning('API ключ не может быть пустым');
-      return;
+      return false;
     }
     
     // Validate key format
-    if (!this.isValidApiKeyFormat(key)) {
-      GPTLogger.warn(undefined, 'Invalid API key format. API key should start with "sk-"');
+    if (!isValidApiKey(key)) {
+      GPTLogger.warn(undefined, `Invalid API key format: ${key.substring(0, 3)}...`);
       toast.error('Неверный формат API ключа. Ключ должен начинаться с "sk-"');
-      return;
+      return false;
     }
     
-    this.config.apiKey = key;
-    saveApiKeyToStorage(key);
+    this.config.apiKey = key.trim();
+    saveApiKeyToStorage(key.trim());
     this.requestService.updateConfig(this.config);
-    GPTLogger.log(undefined, 'API key set and saved to storage');
+    GPTLogger.log(undefined, `API key set and saved to storage: ${key.substring(0, 5)}...${key.slice(-5)}`);
     toast.success('API ключ успешно сохранен');
+    return true;
   }
 
   public getApiKey(): string | null {
@@ -169,6 +185,22 @@ class GPTBaseService {
   public getServerProxyUrl(): string {
     return this.config.serverProxyUrl;
   }
+  
+  /**
+   * Set debug mode
+   */
+  public setDebugMode(enabled: boolean) {
+    this.config.debugMode = enabled;
+    saveDebugModeToStorage(enabled);
+    GPTLogger.log(undefined, `Debug mode set to: ${enabled}`);
+  }
+  
+  /**
+   * Get debug mode setting
+   */
+  public getDebugMode(): boolean {
+    return this.config.debugMode;
+  }
 
   /**
    * Send a simple message to the chat API on lovable.dev
@@ -200,7 +232,7 @@ class GPTBaseService {
     }
     
     // Validate API key format
-    if (!this.isValidApiKeyFormat(this.config.apiKey)) {
+    if (!isValidApiKey(this.config.apiKey)) {
       GPTLogger.error(undefined, 'Cannot check API connection: API key format is invalid');
       toast.error('Неверный формат API ключа');
       return false;
