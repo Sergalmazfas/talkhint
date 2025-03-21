@@ -30,10 +30,7 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
 export const PROXY_SERVERS = {
   // Primary Vercel proxy - this should match your actual deployment
   VERCEL_PROXY: 'https://talkhint-sergs-projects-149ff317.vercel.app/api',
-  // Legacy proxy servers as fallbacks
-  ALLORIGINS: 'https://api.allorigins.win/raw?url=https://api.openai.com/v1',
-  CORSPROXY: 'https://corsproxy.io/?https://api.openai.com/v1',
-  THINGPROXY: 'https://thingproxy.freeboard.io/fetch/https://api.openai.com/v1',
+  // Direct OpenAI API (only used when API key is provided)
   DIRECT: 'https://api.openai.com/v1',
 };
 

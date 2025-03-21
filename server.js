@@ -26,7 +26,7 @@ app.get("/api", (req, res) => {
     });
 });
 
-// New simple chat endpoint with better error handling
+// Simple chat endpoint with better error handling
 app.post("/api/chat", (req, res) => {
     try {
         const { message } = req.body;

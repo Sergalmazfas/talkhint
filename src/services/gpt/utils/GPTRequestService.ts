@@ -1,4 +1,3 @@
-
 import OpenAI from "openai";
 import { GPTLogger } from "./GPTLogger";
 import { GPTServiceConfig, PROXY_SERVERS } from "../config/GPTServiceConfig";
@@ -86,19 +85,8 @@ export class GPTRequestService {
       if (currentRetry > 0) {
         GPTLogger.log(requestId, `Retry attempt ${currentRetry}/${this.config.maxRetries}`);
         
-        // If we've had multiple failures with one proxy, try another one
-        if (currentRetry >= 2 && this.config.useServerProxy) {
-          // Get a list of available proxies
-          const proxyOptions = Object.values(PROXY_SERVERS);
-          const currentIndex = proxyOptions.indexOf(this.config.serverProxyUrl);
-          const nextIndex = (currentIndex + 1) % proxyOptions.length;
-          const newProxyUrl = proxyOptions[nextIndex];
-          
-          if (newProxyUrl !== this.config.serverProxyUrl) {
-            GPTLogger.log(requestId, `Switching to alternative proxy: ${newProxyUrl}`);
-            this.config.serverProxyUrl = newProxyUrl;
-          }
-        }
+        // We no longer switch between multiple proxies since CORS Anywhere was removed
+        // Just use the Vercel proxy
       }
       
       const startTime = Date.now();
@@ -106,7 +94,7 @@ export class GPTRequestService {
         let response;
         
         if (this.config.useServerProxy) {
-          // Using proxy server
+          // Using Vercel proxy server
           response = await this.makeProxyRequest(requestId, requestPayload);
         } else {
           // Direct API access with OpenAI SDK
@@ -157,10 +145,8 @@ export class GPTRequestService {
     try {
       // Construct the chat URL correctly from the server proxy URL
       const serverUrl = this.config.serverProxyUrl;
-      // Make sure we don't append /chat to an already complete URL
-      const chatUrl = serverUrl.endsWith('/chat') 
-        ? serverUrl 
-        : `${serverUrl}/chat`;
+      // Make sure we add /chat to the URL
+      const chatUrl = `${serverUrl}/chat`;
       
       GPTLogger.log(requestId, `Using chat URL: ${chatUrl}`);
       
@@ -196,10 +182,10 @@ export class GPTRequestService {
   }
 
   /**
-   * Make a request using the proxy service
+   * Make a request using the Vercel proxy service
    */
   private async makeProxyRequest(requestId: string, requestPayload: any): Promise<any> {
-    GPTLogger.log(requestId, `Making request via proxy: ${this.config.serverProxyUrl}`);
+    GPTLogger.log(requestId, `Making request via Vercel proxy: ${this.config.serverProxyUrl}`);
     
     // Create a controller for timeout handling
     const controller = new AbortController();
@@ -207,36 +193,18 @@ export class GPTRequestService {
       GPTLogger.log(requestId, `Request timed out after ${this.config.timeoutMs}ms`);
       controller.abort();
     }, this.config.timeoutMs);
-
-    // Different proxies have different URL patterns
-    const isAllOrigins = this.config.serverProxyUrl.includes('allorigins');
-    const isCorsproxy = this.config.serverProxyUrl.includes('corsproxy.io');
-    const isThingproxy = this.config.serverProxyUrl.includes('thingproxy');
     
     try {
-      let url;
-      let headers: Record<string, string> = {
+      // For our Vercel proxy, use the openai endpoint
+      const url = `${this.config.serverProxyUrl}/openai/chat/completions`;
+      
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
       
       // Add API key to headers if available
       if (this.config.apiKey) {
         headers['Authorization'] = `Bearer ${this.config.apiKey}`;
-      }
-      
-      // Different URL construction based on proxy type
-      if (isAllOrigins) {
-        // For allorigins, the target is already in the URL
-        url = `${this.config.serverProxyUrl}/chat/completions`;
-      } else if (isCorsproxy) {
-        // For corsproxy.io, the target is already in the URL
-        url = `${this.config.serverProxyUrl}/chat/completions`;
-      } else if (isThingproxy) {
-        // For thingproxy, the target is already in the URL
-        url = `${this.config.serverProxyUrl}/chat/completions`;
-      } else {
-        // For our Vercel proxy, use the openai endpoint
-        url = `${this.config.serverProxyUrl}/openai/chat/completions`;
       }
       
       GPTLogger.log(requestId, `Constructed request URL: ${url}`);

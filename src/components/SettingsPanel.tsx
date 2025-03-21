@@ -144,7 +144,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label htmlFor="useProxy" className="text-sm text-foreground/80">
-                  Использовать CORS Anywhere прокси
+                  Использовать Vercel прокси
                 </Label>
                 <Switch
                   id="useProxy"
@@ -154,7 +154,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
               <p className="text-xs text-muted-foreground">
                 {useProxy 
-                  ? "Запросы отправляются через CORS Anywhere прокси, решающий проблемы с CORS" 
+                  ? "Запросы отправляются через Vercel прокси, решающий проблемы с CORS" 
                   : "Запросы отправляются напрямую с использованием вашего API ключа"}
               </p>
             </div>
@@ -173,7 +173,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               />
               <p className="text-xs text-muted-foreground">
                 {useProxy 
-                  ? "API ключ требуется для запросов через CORS Anywhere прокси" 
+                  ? "API ключ опционален при использовании Vercel прокси" 
                   : "API ключ обязателен для прямого подключения к OpenAI API"}
               </p>
             </div>
