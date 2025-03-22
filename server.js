@@ -1,3 +1,4 @@
+
 import cors from "cors";
 import express from "express";
 import axios from "axios";
@@ -116,6 +117,133 @@ app.get("/api", (req, res) => {
     });
 });
 
+// API key verification endpoint
+app.post("/api/verify-key", async (req, res) => {
+    try {
+        const { apiKey } = req.body;
+        
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "API key is required" 
+            });
+        }
+        
+        console.log(`[${new Date().toISOString()}] Verifying API key: ${apiKey.substring(0, 5)}...${apiKey.slice(-5)}`);
+        
+        // Verify the key with OpenAI
+        const response = await axios.get('https://api.openai.com/v1/models', {
+            headers: {
+                'Authorization': `Bearer ${apiKey}`
+            },
+            timeout: 10000
+        });
+        
+        if (response.status === 200) {
+            console.log(`[${new Date().toISOString()}] API key verification successful`);
+            
+            // Optionally save the verified key to environment variable
+            // Note: This will only persist for the current session unless using a proper env management system
+            process.env.OPENAI_API_KEY = apiKey;
+            
+            res.json({ 
+                success: true, 
+                message: "API key verification successful",
+                models: response.data.data.slice(0, 5).map(model => model.id) // Return first 5 models as proof
+            });
+        } else {
+            console.error(`[${new Date().toISOString()}] API key verification failed with status: ${response.status}`);
+            res.status(400).json({ 
+                success: false, 
+                message: "API key verification failed" 
+            });
+        }
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error verifying API key:`, error.message);
+        
+        // Provide more helpful error messages based on error type
+        let errorMessage = "Error verifying API key";
+        let statusCode = 500;
+        
+        if (error.response) {
+            statusCode = error.response.status;
+            if (error.response.status === 401) {
+                errorMessage = "Invalid API key";
+            } else if (error.response.status === 429) {
+                errorMessage = "Rate limit exceeded";
+            } else {
+                errorMessage = `OpenAI API error: ${error.response.status}`;
+            }
+        } else if (error.code === 'ECONNABORTED') {
+            errorMessage = "Request to OpenAI timed out";
+            statusCode = 504;
+        }
+        
+        res.status(statusCode).json({ 
+            success: false, 
+            message: errorMessage,
+            error: error.message
+        });
+    }
+});
+
+// API key saving endpoint
+app.post("/api/save-key", (req, res) => {
+    try {
+        const { apiKey } = req.body;
+        
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "API key is required" 
+            });
+        }
+        
+        if (!apiKey.startsWith('sk-') || apiKey.length < 30) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Invalid API key format" 
+            });
+        }
+        
+        console.log(`[${new Date().toISOString()}] Saving API key: ${apiKey.substring(0, 5)}...${apiKey.slice(-5)}`);
+        
+        // Save the key to environment variable
+        // Note: This will only persist for the current session
+        process.env.OPENAI_API_KEY = apiKey;
+        
+        res.json({ 
+            success: true, 
+            message: "API key saved successfully",
+            keyPrefix: apiKey.substring(0, 5),
+            keySuffix: apiKey.slice(-5)
+        });
+    } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error saving API key:`, error.message);
+        res.status(500).json({ 
+            success: false, 
+            message: "Error saving API key",
+            error: error.message
+        });
+    }
+});
+
+// API key status endpoint
+app.get("/api/key-status", (req, res) => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    const hasKey = !!apiKey;
+    
+    res.json({
+        hasKey,
+        keyInfo: hasKey ? {
+            prefix: apiKey.substring(0, 5),
+            suffix: apiKey.slice(-5),
+            length: apiKey.length
+        } : null,
+        timestamp: new Date().toISOString()
+    });
+});
+
 // Simple chat endpoint with better error handling
 app.post("/api/chat", (req, res) => {
     try {
@@ -177,7 +305,7 @@ app.post("/api/openai/chat/completions", async (req, res) => {
             return res.status(401).json({ 
                 error: "API key is required", 
                 message: "No valid API key provided in server environment or request",
-                details: "Please set OPENAI_API_KEY in your server environment variables",
+                details: "Please set OPENAI_API_KEY in your server environment variables or use the /api/save-key endpoint",
                 timestamp: new Date().toISOString()
             });
         }

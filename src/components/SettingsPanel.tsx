@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Slider } from '@/components/ui/slider';
@@ -8,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from '@/components/ui/dialog';
-import { QrCode, Share2, AlertTriangle, ShieldCheck, Info } from 'lucide-react';
+import { QrCode, Share2, AlertTriangle, ShieldCheck, Info, Loader2, Save, CheckCircle, XCircle } from 'lucide-react';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
 import ApiSettingsQRCode from './ApiSettingsQRCode';
@@ -38,7 +39,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [serverOnly, setServerOnly] = useState(true);
-  
+  const [serverKeyStatus, setServerKeyStatus] = useState<{hasKey: boolean, keyInfo?: any} | null>(null);
+  const [isSavingKeyToServer, setIsSavingKeyToServer] = useState(false);
+  const [isVerifyingKey, setIsVerifyingKey] = useState(false);
+  const [verifyKeyResult, setVerifyKeyResult] = useState<{success: boolean, message: string, models?: string[]} | null>(null);
+
   const validateApiKey = (key: string): boolean => {
     if (!key || key.trim() === '') return true; // Empty is allowed with proxy
     return key.trim().startsWith('sk-') && key.trim().length > 20;
@@ -69,6 +74,107 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     return defaultUrl;
   };
   
+  // Check server key status
+  const checkServerKeyStatus = async () => {
+    try {
+      const response = await fetch(`${serverUrl}/key-status`);
+      if (response.ok) {
+        const data = await response.json();
+        setServerKeyStatus(data);
+        if (data.hasKey) {
+          toast.success(`Ключ API найден на сервере: ${data.keyInfo.prefix}...${data.keyInfo.suffix}`);
+        } else {
+          toast.info('API ключ не найден на сервере');
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Error checking key status:', errorText);
+        setServerKeyStatus(null);
+        toast.error('Ошибка при проверке статуса ключа API на сервере');
+      }
+    } catch (error) {
+      console.error('Error checking server key status:', error);
+      setServerKeyStatus(null);
+      toast.error('Невозможно соединиться с сервером для проверки статуса ключа API');
+    }
+  };
+  
+  // Save API key to server
+  const saveKeyToServer = async () => {
+    if (!apiKey || !validateApiKey(apiKey)) {
+      toast.error('Неверный формат API ключа');
+      return;
+    }
+    
+    setIsSavingKeyToServer(true);
+    try {
+      const response = await fetch(`${serverUrl}/save-key`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          toast.success(`Ключ API успешно сохранен на сервере: ${data.keyPrefix}...${data.keySuffix}`);
+          // Refresh key status
+          checkServerKeyStatus();
+        } else {
+          toast.error(`Ошибка при сохранении ключа: ${data.message}`);
+        }
+      } else {
+        const errorData = await response.json();
+        toast.error(`Ошибка при сохранении ключа: ${errorData.message || 'Неизвестная ошибка'}`);
+      }
+    } catch (error) {
+      console.error('Error saving key to server:', error);
+      toast.error('Не удалось соединиться с сервером для сохранения ключа API');
+    } finally {
+      setIsSavingKeyToServer(false);
+    }
+  };
+  
+  // Verify API key with server
+  const verifyApiKey = async () => {
+    if (!apiKey || !validateApiKey(apiKey)) {
+      toast.error('Неверный формат API ключа');
+      return;
+    }
+    
+    setIsVerifyingKey(true);
+    setVerifyKeyResult(null);
+    try {
+      const response = await fetch(`${serverUrl}/verify-key`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey }),
+      });
+      
+      const data = await response.json();
+      setVerifyKeyResult(data);
+      
+      if (data.success) {
+        toast.success('API ключ успешно верифицирован!');
+      } else {
+        toast.error(`Проверка API ключа не удалась: ${data.message}`);
+      }
+    } catch (error) {
+      console.error('Error verifying API key:', error);
+      setVerifyKeyResult({
+        success: false,
+        message: error instanceof Error ? error.message : 'Неизвестная ошибка при проверке ключа'
+      });
+      toast.error('Не удалось соединиться с сервером для проверки ключа API');
+    } finally {
+      setIsVerifyingKey(false);
+    }
+  };
+  
   useEffect(() => {
     if (isOpen) {
       const currentKey = GPTService.getApiKey() || '';
@@ -84,6 +190,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         setServerUrl(currentServerUrl);
       }
       
+      // Check for API key on server
+      checkServerKeyStatus();
       checkApiConnection();
     }
   }, [isOpen]);
@@ -193,6 +301,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             className="w-full mb-6" 
             onClick={handleSave}
           >
+            <Save className="mr-2 h-4 w-4" />
             Сохранить
           </Button>
 
@@ -215,6 +324,112 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 Это более безопасный и рекомендуемый подход.
               </AlertDescription>
             </Alert>
+
+            {/* Server API Key Status */}
+            <div className="mt-2 p-4 bg-gray-50 rounded-lg border">
+              <h3 className="text-sm font-medium mb-2">Статус API ключа на сервере:</h3>
+              {serverKeyStatus ? (
+                <>
+                  {serverKeyStatus.hasKey ? (
+                    <div className="flex items-center text-green-700">
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      <p className="text-sm">
+                        Ключ установлен: {serverKeyStatus.keyInfo.prefix}...{serverKeyStatus.keyInfo.suffix}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center text-amber-700">
+                      <XCircle className="h-4 w-4 mr-2" />
+                      <p className="text-sm">Ключ не установлен на сервере</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-gray-500">Загрузка информации о ключе...</p>
+              )}
+              
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 w-full"
+                onClick={checkServerKeyStatus}
+              >
+                Проверить статус ключа
+              </Button>
+            </div>
+            
+            {/* Server Key Management */}
+            <div className="space-y-3 p-4 bg-gray-50 rounded-lg border">
+              <h3 className="text-sm font-medium">Управление API ключом на сервере</h3>
+              
+              <div className="space-y-3">
+                <Label htmlFor="apiKey" className="text-sm text-foreground/80">
+                  OpenAI API ключ
+                </Label>
+                <Input
+                  id="apiKey"
+                  type="text" 
+                  value={apiKey}
+                  onChange={handleApiKeyChange}
+                  placeholder="sk-..."
+                  className={apiKeyError ? "border-red-300" : ""}
+                />
+                {apiKeyError && (
+                  <p className="text-xs text-red-500">{apiKeyError}</p>
+                )}
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <Button 
+                    onClick={saveKeyToServer}
+                    disabled={isSavingKeyToServer || !validateApiKey(apiKey) || !apiKey.trim()}
+                    className="w-full"
+                  >
+                    {isSavingKeyToServer ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Сохранение...</>
+                    ) : (
+                      <>Сохранить на сервере</>
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    onClick={verifyApiKey}
+                    disabled={isVerifyingKey || !validateApiKey(apiKey) || !apiKey.trim()}
+                    className="w-full" 
+                    variant="outline"
+                  >
+                    {isVerifyingKey ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Проверка...</>
+                    ) : (
+                      <>Проверить ключ</>
+                    )}
+                  </Button>
+                </div>
+                
+                {verifyKeyResult && (
+                  <Alert variant={verifyKeyResult.success ? "default" : "destructive"} className={verifyKeyResult.success ? "bg-green-50 border-green-200" : ""}>
+                    <AlertDescription className="text-xs">
+                      {verifyKeyResult.success ? (
+                        <>
+                          ✅ API ключ верифицирован!
+                          {verifyKeyResult.models && (
+                            <div className="mt-1">
+                              <span className="font-semibold">Доступные модели:</span>
+                              <ul className="list-disc pl-5 mt-1">
+                                {verifyKeyResult.models.map((model, idx) => (
+                                  <li key={idx}>{model}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>❌ Ошибка проверки: {verifyKeyResult.message}</>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </div>
 
             <div className="space-y-3">
               <Label htmlFor="serverUrl" className="text-sm text-foreground/80">
