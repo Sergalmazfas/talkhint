@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Slider } from '@/components/ui/slider';
@@ -40,13 +39,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [serverOnly, setServerOnly] = useState(true);
   
-  // Validate API key format
   const validateApiKey = (key: string): boolean => {
     if (!key || key.trim() === '') return true; // Empty is allowed with proxy
     return key.trim().startsWith('sk-') && key.trim().length > 20;
   };
   
-  // Handle API key change with validation
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newKey = e.target.value;
     setApiKey(newKey);
@@ -58,7 +55,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   };
 
-  // Get default server URL based on environment
   const getDefaultServerUrl = () => {
     const hostname = window.location.hostname;
     if (hostname.includes('localhost')) {
@@ -67,14 +63,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     return window.location.origin + '/api';
   };
   
-  // Reset server URL to default
   const resetServerUrlToDefault = () => {
     const defaultUrl = getDefaultServerUrl();
     setServerUrl(defaultUrl);
     return defaultUrl;
   };
   
-  // Load settings when opening
   useEffect(() => {
     if (isOpen) {
       const currentKey = GPTService.getApiKey() || '';
@@ -83,7 +77,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       setServerOnly(true); // Always use server-only mode
       
       const currentServerUrl = GPTService.getServerProxyUrl();
-      // If the current URL is thingproxy, reset it to our default
       if (currentServerUrl.includes('thingproxy.freeboard.io')) {
         const defaultUrl = resetServerUrlToDefault();
         GPTService.setServerProxyUrl(defaultUrl);
@@ -95,7 +88,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     }
   }, [isOpen]);
   
-  // Update validation when proxy setting changes
   useEffect(() => {
     if (!useProxy && apiKey && !validateApiKey(apiKey)) {
       setApiKeyError('API ключ должен начинаться с "sk-" и быть достаточной длины');
@@ -133,43 +125,34 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const handleSave = () => {
-    // In server-only mode, force proxy to be enabled
     if (serverOnly) {
       GPTService.setUseServerProxy(true);
     } else {
-      // Validate API key if direct connection is used
       if (!useProxy && apiKey.trim() !== '' && !validateApiKey(apiKey)) {
         toast.error('Неверный формат API ключа. Ключ должен начинаться с "sk-"');
         return;
       }
       
-      // Update proxy settings
       GPTService.setUseServerProxy(useProxy);
     }
     
-    // Update server URL if provided
     if (serverUrl && serverUrl.trim() !== '') {
       GPTService.setServerProxyUrl(serverUrl.trim());
     } else {
-      // If empty, use the default URL
       const defaultUrl = resetServerUrlToDefault();
       GPTService.setServerProxyUrl(defaultUrl);
     }
     
-    // Set API key if provided and not in server-only mode
     if (!serverOnly && apiKey.trim()) {
       GPTService.setApiKey(apiKey.trim());
       toast.success('API ключ сохранен');
     } else if (!serverOnly && !useProxy) {
-      // Warn if no key is provided for direct connection
       toast.warning('API ключ необходим для прямых запросов к OpenAI');
     }
     
-    // Set response style
     GPTService.setResponseStyle(settings.responseStyle);
     toast.success('Настройки сохранены');
     
-    // Check connection with new settings
     checkApiConnection();
     
     onClose();
@@ -191,7 +174,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">Настройки</h2>
             <div className="flex">
               <Button variant="ghost" size="icon" onClick={() => setShowQRCodeDialog(true)} title="Поделиться настройками">
@@ -206,6 +189,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </div>
           </div>
 
+          <Button 
+            className="w-full mb-6" 
+            onClick={handleSave}
+          >
+            Сохранить
+          </Button>
+
           <div className="space-y-6">
             {connectionStatus !== null && (
               <Alert variant={connectionStatus ? "default" : "destructive"} className={connectionStatus ? "bg-green-50 border-green-200" : ""}>
@@ -217,7 +207,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </Alert>
             )}
             
-            {/* Server-only mode notice */}
             <Alert variant="default" className="bg-blue-50 border-blue-200">
               <ShieldCheck className="h-4 w-4 text-blue-500" />
               <AlertTitle>Серверный режим включен</AlertTitle>
@@ -304,15 +293,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               />
             </div>
           </div>
-        </div>
-        
-        <div className="p-4 border-t border-border">
-          <Button 
-            className="w-full" 
-            onClick={handleSave}
-          >
-            Сохранить
-          </Button>
         </div>
       </motion.div>
 
