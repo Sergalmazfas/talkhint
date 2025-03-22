@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogTitle, DialogHeader } from '@/components/ui/dialog';
-import { QrCode, Share2, AlertTriangle } from 'lucide-react';
+import { QrCode, Share2, AlertTriangle, ShieldCheck, Info } from 'lucide-react';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
 import ApiSettingsQRCode from './ApiSettingsQRCode';
@@ -38,6 +38,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null);
   const [showQRCodeDialog, setShowQRCodeDialog] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [serverOnly, setServerOnly] = useState(true);
   
   // Validate API key format
   const validateApiKey = (key: string): boolean => {
@@ -79,6 +80,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       const currentKey = GPTService.getApiKey() || '';
       setApiKey(currentKey);
       setUseProxy(GPTService.getUseServerProxy());
+      setServerOnly(true); // Always use server-only mode
       
       const currentServerUrl = GPTService.getServerProxyUrl();
       // If the current URL is thingproxy, reset it to our default
@@ -131,14 +133,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   const handleSave = () => {
-    // Validate API key if direct connection is used
-    if (!useProxy && apiKey.trim() !== '' && !validateApiKey(apiKey)) {
-      toast.error('Неверный формат API ключа. Ключ должен начинаться с "sk-"');
-      return;
+    // In server-only mode, force proxy to be enabled
+    if (serverOnly) {
+      GPTService.setUseServerProxy(true);
+    } else {
+      // Validate API key if direct connection is used
+      if (!useProxy && apiKey.trim() !== '' && !validateApiKey(apiKey)) {
+        toast.error('Неверный формат API ключа. Ключ должен начинаться с "sk-"');
+        return;
+      }
+      
+      // Update proxy settings
+      GPTService.setUseServerProxy(useProxy);
     }
-    
-    // Update proxy settings
-    GPTService.setUseServerProxy(useProxy);
     
     // Update server URL if provided
     if (serverUrl && serverUrl.trim() !== '') {
@@ -149,11 +156,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       GPTService.setServerProxyUrl(defaultUrl);
     }
     
-    // Set API key if provided
-    if (apiKey.trim()) {
+    // Set API key if provided and not in server-only mode
+    if (!serverOnly && apiKey.trim()) {
       GPTService.setApiKey(apiKey.trim());
       toast.success('API ключ сохранен');
-    } else if (!useProxy) {
+    } else if (!serverOnly && !useProxy) {
       // Warn if no key is provided for direct connection
       toast.warning('API ключ необходим для прямых запросов к OpenAI');
     }
@@ -209,92 +216,43 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </AlertDescription>
               </Alert>
             )}
+            
+            {/* Server-only mode notice */}
+            <Alert variant="default" className="bg-blue-50 border-blue-200">
+              <ShieldCheck className="h-4 w-4 text-blue-500" />
+              <AlertTitle>Серверный режим включен</AlertTitle>
+              <AlertDescription className="text-sm">
+                В этом режиме API ключ хранится только на сервере и не требуется вводить его в настройках приложения.
+                Это более безопасный и рекомендуемый подход.
+              </AlertDescription>
+            </Alert>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="useProxy" className="text-sm text-foreground/80">
-                  Использовать серверный прокси
-                </Label>
-                <Switch
-                  id="useProxy"
-                  checked={useProxy}
-                  onCheckedChange={setUseProxy}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {useProxy 
-                  ? "Запросы отправляются через ваш сервер, который использует свой API ключ" 
-                  : "Запросы отправляются напрямую с использованием вашего API ключа"}
-              </p>
-            </div>
-
-            {useProxy && (
-              <div className="space-y-3">
-                <Label htmlFor="serverUrl" className="text-sm text-foreground/80">
-                  URL сервера
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="serverUrl"
-                    type="text"
-                    value={serverUrl}
-                    onChange={(e) => setServerUrl(e.target.value)}
-                    placeholder={getDefaultServerUrl()}
-                    className="text-xs flex-1"
-                  />
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={resetServerUrlToDefault}
-                    title="Сбросить к значению по умолчанию"
-                  >
-                    Сбросить
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  URL вашего сервера (по умолчанию использует текущий домен)
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <Label htmlFor="apiKey" className="text-sm text-foreground/80">
-                OpenAI API Key {!useProxy && <span className="text-red-500">*</span>}
+              <Label htmlFor="serverUrl" className="text-sm text-foreground/80">
+                URL сервера
               </Label>
-              <Input
-                id="apiKey"
-                type="password"
-                value={apiKey}
-                onChange={handleApiKeyChange}
-                placeholder="sk-..."
-                className={`font-mono text-xs ${apiKeyError ? 'border-red-500' : ''}`}
-              />
-              {apiKeyError && (
-                <div className="flex items-start gap-2 mt-1 text-red-500 text-xs">
-                  <AlertTriangle size={14} className="mt-0.5" />
-                  <span>{apiKeyError}</span>
-                </div>
-              )}
+              <div className="flex gap-2">
+                <Input
+                  id="serverUrl"
+                  type="text"
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
+                  placeholder={getDefaultServerUrl()}
+                  className="text-xs flex-1"
+                />
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={resetServerUrlToDefault}
+                  title="Сбросить к значению по умолчанию"
+                >
+                  Сбросить
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
-                {useProxy 
-                  ? "API ключ опционален при использовании прокси-сервера (сервер использует собственный ключ)" 
-                  : "API ключ обязателен для прямого подключения к OpenAI API"}
+                URL вашего сервера (по умолчанию использует текущий домен)
               </p>
-              {!useProxy && (
-                <p className="text-xs text-amber-600">
-                  Ключ должен начинаться с "sk-" и иметь правильный формат
-                </p>
-              )}
             </div>
-
-            <Button 
-              onClick={checkApiConnection} 
-              variant="outline" 
-              className="w-full"
-              disabled={checkingConnection}
-            >
-              {checkingConnection ? "Проверка..." : "Проверить подключение"}
-            </Button>
 
             <div className="space-y-3">
               <Label htmlFor="sensitivity" className="text-sm text-foreground/80">
@@ -352,7 +310,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           <Button 
             className="w-full" 
             onClick={handleSave}
-            disabled={!useProxy && apiKeyError !== null}
           >
             Сохранить
           </Button>

@@ -1,4 +1,3 @@
-
 import { STORAGE_KEYS } from './GPTConfigTypes';
 import { isValidApiKey } from './GPTConfigValidation';
 import { GPTLogger } from '../utils/GPTLogger';
@@ -29,6 +28,12 @@ export function loadApiKeyFromStorage(): string | null {
  */
 export function saveApiKeyToStorage(key: string): void {
   try {
+    // If server-only mode is enabled, don't save the API key
+    if (loadServerOnlyModeFromStorage()) {
+      console.log('[API_KEY_DEBUG] Server-only mode is enabled, not saving API key to local storage');
+      return;
+    }
+    
     // Validate and clean key before saving
     const cleanKey = key.trim();
     
@@ -72,6 +77,12 @@ export function saveResponseStyleToStorage(style: string): void {
  */
 export function loadUseServerProxyFromStorage(): boolean | null {
   try {
+    // If server-only mode is enabled, always return true
+    if (loadServerOnlyModeFromStorage()) {
+      console.log('[API_KEY_DEBUG] Server-only mode is enabled, always using proxy');
+      return true;
+    }
+    
     const useProxy = localStorage.getItem(STORAGE_KEYS.USE_SERVER_PROXY);
     console.log('Loading proxy setting from storage:', useProxy);
     return useProxy === null ? null : useProxy === 'true';
@@ -86,6 +97,12 @@ export function loadUseServerProxyFromStorage(): boolean | null {
  */
 export function saveUseServerProxyToStorage(useProxy: boolean): void {
   try {
+    // If server-only mode is enabled and trying to disable proxy, don't allow it
+    if (loadServerOnlyModeFromStorage() && !useProxy) {
+      console.log('[API_KEY_DEBUG] Server-only mode is enabled, not allowing proxy to be disabled');
+      return;
+    }
+    
     console.log('Saving proxy setting to storage:', useProxy);
     localStorage.setItem(STORAGE_KEYS.USE_SERVER_PROXY, String(useProxy));
   } catch (error) {
@@ -140,5 +157,30 @@ export function saveDebugModeToStorage(debugMode: boolean): void {
     localStorage.setItem(STORAGE_KEYS.DEBUG_MODE, String(debugMode));
   } catch (error) {
     console.error('Error saving debug mode to storage:', error);
+  }
+}
+
+/**
+ * Load server-only mode setting from localStorage
+ */
+export function loadServerOnlyModeFromStorage(): boolean {
+  try {
+    const serverOnly = localStorage.getItem(STORAGE_KEYS.SERVER_ONLY);
+    // Default to true if not set
+    return serverOnly === null ? true : serverOnly === 'true';
+  } catch (error) {
+    console.error('Error loading server-only mode from storage:', error);
+    return true; // Default to true if error
+  }
+}
+
+/**
+ * Save server-only mode setting to localStorage
+ */
+export function saveServerOnlyModeToStorage(serverOnly: boolean): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.SERVER_ONLY, String(serverOnly));
+  } catch (error) {
+    console.error('Error saving server-only mode to storage:', error);
   }
 }

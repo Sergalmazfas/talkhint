@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { AlertCircle, Info, Loader2, Shield } from 'lucide-react';
+import { AlertCircle, Info, Loader2, Shield, ShieldCheck } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import GPTService from '@/services/gpt';
 import { toast } from 'sonner';
@@ -19,16 +19,26 @@ const DirectOpenAIExample = () => {
   const [apiKeySet, setApiKeySet] = useState<boolean>(false);
   const [apiKeyValid, setApiKeyValid] = useState<boolean>(false);
   const [serverUrl, setServerUrl] = useState<string>('');
+  const [serverOnly, setServerOnly] = useState<boolean>(true);
 
-  // Load server URL when component mounts
+  // Load server URL and mode when component mounts
   useEffect(() => {
     const url = GPTService.getServerProxyUrl();
     setServerUrl(url);
+    setServerOnly(true); // Always use server-only mode
   }, []);
 
   useEffect(() => {
     // Check if API key is set when component mounts or method changes
     const checkApiKey = () => {
+      // In server-only mode, we don't need to check for API key
+      if (serverOnly) {
+        setApiKeySet(true);
+        setApiKeyValid(true);
+        setError(null);
+        return;
+      }
+
       const apiKey = GPTService.getApiKey();
       const hasApiKey = !!apiKey;
       setApiKeySet(hasApiKey);
@@ -51,7 +61,7 @@ const DirectOpenAIExample = () => {
     };
     
     checkApiKey();
-  }, [method]);
+  }, [method, serverOnly]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -64,8 +74,8 @@ const DirectOpenAIExample = () => {
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using chat API method');
         const result = await GPTService.sendChatMessage(prompt);
         setResponse(JSON.stringify(result, null, 2));
-      } else if (method === 'client') {
-        // Direct OpenAI client method
+      } else if (method === 'client' && !serverOnly) {
+        // Direct OpenAI client method (only available if not in server-only mode)
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using client method');
         const client = GPTService.getOpenAIClient();
         
@@ -95,15 +105,18 @@ const DirectOpenAIExample = () => {
 
         setResponse(completion.choices[0].message.content || 'No response received');
       } else {
-        // Vercel proxy server method
-        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using Vercel proxy method');
+        // Server proxy method
+        console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using Server proxy method');
         const proxyUrl = GPTService.getServerProxyUrl();
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: Server proxy URL:', proxyUrl);
         
-        const apiKey = GPTService.getApiKey();
-        if (!apiKey && method === 'vercel' && !GPTService.getUseServerProxy()) {
-          console.error('[API_KEY_DEBUG] DirectOpenAIExample: API key required but not set');
-          throw new Error('API key is required if not using server proxy. Please set it in Settings.');
+        // In server-only mode, we don't need to check for API key
+        if (!serverOnly) {
+          const apiKey = GPTService.getApiKey();
+          if (!apiKey && method === 'vercel' && !GPTService.getUseServerProxy()) {
+            console.error('[API_KEY_DEBUG] DirectOpenAIExample: API key required but not set');
+            throw new Error('API key is required if not using server proxy. Please set it in Settings.');
+          }
         }
         
         toast.info(`Sending request to server: ${proxyUrl}`);
@@ -112,16 +125,21 @@ const DirectOpenAIExample = () => {
           'Content-Type': 'application/json',
         };
         
-        // Only add Authorization header if API key is set and not empty
-        if (apiKey && apiKey.trim() !== '') {
-          if (!isValidApiKey(apiKey)) {
-            console.error('[API_KEY_DEBUG] DirectOpenAIExample: Invalid API key format:', apiKey.substring(0, 3) + '...');
-            throw new Error('Invalid API key format. Key should start with "sk-"');
+        // Only add Authorization header if not in server-only mode and API key is set
+        if (!serverOnly) {
+          const apiKey = GPTService.getApiKey();
+          if (apiKey && apiKey.trim() !== '') {
+            if (!isValidApiKey(apiKey)) {
+              console.error('[API_KEY_DEBUG] DirectOpenAIExample: Invalid API key format:', apiKey.substring(0, 3) + '...');
+              throw new Error('Invalid API key format. Key should start with "sk-"');
+            }
+            headers['Authorization'] = `Bearer ${apiKey}`;
+            console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using API key in request:', apiKey.substring(0, 5) + '...' + apiKey.slice(-5));
+          } else {
+            console.warn('[API_KEY_DEBUG] DirectOpenAIExample: No API key provided for request, server will use its own API key');
           }
-          headers['Authorization'] = `Bearer ${apiKey}`;
-          console.log('[API_KEY_DEBUG] DirectOpenAIExample: Using API key in request:', apiKey.substring(0, 5) + '...' + apiKey.slice(-5));
         } else {
-          console.warn('[API_KEY_DEBUG] DirectOpenAIExample: No API key provided for request, server will use its own API key');
+          console.log('[API_KEY_DEBUG] DirectOpenAIExample: Server-only mode, server will use its own API key');
         }
         
         console.log('[API_KEY_DEBUG] DirectOpenAIExample: Request headers:', JSON.stringify(headers, (key, value) => 
@@ -185,7 +203,18 @@ const DirectOpenAIExample = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!apiKeySet && method === 'client' && (
+        {/* Server-only mode notice */}
+        {serverOnly && (
+          <Alert variant="default" className="bg-blue-50 border-blue-200 mb-4">
+            <ShieldCheck className="h-4 w-4 text-blue-600" />
+            <AlertTitle>Server-Only Mode</AlertTitle>
+            <AlertDescription className="text-sm">
+              API key is stored securely on the server and all requests are proxied through your server.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {!serverOnly && !apiKeySet && method === 'client' && (
           <Alert variant="default" className="bg-yellow-50 border-yellow-200">
             <Info className="h-4 w-4" />
             <AlertTitle>API Key Required</AlertTitle>
@@ -195,7 +224,7 @@ const DirectOpenAIExample = () => {
           </Alert>
         )}
         
-        {apiKeySet && !apiKeyValid && method === 'client' && (
+        {!serverOnly && apiKeySet && !apiKeyValid && method === 'client' && (
           <Alert variant="destructive">
             <Shield className="h-4 w-4" />
             <AlertTitle>Invalid API Key Format</AlertTitle>
@@ -215,18 +244,21 @@ const DirectOpenAIExample = () => {
         
         <Tabs value={method} onValueChange={(v) => setMethod(v as 'client' | 'vercel' | 'chat')}>
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="client">Direct Client</TabsTrigger>
+            <TabsTrigger value="client" disabled={serverOnly}>Direct Client</TabsTrigger>
             <TabsTrigger value="vercel">Server Proxy</TabsTrigger>
             <TabsTrigger value="chat">Simple Chat</TabsTrigger>
           </TabsList>
           <TabsContent value="client">
             <p className="text-sm text-muted-foreground mb-4">
-              Using the OpenAI client directly with your API key (API key required)
+              {serverOnly 
+                ? "Direct client is disabled in server-only mode" 
+                : "Using the OpenAI client directly with your API key (API key required)"}
             </p>
           </TabsContent>
           <TabsContent value="vercel">
             <p className="text-sm text-muted-foreground mb-4">
-              Using your server as a proxy to avoid CORS issues (server API key will be used if available)
+              Using your server as a proxy to avoid CORS issues 
+              {serverOnly ? " (server API key will be used)" : " (server API key will be used if available)"}
             </p>
             {displayServerInfo()}
           </TabsContent>

@@ -76,6 +76,26 @@ class GPTService {
     return this.suggestionsService.getServerProxyUrl();
   }
 
+  /**
+   * Set server-only mode for all services
+   */
+  public setServerOnly(enabled: boolean): void {
+    console.log(`[${new Date().toISOString()}] Setting server-only mode: ${enabled}`);
+    this.suggestionsService.setServerOnly(enabled);
+    this.bilingualService.setServerOnly(enabled);
+    this.translationService.setServerOnly(enabled);
+    console.log(`[${new Date().toISOString()}] Server-only mode set for all services`);
+    
+    toast(enabled ? "API ключ хранится только на сервере" : "API ключ может храниться локально");
+  }
+  
+  /**
+   * Get server-only mode 
+   */
+  public getServerOnly(): boolean {
+    return this.suggestionsService.getServerOnly();
+  }
+
   public setResponseStyle(style: string): void {
     console.log(`[${new Date().toISOString()}] Setting response style: ${style}`);
     this.suggestionsService.setResponseStyle(style);

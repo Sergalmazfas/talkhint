@@ -10,6 +10,7 @@ export interface GPTServiceConfig {
   maxRetries: number;
   timeoutMs: number;
   debugMode: boolean;
+  serverOnly: boolean; // New flag to indicate server-only mode
 }
 
 /**
@@ -22,10 +23,11 @@ export const DEFAULT_CONFIG: GPTServiceConfig = {
   serverProxyUrl: window.location.hostname.includes('localhost') 
     ? 'http://localhost:3000/api' 
     : (window.location.origin + '/api'),
-  useServerProxy: true, // Default to proxy for better compatibility
+  useServerProxy: true, // Always use proxy by default
   maxRetries: 3,
   timeoutMs: 60000,
   debugMode: true, // Enable debug mode by default for easier troubleshooting
+  serverOnly: true, // Default to server-only mode
 };
 
 /**
@@ -50,5 +52,6 @@ export const STORAGE_KEYS = {
   RESPONSE_STYLE: 'response_style',
   USE_SERVER_PROXY: 'use_server_proxy',
   SERVER_PROXY_URL: 'server_proxy_url',
-  DEBUG_MODE: 'debug_mode'
+  DEBUG_MODE: 'debug_mode',
+  SERVER_ONLY: 'server_only'
 };

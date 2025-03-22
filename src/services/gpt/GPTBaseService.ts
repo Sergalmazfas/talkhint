@@ -13,6 +13,8 @@ import {
   saveServerProxyUrlToStorage,
   loadDebugModeFromStorage,
   saveDebugModeToStorage,
+  loadServerOnlyModeFromStorage,
+  saveServerOnlyModeToStorage,
   isValidApiKey
 } from './config/GPTServiceConfig';
 import { GPTRequestService } from './utils/GPTRequestService';
@@ -34,6 +36,11 @@ class GPTBaseService {
     // Try to load settings from localStorage on initialization
     this.loadSettingsFromStorage();
     
+    // In server-only mode, enforce proxy usage
+    if (this.config.serverOnly) {
+      this.config.useServerProxy = true;
+    }
+    
     // Initialize the request service
     this.requestService = new GPTRequestService(this.config);
 
@@ -45,26 +52,43 @@ class GPTBaseService {
    * Load all settings from localStorage
    */
   private loadSettingsFromStorage(): void {
-    // Load API key
-    const storedKey = loadApiKeyFromStorage();
-    if (storedKey) {
-      if (isValidApiKey(storedKey)) {
-        this.config.apiKey = storedKey;
-        GPTLogger.log(undefined, `API key loaded from storage: ${storedKey.substring(0, 5)}...${storedKey.slice(-5)}`);
+    // Load server-only mode first
+    const serverOnly = loadServerOnlyModeFromStorage();
+    this.config.serverOnly = serverOnly;
+    GPTLogger.log(undefined, `Server-only mode: ${serverOnly}`);
+
+    // Load API key (if not in server-only mode)
+    if (!serverOnly) {
+      const storedKey = loadApiKeyFromStorage();
+      if (storedKey) {
+        if (isValidApiKey(storedKey)) {
+          this.config.apiKey = storedKey;
+          GPTLogger.log(undefined, `API key loaded from storage: ${storedKey.substring(0, 5)}...${storedKey.slice(-5)}`);
+        } else {
+          GPTLogger.warn(undefined, `Invalid API key format found in storage: ${storedKey.substring(0, 3)}...`);
+          this.config.apiKey = null;
+        }
       } else {
-        GPTLogger.warn(undefined, `Invalid API key format found in storage: ${storedKey.substring(0, 3)}...`);
         this.config.apiKey = null;
+        GPTLogger.log(undefined, 'No API key found in storage');
       }
     } else {
+      // In server-only mode, we don't need or use client-side API key
       this.config.apiKey = null;
-      GPTLogger.log(undefined, 'No API key found in storage');
+      GPTLogger.log(undefined, 'Server-only mode: not loading API key from storage');
     }
     
-    // Load proxy setting
-    const useServerProxy = loadUseServerProxyFromStorage();
-    if (useServerProxy !== null) {
-      this.config.useServerProxy = useServerProxy;
-      GPTLogger.log(undefined, `Server proxy setting loaded from storage: ${useServerProxy}`);
+    // Load proxy setting (if not in server-only mode)
+    if (!serverOnly) {
+      const useServerProxy = loadUseServerProxyFromStorage();
+      if (useServerProxy !== null) {
+        this.config.useServerProxy = useServerProxy;
+        GPTLogger.log(undefined, `Server proxy setting loaded from storage: ${useServerProxy}`);
+      }
+    } else {
+      // In server-only mode, always use proxy
+      this.config.useServerProxy = true;
+      GPTLogger.log(undefined, 'Server-only mode: always using proxy');
     }
     
     // Load server proxy URL
@@ -93,6 +117,7 @@ class GPTBaseService {
    * Log current configuration
    */
   private logConfiguration(): void {
+    GPTLogger.log(undefined, `Server-only mode: ${this.config.serverOnly}`);
     GPTLogger.log(undefined, `API key status: ${this.config.apiKey ? 'Set' : 'Not set'}`);
     if (this.config.apiKey) {
       GPTLogger.log(undefined, `API key format: ${this.config.apiKey.substring(0, 5)}...${this.config.apiKey.slice(-5)}`);
@@ -108,6 +133,11 @@ class GPTBaseService {
    * Returns null if no API key is set
    */
   public getOpenAIClient(): OpenAI | null {
+    // In server-only mode, direct client is not available
+    if (this.config.serverOnly) {
+      GPTLogger.log(undefined, 'Server-only mode: OpenAI client not available');
+      return null;
+    }
     return GPTClientFactory.createClient(this.config);
   }
 
@@ -115,6 +145,13 @@ class GPTBaseService {
    * Set the API key and validate its format
    */
   public setApiKey(key: string): boolean {
+    // In server-only mode, don't allow setting API key
+    if (this.config.serverOnly) {
+      GPTLogger.warn(undefined, 'Server-only mode: Cannot set API key client-side');
+      toast.info('В серверном режиме API ключ хранится только на сервере');
+      return false;
+    }
+    
     if (!key || key.trim() === '') {
       GPTLogger.warn(undefined, 'Attempted to set empty API key');
       toast.warning('API ключ не может быть пустым');
@@ -151,6 +188,13 @@ class GPTBaseService {
   }
 
   public setUseServerProxy(use: boolean) {
+    // In server-only mode, don't allow disabling proxy
+    if (this.config.serverOnly && !use) {
+      GPTLogger.warn(undefined, 'Server-only mode: Cannot disable proxy');
+      toast.info('В серверном режиме прокси всегда включен');
+      return;
+    }
+    
     this.config.useServerProxy = use;
     saveUseServerProxyToStorage(use);
     this.requestService.updateConfig(this.config);
@@ -201,6 +245,34 @@ class GPTBaseService {
   public getDebugMode(): boolean {
     return this.config.debugMode;
   }
+  
+  /**
+   * Set server-only mode
+   */
+  public setServerOnly(enabled: boolean) {
+    this.config.serverOnly = enabled;
+    saveServerOnlyModeToStorage(enabled);
+    
+    // If enabling server-only mode, also enable proxy
+    if (enabled) {
+      this.config.useServerProxy = true;
+      saveUseServerProxyToStorage(true);
+    }
+    
+    this.requestService.updateConfig(this.config);
+    GPTLogger.log(undefined, `Server-only mode set to: ${enabled}`);
+    
+    toast.success(enabled 
+      ? 'Включен серверный режим (API ключ хранится только на сервере)' 
+      : 'Выключен серверный режим (API ключ можно хранить локально)');
+  }
+  
+  /**
+   * Get server-only mode setting
+   */
+  public getServerOnly(): boolean {
+    return this.config.serverOnly;
+  }
 
   /**
    * Send a simple message to the chat API on lovable.dev
@@ -217,6 +289,12 @@ class GPTBaseService {
 
   public async checkApiConnection(): Promise<boolean> {
     GPTLogger.log(undefined, 'Checking GPT API connection');
+    
+    // Always consider connection successful when using the proxy in server-only mode
+    if (this.config.serverOnly) {
+      GPTLogger.log(undefined, 'Server-only mode - assuming connection is valid, server has API key');
+      return true;
+    }
     
     // Always consider connection successful when using the proxy
     if (this.config.useServerProxy) {

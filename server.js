@@ -1,4 +1,3 @@
-
 import cors from "cors";
 import express from "express";
 import axios from "axios";
@@ -111,7 +110,9 @@ app.get("/api", (req, res) => {
         timestamp: new Date().toISOString(),
         origin: req.headers.origin || 'unknown',
         headers: req.headers,
-        cors: "enabled"
+        cors: "enabled",
+        serverOnly: "enabled",
+        apiKeyStatus: process.env.OPENAI_API_KEY ? "set" : "not set"
     });
 });
 
@@ -142,51 +143,41 @@ app.post("/api/chat", (req, res) => {
 // Proxy route for OpenAI API with improved error handling and environment variable support
 app.post("/api/openai/chat/completions", async (req, res) => {
     try {
-        // First try to get API key from request headers, then from environment variable
-        const authHeader = req.headers.authorization;
+        // Get API key from environment variable - server-only mode prioritizes this
         let apiKey = process.env.OPENAI_API_KEY || '';
+        const authHeader = req.headers.authorization;
         
         // Detailed logging of API key source and format (FOR DEBUGGING ONLY - REMOVE IN PRODUCTION!)
-        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Auth header exists: ${!!authHeader}`);
-        if (authHeader) {
-            console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Auth header format: ${authHeader.substring(0, 7)}...`);
-        }
-        
+        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Server-only mode: Using server's API key first`);
         console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Environment API key exists: ${!!process.env.OPENAI_API_KEY}`);
-        if (process.env.OPENAI_API_KEY) {
-            console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Environment API key format: ${process.env.OPENAI_API_KEY.substring(0, 5)}...${process.env.OPENAI_API_KEY.slice(-5)}`);
-        }
         
-        // Process API key from header if available
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            const headerKey = authHeader.substring(7); // Remove 'Bearer ' prefix
-            // Only use header key if it's not empty and valid format
-            if (headerKey && headerKey.trim() !== 'null' && headerKey !== 'undefined') {
-                if (headerKey.trim().startsWith('sk-')) {
-                    apiKey = headerKey.trim();
-                    console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Using valid API key from request header: ${apiKey.substring(0, 5)}...${apiKey.slice(-5)}`);
-                } else {
-                    console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Invalid API key format in header: "${headerKey.substring(0, 3)}..."`);
+        // Check if we have an API key in the environment
+        if (!apiKey || apiKey.trim() === '') {
+            console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] No API key in environment, checking request headers`);
+            
+            // If no environment key, try to use from request headers as fallback
+            if (authHeader && authHeader.startsWith('Bearer ')) {
+                const headerKey = authHeader.substring(7); // Remove 'Bearer ' prefix
+                if (headerKey && headerKey.trim() !== 'null' && headerKey !== 'undefined') {
+                    if (headerKey.trim().startsWith('sk-')) {
+                        apiKey = headerKey.trim();
+                        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Falling back to API key from request header: ${apiKey.substring(0, 5)}...${apiKey.slice(-5)}`);
+                    } else {
+                        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Invalid API key format in header: "${headerKey.substring(0, 3)}..."`);
+                    }
                 }
-            } else {
-                console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Invalid API key in header: "${headerKey}"`);
             }
         } else {
-            console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] No API key in Authorization header or invalid format`);
+            console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Using API key from environment: ${apiKey.substring(0, 5)}...${apiKey.slice(-5)}`);
         }
-        
-        // Detailed request logging
-        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Request headers:`, JSON.stringify(req.headers, null, 2));
-        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Request body model:`, req.body.model);
-        console.log(`[${new Date().toISOString()}] [API_KEY_DEBUG] Request body message count:`, req.body.messages?.length || 0);
         
         // Validate API key
         if (!apiKey || apiKey.trim() === '') {
-            console.error(`[${new Date().toISOString()}] [API_KEY_DEBUG] API key missing in request and environment`);
+            console.error(`[${new Date().toISOString()}] [API_KEY_DEBUG] API key missing in both server environment and request`);
             return res.status(401).json({ 
                 error: "API key is required", 
-                message: "No valid API key provided in request or server environment",
-                details: "The Authorization header should contain 'Bearer YOUR_OPENAI_API_KEY'",
+                message: "No valid API key provided in server environment or request",
+                details: "Please set OPENAI_API_KEY in your server environment variables",
                 timestamp: new Date().toISOString()
             });
         }
@@ -217,9 +208,6 @@ app.post("/api/openai/chat/completions", async (req, res) => {
         );
         
         console.log(`[${new Date().toISOString()}] OpenAI API response received successfully`);
-        console.log(`[${new Date().toISOString()}] Response status:`, response.status);
-        console.log(`[${new Date().toISOString()}] Response headers:`, JSON.stringify(response.headers, null, 2));
-        console.log(`[${new Date().toISOString()}] Response data:`, JSON.stringify(response.data, null, 2));
         
         res.json(response.data);
     } catch (error) {
@@ -271,6 +259,7 @@ app.get("/api/health", (req, res) => {
         version: "1.0.0",
         environment: process.env.NODE_ENV || "development",
         hasApiKey: Boolean(process.env.OPENAI_API_KEY),
+        serverOnly: true,
         timestamp: new Date().toISOString(),
         headers: {
             origin: req.headers.origin || 'unknown',

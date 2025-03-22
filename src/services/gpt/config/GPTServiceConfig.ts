@@ -13,7 +13,9 @@ import {
   loadServerProxyUrlFromStorage,
   saveServerProxyUrlToStorage,
   loadDebugModeFromStorage,
-  saveDebugModeToStorage
+  saveDebugModeToStorage,
+  loadServerOnlyModeFromStorage,
+  saveServerOnlyModeToStorage
 } from './GPTConfigStorage';
 
 // Export everything for backward compatibility
@@ -39,5 +41,7 @@ export {
   loadServerProxyUrlFromStorage,
   saveServerProxyUrlToStorage,
   loadDebugModeFromStorage,
-  saveDebugModeToStorage
+  saveDebugModeToStorage,
+  loadServerOnlyModeFromStorage,
+  saveServerOnlyModeToStorage
 };
